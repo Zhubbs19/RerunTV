@@ -66,17 +66,34 @@ export const MIN_FIT_BREAK_S = 1;
 // becomes one break rather than several tiny ones.
 const MIN_SPREAD_BREAK_S = 60;
 
+/**
+ * Clamps a value to a range, or returns a fallback when it isn't a number.
+ * @param {*} v The value to read as a number.
+ * @param {number} lo The smallest value allowed.
+ * @param {number} hi The largest value allowed.
+ * @param {number} fallback What to return when `v` isn't a finite number.
+ * @returns {number} The clamped number, or the fallback.
+ */
 function clampNum(v, lo, hi, fallback) {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : fallback;
 }
 
+/**
+ * Whether a setting has a value (not null, undefined or an empty string).
+ * @param {*} v The setting value.
+ * @returns {boolean} True when the value was set.
+ */
 function given(v) {
   return v != null && v !== '';
 }
 
-// Clamps every field to a sane range so a hand-edited or half-saved config
-// can't produce a negative slot or a divide by zero.
+/**
+ * Clamps every field to a sane range so a hand-edited or half-saved config
+ * can't produce a negative slot or a divide by zero.
+ * @param {?object} raw The fit settings as stored (may be partial or missing).
+ * @returns {object} A complete fit config with every field in range.
+ */
 export function normalizeFitConfig(raw) {
   const r = raw || {};
   const d = FIT_DEFAULTS;
@@ -105,12 +122,16 @@ export function normalizeFitConfig(raw) {
   };
 }
 
-// The box-wide settings (S.config.programFit) with a channel's own
-// (ch.programFit) laid over them, or null when fitting is off for this
-// channel. ch.programFit.mode: 'on' | 'off' | unset (follow the box). For the
-// credits fields, a channel's END CREDITS panel (ch.creditsSpeedup, while it
-// is on) sits between the two: ch.programFit, then ch.creditsSpeedup, then
-// the box.
+/**
+ * The box-wide settings (S.config.programFit) with a channel's own
+ * (ch.programFit) laid over them, or null when fitting is off for this
+ * channel. ch.programFit.mode: 'on' | 'off' | unset (follow the box). For the
+ * credits fields, a channel's END CREDITS panel (ch.creditsSpeedup, while it
+ * is on) sits between the two: ch.programFit, then ch.creditsSpeedup, then
+ * the box.
+ * @param {?object} ch The channel.
+ * @returns {?object} The normalized fit config, or null when fitting is off.
+ */
 export function fitConfigFor(ch) {
   if (!ch) return null;
   const box = (S.config && S.config.programFit) || {};
@@ -131,21 +152,37 @@ export function fitConfigFor(ch) {
   return normalizeFitConfig(merged);
 }
 
+/**
+ * A file's length in seconds, or 0 when it is missing or not a positive number.
+ * @param {?object} file The playlist file.
+ * @returns {number} The duration in seconds.
+ */
 function fileDurationS(file) {
   const d = Number(file && file.duration);
   return Number.isFinite(d) && d > 0 ? d : 0;
 }
 
+/**
+ * Whether a file is tagged as a movie (its content-type facet).
+ * @param {?object} file The playlist file.
+ * @returns {boolean} True for a movie.
+ */
 function isMovie(file) {
   return !!(file && file.facets && file.facets.contentType === 'movie');
 }
 
-// Where a spread layout's n-1 in-program breaks go, in seconds of the
-// program (before its credits): even points, each moved to a nearby fade to
-// black while PROGRAMMING › CADENCE & PRESETS › "Line up mid-show breaks with
-// fades" is on (core/fades.js). A point with no fade in reach keeps its even
-// spot; one crowded out by its neighbour is dropped, and its time goes to the
-// break after the program.
+/**
+ * Where a spread layout's n-1 in-program breaks go, in seconds of the
+ * program (before its credits): even points, each moved to a nearby fade to
+ * black while PROGRAMMING › CADENCE & PRESETS › "Line up mid-show breaks with
+ * fades" is on (core/fades.js). A point with no fade in reach keeps its even
+ * spot; one crowded out by its neighbour is dropped, and its time goes to the
+ * break after the program.
+ * @param {object} file The playlist file (its fades are read).
+ * @param {number} body Seconds of program before the credits.
+ * @param {number} n How many breaks the slot gets in all (n-1 fall inside the program).
+ * @returns {Array<number>} The break points, in seconds of the program.
+ */
 function spreadBreakPoints(file, body, n) {
   const even = [];
   for (let k = 1; k < n; k++) even.push((body * k) / n);
@@ -157,11 +194,18 @@ function spreadBreakPoints(file, body, n) {
     .map((ms) => ms / 1000);
 }
 
-// The plan for one program starting cursorS seconds into a grid-aligned loop.
-// Returns null when the file airs as is: zero length, or shorter than
-// minProgramMinutes (a run of shorts is fitted as a group, by whichever full
-// program follows it; the loop's last file is always fitted so the loop
-// itself lasts a whole number of grid slots).
+/**
+ * The plan for one program starting cursorS seconds into a grid-aligned loop.
+ * Returns null when the file airs as is: zero length, or shorter than
+ * minProgramMinutes (a run of shorts is fitted as a group, by whichever full
+ * program follows it; the loop's last file is always fitted so the loop
+ * itself lasts a whole number of grid slots).
+ * @param {object} file The playlist file.
+ * @param {number} cursorS Seconds into the loop where the program starts.
+ * @param {boolean} isLast Whether this is the loop's last file with a length.
+ * @param {object} cfg The normalized fit config (fitConfigFor).
+ * @returns {?object} The plan (slotS, contentS, airS, mode, trimmed, savedS, rates, creditsAtS, breakS and segments), or null.
+ */
 export function planFit(file, cursorS, isLast, cfg) {
   const d = fileDurationS(file);
   if (d <= 0) return null;
@@ -263,9 +307,14 @@ export function planFit(file, cursorS, isLast, cfg) {
   };
 }
 
-// Where the airing is `airS` seconds into a fitted slot:
-//   { kind: 'content' | 'credits', contentS, rate, segAirEnd } or
-//   { kind: 'break', index, contentS (the frame the program stopped on), segAirStart, segAirEnd }.
+/**
+ * Where the airing is `airS` seconds into a fitted slot:
+ *   { kind: 'content' | 'credits', contentS, rate, segAirEnd } or
+ *   { kind: 'break', index, contentS (the frame the program stopped on), segAirStart, segAirEnd }.
+ * @param {object} plan The file's fit plan (planFit).
+ * @param {number} airS Seconds into the slot.
+ * @returns {object} The segment in effect and the matching seconds into the video file.
+ */
 export function mapFitAir(plan, airS) {
   const segs = plan.segments;
   for (let i = 0; i < segs.length; i++) {
@@ -291,6 +340,13 @@ export function mapFitAir(plan, airS) {
 let fitCache = new WeakMap();
 let fitCacheGen = -1;
 
+/**
+ * The file list with every file swapped for its fitted copy (a file that airs
+ * as is stays the same object). Uses the per-array cache above.
+ * @param {Array<object>} files The source's files.
+ * @param {object} cfg The normalized fit config.
+ * @returns {Array<object>} The files as they air.
+ */
 export function fittedFiles(files, cfg) {
   if (S.configGeneration !== fitCacheGen) {
     fitCache = new WeakMap();
@@ -315,16 +371,26 @@ export function fittedFiles(files, cfg) {
   return out;
 }
 
-// Floors an anchor to the grid in local time, so slot boundaries are the
-// clock's own :00 and :30.
+/**
+ * Floors an anchor to the grid in local time, so slot boundaries are the
+ * clock's own :00 and :30.
+ * @param {number} anchorMs The source's anchor, in ms.
+ * @param {number} gridMinutes The grid size in minutes (15, 30 or 60).
+ * @returns {number} The aligned anchor, in ms.
+ */
 export function alignToGrid(anchorMs, gridMinutes) {
   const d = new Date(anchorMs);
   d.setMinutes(Math.floor(d.getMinutes() / gridMinutes) * gridMinutes, 0, 0);
   return d.getTime();
 }
 
-// The source as it airs with fitting applied, or the source unchanged when
-// fitting is off for this channel.
+/**
+ * The source as it airs with fitting applied, or the source unchanged when
+ * fitting is off for this channel.
+ * @param {object} ch The channel.
+ * @param {?object} source The active source (files and anchor).
+ * @returns {?object} A fitted copy of the source, or the source itself.
+ */
 export function applyFit(ch, source) {
   if (!source || !source.files || !source.files.length || !source.anchor) return source;
   const cfg = fitConfigFor(ch);
@@ -332,13 +398,18 @@ export function applyFit(ch, source) {
   return { ...source, files: fittedFiles(source.files, cfg), anchor: alignToGrid(source.anchor, cfg.gridMinutes), fit: cfg };
 }
 
-// The END CREDITS speed-up (a channel's BREAKS › END CREDITS, or a file's own
-// lead) for a file on a channel that is NOT fitted: { leadS, rate }, or null
-// when it doesn't apply. The break plan (interstitials.js planBreaks) puts it
-// in the schedule and broadcast-fx.js's scheduleCreditsSpeedup reads the same
-// answer, so the two can't disagree. leadS (seconds before the end where the
-// credits start) is the file's own value, else where its credits were found,
-// else the channel's lead; MAX TIME SAVED starts it later.
+/**
+ * The END CREDITS speed-up (a channel's BREAKS › END CREDITS, or a file's own
+ * lead) for a file on a channel that is NOT fitted: { leadS, rate }, or null
+ * when it doesn't apply. The break plan (interstitials.js planBreaks) puts it
+ * in the schedule and broadcast-fx.js's scheduleCreditsSpeedup reads the same
+ * answer, so the two can't disagree. leadS (seconds before the end where the
+ * credits start) is the file's own value, else where its credits were found,
+ * else the channel's lead; MAX TIME SAVED starts it later.
+ * @param {?object} ch The channel.
+ * @param {object} file The playlist file.
+ * @returns {?object} `{ leadS, rate }`, or null.
+ */
 export function creditsSpeedupFor(ch, file) {
   const cfg = ch && ch.creditsSpeedup;
   let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? (foundCreditsLead(file, S.config) || cfg.leadSeconds) : null);
@@ -355,19 +426,27 @@ export function creditsSpeedupFor(ch, file) {
   return { leadS, rate };
 }
 
-// The plain playlist entry behind a file as it airs: a fitted or break-planned
-// copy (resolveActiveSource's files) carries its air length in `duration` and
-// its plan in `fit`, neither of which belongs in channels.json. Anything that
-// copies an airing's files into config goes through this first.
+/**
+ * The plain playlist entry behind a file as it airs: a fitted or break-planned
+ * copy (resolveActiveSource's files) carries its air length in `duration` and
+ * its plan in `fit`, neither of which belongs in channels.json. Anything that
+ * copies an airing's files into config goes through this first.
+ * @param {?object} file The file as it airs.
+ * @returns {?object} The file without its plan and with its real duration, or the file itself when it has no plan.
+ */
 export function plainFileEntry(file) {
   if (!file || !file.fit) return file;
   const { fit, ...rest } = file;
   return { ...rest, duration: fit.contentS };
 }
 
-// What the program's sound does while its credits run fast: the channel's END
-// CREDITS choice (when that panel is on), else the fit settings when the
-// channel is fitted, else mute.
+/**
+ * What the program's sound does while its credits run fast: the channel's END
+ * CREDITS choice (when that panel is on), else the fit settings when the
+ * channel is fitted, else mute.
+ * @param {?object} ch The channel.
+ * @returns {string} 'mute', 'keep' or 'lower'.
+ */
 export function creditsAudioFor(ch) {
   const cs = ch && ch.creditsSpeedup;
   if (cs && cs.enabled && CREDITS_AUDIO.includes(cs.audio)) return cs.audio;
@@ -375,19 +454,32 @@ export function creditsAudioFor(ch) {
   return cfg ? cfg.creditsAudio : 'mute';
 }
 
-// The seconds into the video file a position from computeSourcePosition
-// means: its fitted content offset when the file is fitted, else its offset.
+/**
+ * The seconds into the video file a position from computeSourcePosition
+ * means: its fitted content offset when the file is fitted, else its offset.
+ * @param {?object} pos A position from computeSourcePosition.
+ * @returns {number} Seconds into the video file.
+ */
 export function seekOffsetOf(pos) {
   if (!pos) return 0;
   return pos.contentOffset != null ? pos.contentOffset : pos.offset;
 }
 
-// The playback rate the program runs at for a position (1 unless fitted).
+/**
+ * The playback rate the program runs at for a position (1 unless fitted).
+ * @param {?object} pos A position from computeSourcePosition.
+ * @returns {number} The playback rate.
+ */
 export function playbackRateOf(pos) {
   return pos && pos.fitAt && pos.fitAt.kind !== 'break' ? pos.fitAt.rate : 1;
 }
 
-// The disclaimer card text for a fitted program, or null when nothing was cut.
+/**
+ * The disclaimer card text for a fitted program, or null when nothing was cut.
+ * @param {?object} cfg The channel's fit config.
+ * @param {?object} file The fitted file.
+ * @returns {string|null} The disclaimer text in capitals, or null.
+ */
 export function fitDisclaimerFor(cfg, file) {
   if (!cfg || !cfg.disclaimer || !file || !file.fit || !file.fit.trimmed) return null;
   if (cfg.disclaimerText) return cfg.disclaimerText.toUpperCase();

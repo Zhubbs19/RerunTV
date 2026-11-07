@@ -7,7 +7,15 @@
 // recently set, including staying null in --headless mode.
 let mainWindow = null;
 
+/**
+ * Records the current main window (or null).
+ * @param {?Electron.BrowserWindow} win The window main.js just created, or null.
+ */
 function setMainWindow(win) { mainWindow = win; }
+/**
+ * The main window main.js most recently set.
+ * @returns {?Electron.BrowserWindow} The current main window, or null (always null in headless mode).
+ */
 function getMainWindow() { return mainWindow; }
 
 module.exports = { setMainWindow, getMainWindow };

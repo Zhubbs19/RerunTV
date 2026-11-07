@@ -49,6 +49,13 @@ function reportCompanionTheme(boxThemeId, themeId, uiMode) {
   if (window.api && typeof window.api.sendRemoteState === 'function') pushRemoteState();
 }
 
+/**
+ * Applies the effective theme to the document.
+ * Picks the box or channel theme (or the personal profile's), sets the UI layout, `data-theme`,
+ * the guide layout, font overrides, and refreshes theme audio, CRT bias and the bezel.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.boxOnly=false] Use the box theme even if the tuned channel has its own.
+ */
 export function applyTheme({ boxOnly = false } = {}) {
   const personalTheme = S.personalProfile?.state?.theme;
   const themeConfig = personalTheme ? { ...S.config, theme: personalTheme } : S.config;
@@ -106,9 +113,12 @@ export function applyTheme({ boxOnly = false } = {}) {
 
 window.applyTheme = applyTheme;
 
-// Contrast-checks every theme pack once its stylesheet has loaded, in idle
-// time (theme-check.js). Results feed the theme browser's "Low contrast"
-// badge and Plug-ins › Diagnostics; a failing theme still loads.
+/**
+ * Contrast-checks every theme pack once its stylesheet has loaded, in idle
+ * time (theme-check.js). Results feed the theme browser's "Low contrast"
+ * badge and Plug-ins › Diagnostics; a failing theme still loads.
+ * @returns {Promise<Array<object>>} Every check result, or an empty array if the check failed.
+ */
 export async function startThemeCheck() {
   try {
     await pluginStylesReady();

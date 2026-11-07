@@ -12,11 +12,14 @@ import { NumberStepper, Select, Slider, Toggle } from '../ui/controls.js';
 import { SettingRow, syncSettingDependencies } from '../ui/field.js';
 import { h } from '../ui/kit-core.js';
 
-// A plugin's settings markup is its own, and many controls are written as
-// bare text followed by a <select>/<input> with nothing tying them together.
-// Give every control that has no accessible name one: the text of its row
-// (the nearest .panel-interval / .block-row / label, minus other controls'
-// values), else its data-el. Re-run as the section redraws parts of itself.
+/**
+ * A plugin's settings markup is its own, and many controls are written as
+ * bare text followed by a <select>/<input> with nothing tying them together.
+ * Give every control that has no accessible name one: the text of its row
+ * (the nearest .panel-interval / .block-row / label, minus other controls'
+ * values), else its data-el. Re-run as the section redraws parts of itself.
+ * @param {HTMLElement} root The settings section to scan.
+ */
 export function labelUnlabeledControls(root) {
   root.querySelectorAll('input, select, textarea').forEach((el) => {
     if (el.type === 'hidden' || el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.title) return;
@@ -33,10 +36,18 @@ export function labelUnlabeledControls(root) {
 }
 
 // ---------- Declarative fields (docs/design/04 §5) ----------
-// A section's fields become SettingRows of kit controls. Each change writes
-// one dotted path through updatePluginSettings, so the plugin's validate()
-// still gates every write; a rejected value shows under its row and the
-// control goes back to the saved value.
+/**
+ * Builds the kit control for one declarative settings field.
+ * A section's fields become SettingRows of kit controls. Each change writes
+ * one dotted path through updatePluginSettings, so the plugin's validate()
+ * still gates every write; a rejected value shows under its row and the
+ * control goes back to the saved value.
+ * @param {object} field The field declaration (`type`, `label`, `min`, `max`, `options`, ...).
+ * @param {*} value The current value.
+ * @param {(value: *) => void} onValue Called with each new value.
+ * @param {string} id Element id for the control.
+ * @returns {HTMLElement} The control.
+ */
 function fieldControl(field, value, onValue, id) {
   if (field.type === 'toggle') return Toggle({ id, checked: !!value, onChange: onValue });
   if (field.type === 'slider') {
@@ -51,6 +62,13 @@ function fieldControl(field, value, onValue, id) {
   return input;
 }
 
+/**
+ * Draws a declarative settings section as setting rows.
+ * @param {HTMLElement} target The section container (emptied first).
+ * @param {string} pluginId The plugin id.
+ * @param {object} section The section declaration with its `fields`.
+ * @param {object} [errors={}] Validation messages keyed by field key, shown under their rows.
+ */
 function renderFieldsSection(target, pluginId, section, errors = {}) {
   target.innerHTML = '';
   const idFor = (key) => `plugin-${pluginId}-${key.replace(/\./g, '-')}`;
@@ -87,6 +105,11 @@ function renderFieldsSection(target, pluginId, section, errors = {}) {
   syncSettingDependencies(target);
 }
 
+/**
+ * Appends `{ value, label }` options to a select.
+ * @param {HTMLSelectElement} select The select element.
+ * @param {Array<object>} options The options.
+ */
 function appendSelectOptions(select, options) {
   options.forEach(({ value, label }) => {
     const option = document.createElement('option');
@@ -96,10 +119,16 @@ function appendSelectOptions(select, options) {
   });
 }
 
-// Exported for reuse by setup-channels.js's PLUGIN CHANNELS section (the
-// same RESOLUTION/DISPLAY ASPECT override UI a channel-type plugin already
-// gets in its own PLUGINS-tab row, surfaced again next to the plugin's
-// name/number override there so both live together in the channel list).
+/**
+ * Draws a plugin channel's resolution and display aspect overrides.
+ * Exported for reuse by setup-channels.js's PLUGIN CHANNELS section (the
+ * same RESOLUTION/DISPLAY ASPECT override UI a channel-type plugin already
+ * gets in its own PLUGINS-tab row, surfaced again next to the plugin's
+ * name/number override there so both live together in the channel list).
+ * @param {HTMLElement} container The container (replaced).
+ * @param {string} pluginId The plugin id.
+ * @param {object} channelDefinition The plugin's channel definition.
+ */
 export function renderChannelDisplaySettings(container, pluginId, channelDefinition) {
   const values = getPluginChannelDisplaySettings(pluginId, channelDefinition);
   container.innerHTML = `
@@ -150,6 +179,11 @@ export const THEME_FONT_OPTIONS = [
   { value: "Georgia, 'Times New Roman', serif", label: 'SERIF' },
 ];
 
+/**
+ * Draws the font overrides for one theme.
+ * @param {HTMLElement} container The container (replaced).
+ * @param {string} themeId The theme id.
+ */
 export function renderThemeFontSettings(container, themeId) {
   if (!S.config.display.themeFontOverrides) S.config.display.themeFontOverrides = {};
   const values = S.config.display.themeFontOverrides[themeId] || {};
@@ -185,6 +219,13 @@ export function renderThemeFontSettings(container, themeId) {
   });
 }
 
+/**
+ * Draws a plugin's PLUGINS-tab settings: core sections plus the plugin's own, each isolated so one that throws shows a retry card instead of blanking the rest.
+ * @param {HTMLElement} container The settings container (emptied first).
+ * @param {object} plugin The plugin record (`id`, `settings`, `renderer`, ...).
+ * @param {?object} channelDefinition The plugin's channel definition, when it is a channel plugin.
+ * @param {Array<object>} sections The plugin's registered settings sections.
+ */
 export function renderPluginSettings(container, plugin, channelDefinition, sections) {
   container.innerHTML = '';
   // Plugin CSS scopes itself to [data-plugin="id"]; global selectors are unsupported.

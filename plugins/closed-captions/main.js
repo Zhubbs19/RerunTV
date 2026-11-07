@@ -15,18 +15,29 @@ const FFMPEG_TIMEOUT_MS = 60 * 1000;
 const FFMPEG_OUTPUT_LIMIT = 1024 * 1024;
 const EMBEDDED_TRACK_CACHE_MAX = 512;
 
+/**
+ * The sidecar caption paths to look for beside a video: same folder and base name, `.vtt` or `.srt`.
+ * @param {string} filePath The video file path.
+ * @returns {string[]} Candidate sidecar paths, which may not exist.
+ */
 function sidecarCandidates(filePath) {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, path.extname(filePath));
   return SUBTITLE_EXTENSIONS.map((ext) => path.join(dir, base + ext));
 }
 
-// Runs a spawned process to completion and resolves with its combined
-// stdout+stderr — ffmpeg writes its stream-info banner to stderr even on a
-// clean exit, and prints a real (non-zero) error for a file it can't open at
-// all, which the caller below treats as "no embedded streams" rather than a
-// hard failure (a corrupt/unreadable file should just mean "no captions
-// found," not break the tune-in it's not even blocking).
+/**
+ * Runs a spawned process to completion and resolves with its combined
+ * stdout+stderr — ffmpeg writes its stream-info banner to stderr even on a
+ * clean exit, and prints a real (non-zero) error for a file it can't open at
+ * all, which the caller below treats as "no embedded streams" rather than a
+ * hard failure (a corrupt/unreadable file should just mean "no captions
+ * found," not break the tune-in it's not even blocking).
+ * @param {string} ffmpegPath The ffmpeg executable.
+ * @param {string[]} args The command-line arguments.
+ * @param {Function} spawnFn The capability-checked `spawn` from the plugin context.
+ * @returns {Promise<object>} `{ ok, output }`; never rejects. `ok` is false on a non-zero exit, timeout or oversized output.
+ */
 function runFfmpeg(ffmpegPath, args, spawnFn) {
   return new Promise((resolve) => {
     const child = spawnFn(ffmpegPath, args, { windowsHide: true });
@@ -58,9 +69,13 @@ function runFfmpeg(ffmpegPath, args, spawnFn) {
   });
 }
 
-// Parses ffmpeg's own human-readable stream banner — lines look like:
-//   Stream #0:2(eng): Subtitle: subrip
-//   Stream #0:3(spa): Subtitle: ass
+/**
+ * Parses ffmpeg's own human-readable stream banner — lines look like:
+ *   Stream #0:2(eng): Subtitle: subrip
+ *   Stream #0:3(spa): Subtitle: ass
+ * @param {string} output ffmpeg's combined output.
+ * @returns {Array<object>} `{ type: 'embedded', index, lang, codec }` for each subtitle stream.
+ */
 function parseSubtitleStreams(output) {
   const streams = [];
   const re = /Stream #0:(\d+)(?:\(([a-z]{2,3})\))?[^:]*:\s*Subtitle:\s*(\w+)/gi;
@@ -72,6 +87,12 @@ function parseSubtitleStreams(output) {
   return streams;
 }
 
+/**
+ * The cache file name stem for one file and track: a SHA-1 of both.
+ * @param {string} filePath The video file path.
+ * @param {object} track The track descriptor from the scan.
+ * @returns {string} A hex digest.
+ */
 function cacheKeyFor(filePath, track) {
   return crypto.createHash('sha1').update(`${filePath}::${JSON.stringify(track)}`).digest('hex');
 }
@@ -88,6 +109,13 @@ function cacheKeyFor(filePath, track) {
 // FIX PLAYBACK transcode) won't be re-scanned until the app restarts.
 const embeddedTracksCache = new Map();
 
+/**
+ * The embedded subtitle streams in a file, scanned once per path per session.
+ * @param {string} filePath The video file path.
+ * @param {string} ffmpegPath The ffmpeg executable.
+ * @param {Function} spawn The plugin context's `spawn`.
+ * @returns {Promise<Array<object>>} The embedded track descriptors.
+ */
 async function embeddedTracksFor(filePath, ffmpegPath, spawn) {
   if (embeddedTracksCache.has(filePath)) return embeddedTracksCache.get(filePath);
   const result = await runFfmpeg(ffmpegPath, ['-hide_banner', '-i', filePath], spawn);
@@ -99,6 +127,11 @@ async function embeddedTracksFor(filePath, ffmpegPath, spawn) {
   return tracks;
 }
 
+/**
+ * Registers `captions:scanForFile` and `captions:extractTrack`.
+ * Extracted or converted tracks are cached as .vtt files in the plugin's data folder.
+ * @param {object} ctx The main-process plugin context (`ipcMain`, `fs`, `spawn`, `services`, `callService`).
+ */
 function activate(ctx) {
   const { ipcMain, fs, spawn } = ctx;
 

@@ -12,10 +12,12 @@ if (!S.config.screensaver.variant) S.config.screensaver.variant = 'auto';
 
 const VALID_VARIANTS = ['bounce', 'testcard', 'standby', 'lineup', 'diagnostics'];
 
-// Called on show() (so a freshly-armed screensaver always reflects the
-// current setting) and by settings.js whenever the VARIANT picker changes,
-// so switching it while the screensaver's already up updates immediately
-// instead of waiting for the next idle cycle.
+/**
+ * Called on show() (so a freshly-armed screensaver always reflects the
+ * current setting) and by settings.js whenever the VARIANT picker changes,
+ * so switching it while the screensaver's already up updates immediately
+ * instead of waiting for the next idle cycle.
+ */
 export function applyScreensaverVariant() {
   const variant = S.config.screensaver && S.config.screensaver.variant;
   VALID_VARIANTS.forEach((v) => screensaverEl.classList.remove(`ss-force-${v}`));
@@ -62,15 +64,20 @@ document.querySelector('.crt').appendChild(screensaverEl);
 
 let screensaverTimer = null;
 
+/**
+ * Hides the screensaver.
+ */
 function hide() {
   screensaverEl.classList.add('hidden');
 }
 
-// Interrupt guards read straight off window.S (the live app-state object
-// core already exposes — see PLUGIN_DEVELOPMENT.md) and query
-// the core-owned #guide-grid element directly, same as any other DOM on
-// this page — no dedicated core-state-accessor API needed since both are
-// already reachable this way.
+/**
+ * Interrupt guards read straight off window.S (the live app-state object
+ * core already exposes — see PLUGIN_DEVELOPMENT.md) and query
+ * the core-owned #guide-grid element directly, same as any other DOM on
+ * this page — no dedicated core-state-accessor API needed since both are
+ * already reachable this way.
+ */
 function show() {
   const S = window.S;
   const tvScreen = document.getElementById('tv-screen');
@@ -100,8 +107,10 @@ function show() {
   screensaverEl.classList.remove('hidden');
 }
 
-// The words on the bouncing mark and the stand-by slate: yours instead of the
-// stock ones when set. Blank puts the stock text back.
+/**
+ * The words on the bouncing mark and the stand-by slate: yours instead of the
+ * stock ones when set. Blank puts the stock text back.
+ */
 export function applyScreensaverText() {
   const text = String((S.config.screensaver && S.config.screensaver.text) || '').trim().toUpperCase();
   const bounce = screensaverEl.querySelector('.screensaver-bounce');
@@ -110,6 +119,9 @@ export function applyScreensaverText() {
   if (slate) slate.textContent = text || 'PLEASE STAND BY';
 }
 
+/**
+ * Arms the idle timer that shows the screensaver after the configured minutes; does nothing while it is off.
+ */
 function scheduleTimer() {
   clearTimeout(screensaverTimer);
   const S = window.S;
@@ -119,16 +131,21 @@ function scheduleTimer() {
   screensaverTimer = setTimeout(show, ms);
 }
 
+/**
+ * Cancels the idle timer and hides the screensaver.
+ */
 function cancelTimer() {
   clearTimeout(screensaverTimer);
   screensaverTimer = null;
   hide();
 }
 
-// Called by settings.js whenever the ENABLED toggle or interval changes, so
-// a disable takes effect immediately instead of waiting for the already-
-// pending timer to fire (show() has no enabled check of its own) or an
-// interval edit only applying to the next idle-armed cycle.
+/**
+ * Called by settings.js whenever the ENABLED toggle or interval changes, so
+ * a disable takes effect immediately instead of waiting for the already-
+ * pending timer to fire (show() has no enabled check of its own) or an
+ * interval edit only applying to the next idle-armed cycle.
+ */
 export function rearmScreensaverTimer() {
   cancelTimer();
   scheduleTimer();

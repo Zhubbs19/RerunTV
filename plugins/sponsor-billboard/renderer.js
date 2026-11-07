@@ -23,6 +23,10 @@ const DEFAULT_CARD_SECONDS = 12;
 const lastShownAt = new Map();
 const MIN_GAP_MS = { always: 0, hour: 3600000, day: 86400000 };
 
+/**
+ * How long the card stays up, from settings, bounded to 3 to 60 seconds.
+ * @returns {number} Milliseconds.
+ */
 function cardMs() {
   const s = Number((window.RCBPlugins.ctx.getPluginSettings('sponsor-billboard') || {}).cardSeconds);
   return (Number.isFinite(s) ? Math.min(60, Math.max(3, s)) : DEFAULT_CARD_SECONDS) * 1000;
@@ -38,9 +42,13 @@ let lastFilePath = null;
 
 const VIDEO_EXT_RE = /\.(mp4|webm|mov|m4v|ogv)$/i;
 
-// A pre-image/video sponsor entry was a plain string (the name) —
-// normalized to today's { name, mediaPath } shape here so an existing
-// config keeps working unchanged after this upgrade.
+/**
+ * A pre-image/video sponsor entry was a plain string (the name) —
+ * normalized to today's { name, mediaPath } shape here so an existing
+ * config keeps working unchanged after this upgrade.
+ * @param {number} channelNumber The channel number.
+ * @returns {?object} The channel's sponsor as `{ name, mediaPath }`, or null when it has none.
+ */
 function sponsorFor(channelNumber) {
   const settings = window.RCBPlugins.ctx.getPluginSettings('sponsor-billboard');
   const byChannel = (settings && settings.sponsorsByChannel) || {};

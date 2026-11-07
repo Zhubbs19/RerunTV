@@ -1,3 +1,6 @@
+// Box-level picture and sound state on the TV screen: volume and mute, CRT and picture modes,
+// aspect and bezel framing, the hint bar, sleep timer, power on/off and auto standby, plus the
+// status snapshot pushed to the companion remotes.
 import { refreshSfxGainLevel, sfxPowerOff, sfxPowerOn, sfxVolumeTick } from '../core/audio.js';
 import { getChannel } from '../core/channels.js';
 import { computeSourcePosition, getChannelSchedule, resolveActiveSource } from '../core/schedule.js';
@@ -35,7 +38,11 @@ import { shutsDownPcWithBox, startPcShutdown } from './pc-power.js';
 // GET /state always reflects what's actually on screen, not just which
 // channel. tuneToChannel (playback.js) calls this too, after setting
 // S.currentNumber, to cover the channel-number/name half of the snapshot.
-// What is on now (when it ends) and what follows, for the phone's NOW/NEXT line.
+/**
+ * What is on now (when it ends) and what follows, for the phone's NOW/NEXT line.
+ * @param {?object} ch The current channel config.
+ * @returns {object} `{ nowEndsAtMs, nextTitle }`; null and an empty string when there is no readable schedule.
+ */
 function remoteNowNext(ch) {
   if (!ch) return { nowEndsAtMs: null, nextTitle: '' };
   try {
@@ -62,6 +69,9 @@ function remoteBreakEnd(ch) {
   return hit && hit.breakEnd > now ? Math.round(hit.breakEnd - (S.timeOffsetMs || 0)) : null;
 }
 
+/**
+ * Sends a full status snapshot (channel, power, volume, picture, time machine, what is on air) to main for the companion remotes.
+ */
 export function pushRemoteState() {
   const ch = getChannel(S.currentNumber);
   window.api.sendRemoteState({
@@ -112,6 +122,10 @@ export function pushRemoteState() {
   });
 }
 
+/**
+ * Sets the player's volume from the master level, the channel's override, the content/ad multiplier, the leveler and any tune or sleep fade.
+ * Also sets the credits-squeeze promo and overlay audio sources.
+ */
 export function applyVolume() {
   const master = typeof S.config.volume === 'number' ? S.config.volume : 1;
   const ch = getChannel(S.currentNumber);
@@ -145,6 +159,10 @@ export function applyVolume() {
 }
 
 
+/**
+ * Applies the mute setting to the player, overlay audio sources and the credits-squeeze promo, and shows or hides the mute badge.
+ * A LAN viewer stays muted until its audio is unlocked.
+ */
 export function applyMuteState() {
   const forceMuted = window.__isViewer && !S.viewerAudioUnlocked;
   player.muted = forceMuted ? true : !!S.config.muted;
@@ -158,6 +176,9 @@ export function applyMuteState() {
   refreshSfxGainLevel();
 }
 
+/**
+ * Toggles mute and saves it as watching state (no undo step).
+ */
 export function toggleMute() {
   S.config.muted = !player.muted;
   applyMuteState();
@@ -175,22 +196,29 @@ export function toggleMute() {
 // the volume indicator up only when they'd genuinely overlap — reset first
 // so a stale nudge from a previous (now-moved) logo bug position doesn't
 // throw off this measurement.
-// Shows a brief on-screen confirmation in crtToggleFlash (e.g. "CRT EFFECT:
-// ON") and auto-hides it after 1.5s — the same "set text, show, clear any
-// still-pending previous hide, arm a fresh one" sequence every one of this
-// module's toggle/cycle actions needs. `timerKey` is the S property this
-// particular caller's pending hide-timeout lives under (each caller needs
-// its own, so flashing one control doesn't cut off another's still-showing
-// message).
-// Exported so any feature that needs a one-line on-screen confirmation gets
-// the same transient centre-screen readout the CRT/picture-mode toggles
-// already use, rather than each growing its own overlay element. `timerKey`
-// names that caller's own auto-hide timer (a kit Toast key), so two
-// features flashing near each other don't cancel one another's.
+/**
+ * Shows a brief on-screen confirmation in crtToggleFlash (e.g. "CRT EFFECT:
+ * ON") and auto-hides it after 1.5s — the same "set text, show, clear any
+ * still-pending previous hide, arm a fresh one" sequence every one of this
+ * module's toggle/cycle actions needs. `timerKey` is the S property this
+ * particular caller's pending hide-timeout lives under (each caller needs
+ * its own, so flashing one control doesn't cut off another's still-showing
+ * message).
+ * Exported so any feature that needs a one-line on-screen confirmation gets
+ * the same transient centre-screen readout the CRT/picture-mode toggles
+ * already use, rather than each growing its own overlay element. `timerKey`
+ * names that caller's own auto-hide timer (a kit Toast key), so two
+ * features flashing near each other don't cancel one another's.
+ * @param {string} text Message to show.
+ * @param {string} timerKey Toast key that names this caller's auto-hide timer.
+ */
 export function flashMessage(text, timerKey) {
   Toast(text, { element: crtToggleFlash, key: timerKey, duration: 1500 });
 }
 
+/**
+ * Nudges the volume indicator up when it would overlap the logo bug.
+ */
 function avoidLogoBugOverlap() {
   volumeIndicatorEl.style.bottom = '';
   if (logoBugEl.classList.contains('hidden')) return;
@@ -203,26 +231,39 @@ function avoidLogoBugOverlap() {
   volumeIndicatorEl.style.bottom = `${(crtRect.bottom - bugRect.top) + 16}px`;
 }
 
-// SETTINGS › System › Tuning & controls: step size and ceiling for the volume
-// keys. Callers pass +/-0.1; only the sign matters.
+/**
+ * SETTINGS › System › Tuning & controls: step size and ceiling for the volume
+ * keys. Callers pass +/-0.1; only the sign matters.
+ * @returns {number} The volume ceiling, 0.1 to 1.
+ */
 export function volumeMax() {
   const pct = settingNumber(S.config.controls && S.config.controls.volumeMaxPct);
   return pct != null ? Math.min(100, Math.max(10, pct)) / 100 : 1;
 }
 
+/**
+ * The amount one volume key press changes the level by.
+ * @returns {number} Step size, 0.01 to 0.25.
+ */
 function volumeStep() {
   const pct = settingNumber(S.config.controls && S.config.controls.volumeStepPct);
   return pct != null ? Math.min(25, Math.max(1, pct)) / 100 : 0.1;
 }
 
-// "Remember each channel's volume" (SETTINGS › System › Tuning & controls):
-// the level you left a channel at comes back when you tune to it. Kept in its
-// own host-local key so a volume change doesn't make paired TVs refetch the
-// whole lineup.
+/**
+ * "Remember each channel's volume" (SETTINGS › System › Tuning & controls):
+ * the level you left a channel at comes back when you tune to it. Kept in its
+ * own host-local key so a volume change doesn't make paired TVs refetch the
+ * whole lineup.
+ * @returns {boolean} True when per-channel volume memory is on.
+ */
 function rememberVolumeOn() {
   return !!(S.config.controls && S.config.controls.rememberChannelVolume);
 }
 
+/**
+ * Stores the current volume as the current channel's remembered level, when that setting is on.
+ */
 function rememberChannelVolume() {
   if (!rememberVolumeOn() || S.currentNumber == null) return;
   const next = { ...(S.config.channelVolumes || {}), [S.currentNumber]: S.config.volume };
@@ -230,8 +271,11 @@ function rememberChannelVolume() {
   commitInPlace({ type: 'settings.set', path: ['channelVolumes'], value: next }, { skipUndo: true });
 }
 
-// Called by every tune: the remembered level for this channel, then the
-// optional fade-in from silence (tuneFadeInMs) so a loud start is softened.
+/**
+ * Called by every tune: the remembered level for this channel, then the
+ * optional fade-in from silence (tuneFadeInMs) so a loud start is softened.
+ * @param {number|string} number The channel number being tuned to.
+ */
 export function applyTuneVolume(number) {
   const remembered = rememberVolumeOn() && S.config.channelVolumes ? S.config.channelVolumes[number] : null;
   if (typeof remembered === 'number' && remembered >= 0 && remembered <= 1 && remembered !== S.config.volume) {
@@ -253,6 +297,10 @@ export function applyTuneVolume(number) {
   S.tuneFadeRAF = requestAnimationFrame(step);
 }
 
+/**
+ * Steps the master volume up or down, unmutes on volume up, saves it and shows the volume bar.
+ * @param {number} delta Direction of the change; only the sign is used.
+ */
 export function adjustVolume(delta) {
   const current = typeof S.config.volume === 'number' ? S.config.volume : 1;
   const max = volumeMax();
@@ -276,6 +324,9 @@ export function adjustVolume(delta) {
   pushRemoteState();
 }
 
+/**
+ * Applies the hint bar's visibility, animation timings and per-item visibility from settings.
+ */
 export function applyHintBarState() {
   const display = S.config.display || {};
   const configuredShowDuration = Number(display.hintBarShowDuration);
@@ -312,6 +363,9 @@ export function applyHintBarState() {
   });
 }
 
+/**
+ * Shows or hides the hint bar and saves the choice as watching state.
+ */
 export function toggleHintBar() {
   S.config.display.hintBar = S.config.display.hintBar === false ? true : false;
   applyHintBarState();
@@ -319,18 +373,21 @@ export function toggleHintBar() {
   flashMessage(`HINT BAR: ${S.config.display.hintBar === false ? 'OFF' : 'ON'}`, 'hintBarFlashTimer');
 }
 
-// Per-theme picture "personality" — a passive multiplier layered on top of
-// the user's own CRT sliders (DISPLAY > PICTURE), not a replacement for
-// them: the sliders themselves, and S.config.crtIntensity on disk, are
-// untouched — turning CURVATURE up to 100 still means "fully curved" on
-// every theme, this just shifts what 0-100 renders as by default so the era
-// reads passively during ordinary viewing, not only at tune-in/idle. Supplied
-// by the active theme pack's `crtBias` field (registerThemePack, plugins.js)
-// — a color-only pack simply omits it, same as no bias at all.
-// `curvatureFloor` is additive (not multiplicative) since curvature's own
-// default is 0 — a multiplier on zero would still be zero, so
-// uhf-public-access-80s (the one era that should look faintly curved/warped
-// even before the user touches the slider) needs a floor instead.
+/**
+ * Per-theme picture "personality" — a passive multiplier layered on top of
+ * the user's own CRT sliders (DISPLAY > PICTURE), not a replacement for
+ * them: the sliders themselves, and S.config.crtIntensity on disk, are
+ * untouched — turning CURVATURE up to 100 still means "fully curved" on
+ * every theme, this just shifts what 0-100 renders as by default so the era
+ * reads passively during ordinary viewing, not only at tune-in/idle. Supplied
+ * by the active theme pack's `crtBias` field (registerThemePack, plugins.js)
+ * — a color-only pack simply omits it, same as no bias at all.
+ * `curvatureFloor` is additive (not multiplicative) since curvature's own
+ * default is 0 — a multiplier on zero would still be zero, so
+ * uhf-public-access-80s (the one era that should look faintly curved/warped
+ * even before the user touches the slider) needs a floor instead.
+ * @returns {?object} The active theme pack's `crtBias`, or null when there is none or it is ignored.
+ */
 function crtBias() {
   // DISPLAY > PICTURE > "IGNORE THEME BIAS" opts out of every pack's
   // passive crtBias shift, falling back to the sliders' own raw 0-100
@@ -341,6 +398,9 @@ function crtBias() {
   return (pack && pack.crtBias) || null;
 }
 
+/**
+ * Applies the CRT on/off switch and effect intensities (with the theme's bias) to the screen, the setup preview swatch and the whole-screen overlay.
+ */
 export function applyCrtState() {
   crtContainer.classList.toggle('crt-off', S.config.crtEnabled === false);
   const ci = S.config.crtIntensity || {};
@@ -406,6 +466,9 @@ const PICTURE_PRESETS = {
 };
 const PICTURE_ORDER = ['standard', 'vivid', 'cinema'];
 
+/**
+ * Applies the current picture mode preset's brightness, contrast and saturation.
+ */
 export function applyPictureMode() {
   const preset = PICTURE_PRESETS[S.config.pictureMode] || PICTURE_PRESETS.standard;
   crtContainer.style.setProperty('--pic-brightness', preset.brightness);
@@ -413,6 +476,9 @@ export function applyPictureMode() {
   crtContainer.style.setProperty('--pic-saturate', preset.saturate);
 }
 
+/**
+ * Steps to the next picture mode, saves it and shows a confirmation.
+ */
 export function cyclePictureMode() {
   const idx = PICTURE_ORDER.indexOf(S.config.pictureMode || 'standard');
   const next = PICTURE_ORDER[(idx + 1) % PICTURE_ORDER.length];
@@ -443,6 +509,7 @@ const ASPECT_ORDER = ['contain', 'stretch', 'fill'];
 // same fallback style as ch.volume/ch.color.
 const CROP_RATIOS = { '4:3': 4 / 3, '1:1': 1, '2.35:1': 2.35 };
 
+// Choices for the per-channel aspect override menu.
 export const CHANNEL_ASPECT_OPTIONS = [
   { value: '', label: 'INHERIT (BOX DEFAULT)' },
   { value: 'contain', label: 'STANDARD (SAFE)' },
@@ -453,24 +520,39 @@ export const CHANNEL_ASPECT_OPTIONS = [
   { value: '2.35:1', label: 'CROP TO 2.35:1 (CINEMASCOPE)' },
 ];
 
+/**
+ * The aspect setting that applies: the channel's override, else the box-wide mode.
+ * @param {?object} ch The channel config.
+ * @returns {string} An aspect mode or crop ratio key.
+ */
 function effectiveAspectSetting(ch) {
   return (ch && ch.aspectRatio) || S.config.aspectMode || 'contain';
 }
 
-// Maps an effective aspect setting to the object-fit semantics it renders
-// with — a named crop ratio always crops (like 'fill') once it's been
-// resolved down to a target box (see applyTvBezel's targetBox).
+/**
+ * Maps an effective aspect setting to the object-fit semantics it renders
+ * with — a named crop ratio always crops (like 'fill') once it's been
+ * resolved down to a target box (see applyTvBezel's targetBox).
+ * @param {string} mode An effective aspect setting.
+ * @returns {string} `cover`, `fill` or `contain`.
+ */
 function cssFitFor(mode) {
   if (mode === 'fill' || CROP_RATIOS[mode]) return 'cover';
   if (mode === 'stretch') return 'fill';
   return 'contain';
 }
 
+/**
+ * Applies the box-wide stretch or fill class to the screen.
+ */
 export function applyAspectMode() {
   crtContainer.classList.toggle('aspect-stretch', S.config.aspectMode === 'stretch');
   crtContainer.classList.toggle('aspect-fill', S.config.aspectMode === 'fill');
 }
 
+/**
+ * Steps to the next box-wide aspect mode, saves it and shows a confirmation.
+ */
 export function cycleAspectMode() {
   const idx = ASPECT_ORDER.indexOf(S.config.aspectMode || 'contain');
   const next = ASPECT_ORDER[(idx + 1) % ASPECT_ORDER.length];
@@ -481,11 +563,18 @@ export function cycleAspectMode() {
   flashMessage(`ASPECT: ${next.toUpperCase()}`, 'aspectModeFlashTimer');
 }
 
-// Standard object-fit:contain math — the browser computes this internally
-// for #player's own native letterboxing, but there's no CSS selector for
-// "the empty bars around a contain-fit video," so a bezel that needs to
-// fill exactly that space has to replicate the same math itself and size
-// #player explicitly instead of relying on object-fit alone.
+/**
+ * Standard object-fit:contain math — the browser computes this internally
+ * for #player's own native letterboxing, but there's no CSS selector for
+ * "the empty bars around a contain-fit video," so a bezel that needs to
+ * fill exactly that space has to replicate the same math itself and size
+ * #player explicitly instead of relying on object-fit alone.
+ * @param {number} containerW Container width in pixels.
+ * @param {number} containerH Container height in pixels.
+ * @param {number} videoW Video width.
+ * @param {number} videoH Video height.
+ * @returns {object} `{ left, top, width, height }` of the contained video.
+ */
 function computeContainedRect(containerW, containerH, videoW, videoH) {
   const containerAspect = containerW / containerH;
   const videoAspect = videoW / videoH;
@@ -500,12 +589,19 @@ function computeContainedRect(containerW, containerH, videoW, videoH) {
   return { left: (containerW - width) / 2, top: (containerH - height) / 2, width, height };
 }
 
-// General object-fit math for fitting a contentW×contentH box inside an
-// arbitrary `box` rect (not necessarily the full container) — the same
-// contain/cover scaling the browser does natively, but computed by hand so
-// it can be applied twice in a row: once to fit a named crop ratio's shape
-// inside the border's safe area (targetBox, applyTvBezel), then again to
-// crop the actual video into that shape.
+/**
+ * General object-fit math for fitting a contentW×contentH box inside an
+ * arbitrary `box` rect (not necessarily the full container) — the same
+ * contain/cover scaling the browser does natively, but computed by hand so
+ * it can be applied twice in a row: once to fit a named crop ratio's shape
+ * inside the border's safe area (targetBox, applyTvBezel), then again to
+ * crop the actual video into that shape.
+ * @param {object} box The rect to fit into, `{ left, top, width, height }`.
+ * @param {number} contentW Content width.
+ * @param {number} contentH Content height.
+ * @param {string} fit `contain`, `cover` or `fill`.
+ * @returns {object} `{ left, top, width, height }` of the fitted content.
+ */
 function computeFitRect(box, contentW, contentH, fit) {
   if (fit === 'fill') return { left: box.left, top: box.top, width: box.width, height: box.height };
   const scale = fit === 'cover'
@@ -543,38 +639,55 @@ const MIN_BEZEL_MARGIN_PX = 24;
 // decorative frame — see the DISPLAY tab checkbox, setup-settings.js), both
 // #player and the bezel reset to exactly today's default look.
 // ---------- How much of the screen the picture may use (docs/design/11 §2.2) ----------
-// Normally the whole CRT container. In TV mode with the guide docked, the strip
-// along the bottom takes part of the screen and the picture shrinks into what
-// is left instead of sitting behind it. guide.js publishes that height as
-// --guide-picture-h on the container.
-//
-// Deliberately one number feeding the EXISTING framing math rather than a CSS
-// rule that overrides #player's geometry: the safe area, a named crop ratio and
-// the bezel art are all computed from the container's height, so shrinking that
-// height keeps the bezel framing the picture correctly at its new size. An
-// !important geometry override (the way full-page mode shrinks into its corner
-// preview) would have left the bezel drawn for the old, larger picture.
+/**
+ * Normally the whole CRT container. In TV mode with the guide docked, the strip
+ * along the bottom takes part of the screen and the picture shrinks into what
+ * is left instead of sitting behind it. guide.js publishes that height as
+ * --guide-picture-h on the container.
+ * 
+ * Deliberately one number feeding the EXISTING framing math rather than a CSS
+ * rule that overrides #player's geometry: the safe area, a named crop ratio and
+ * the bezel art are all computed from the container's height, so shrinking that
+ * height keeps the bezel framing the picture correctly at its new size. An
+ * !important geometry override (the way full-page mode shrinks into its corner
+ * preview) would have left the bezel drawn for the old, larger picture.
+ * @returns {number} Height in pixels the picture may use.
+ */
 export function pictureAreaHeight() {
   const containerH = crtContainer.clientHeight;
   const published = parseFloat(getComputedStyle(crtContainer).getPropertyValue('--guide-picture-h'));
   return Number.isFinite(published) && published > 0 ? Math.min(published, containerH) : containerH;
 }
 
-// Re-frames the picture after the area it may use changed — the guide docking,
-// undocking, being resized or closing. A no-op before any metadata has arrived,
-// since there is nothing to frame yet.
+/**
+ * Re-frames the picture after the area it may use changed — the guide docking,
+ * undocking, being resized or closing. A no-op before any metadata has arrived,
+ * since there is nothing to frame yet.
+ */
 export function refreshPictureArea() {
   if (!player.videoWidth || !player.videoHeight) return;
   applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
 }
 
-// Frames the picture, then tells the logo bug where the picture ended up so a
-// bug anchored to the picture (DISPLAY › Logo bug) can follow it.
+/**
+ * Frames the picture, then tells the logo bug where the picture ended up so a
+ * bug anchored to the picture (DISPLAY › Logo bug) can follow it.
+ * @param {number} videoWidth The video's intrinsic width (0 when not loaded).
+ * @param {number} videoHeight The video's intrinsic height (0 when not loaded).
+ * @param {?object} ch The channel config being shown.
+ */
 export function applyTvBezel(videoWidth, videoHeight, ch) {
   applyTvBezelInner(videoWidth, videoHeight, ch);
   window.dispatchEvent(new Event('reruntv:picture-framed'));
 }
 
+/**
+ * Sizes and clips the player for the effective aspect mode, safe area and baked-in bars, records `S.pictureRect` and shows or hides the theme's border.
+ * With no video size it resets the player and bezel to their defaults.
+ * @param {number} videoWidth The video's intrinsic width.
+ * @param {number} videoHeight The video's intrinsic height.
+ * @param {?object} ch The channel config being shown.
+ */
 function applyTvBezelInner(videoWidth, videoHeight, ch) {
   if (!videoWidth || !videoHeight) {
     S.pictureRect = null;
@@ -746,15 +859,18 @@ function applyTvBezelInner(videoWidth, videoHeight, ch) {
 }
 
 
-// A block can optionally carry its own accent colors (block.theme.accent/
-// accent2/staticTint, set via the THEME button in buildSchedulePanel,
-// setup-schedule.js) — applied here as CSS custom properties the same way
-// applyPictureMode/applyCrtState already drive their sliders, consumed by
-// var(--block-accent, var(--gold))-style fallbacks in overlays.css so an
-// unthemed block (the overwhelming default) looks exactly like it did
-// before this existed. Uses removeProperty rather than setting to a
-// box-theme color directly, so the CSS fallback chain (not a copied value)
-// is what makes an unthemed block track the box theme/analog-90s palette.
+/**
+ * A block can optionally carry its own accent colors (block.theme.accent/
+ * accent2/staticTint, set via the THEME button in buildSchedulePanel,
+ * setup-schedule.js) — applied here as CSS custom properties the same way
+ * applyPictureMode/applyCrtState already drive their sliders, consumed by
+ * var(--block-accent, var(--gold))-style fallbacks in overlays.css so an
+ * unthemed block (the overwhelming default) looks exactly like it did
+ * before this existed. Uses removeProperty rather than setting to a
+ * box-theme color directly, so the CSS fallback chain (not a copied value)
+ * is what makes an unthemed block track the box theme/analog-90s palette.
+ * @param {?object} block The active block, or null to clear its colors.
+ */
 export function applyBlockTheme(block) {
   const theme = block && block.theme;
   if (theme && theme.accent) crtContainer.style.setProperty('--block-accent', theme.accent);
@@ -763,6 +879,10 @@ export function applyBlockTheme(block) {
   else crtContainer.style.removeProperty('--block-accent2');
 }
 
+/**
+ * Applies a channel's broadcast identity accent colors, or clears them.
+ * @param {?object} ch The channel config.
+ */
 export function applyChannelIdentity(ch) {
   const identity = ch && ch.broadcastIdentity;
   if (identity && identity.accent) crtContainer.style.setProperty('--channel-accent', identity.accent);
@@ -771,6 +891,9 @@ export function applyChannelIdentity(ch) {
   else crtContainer.style.removeProperty('--channel-accent2');
 }
 
+/**
+ * Updates the VHS REC timestamp burn-in to the viewed time.
+ */
 function tickVhsTimestamp() {
   const d = new Date(viewNow());
   const hh = String(d.getHours()).padStart(2, '0');
@@ -779,11 +902,14 @@ function tickVhsTimestamp() {
   vhsTimestampEl.textContent = `▶ REC ${hh}:${mm}:${ss}`;
 }
 
-// Toggles the tape-sourced look (tracking noise, chroma fringe, REC
-// timestamp burn-in) for a channel, mirroring applyBlockTheme's reset/apply
-// discipline: called with null on every tune so the look never bleeds into
-// a channel tuned to right after a VHS one, then re-applied only if the
-// tune actually reaches live playback.
+/**
+ * Toggles the tape-sourced look (tracking noise, chroma fringe, REC
+ * timestamp burn-in) for a channel, mirroring applyBlockTheme's reset/apply
+ * discipline: called with null on every tune so the look never bleeds into
+ * a channel tuned to right after a VHS one, then re-applied only if the
+ * tune actually reaches live playback.
+ * @param {?object} ch The channel config, or null to clear the look.
+ */
 export function applyVhsQuality(ch) {
   const on = !!(ch && ch.vhsQuality);
   crtContainer.classList.toggle('vhs-quality', on);
@@ -821,37 +947,58 @@ export function applyVhsQuality(ch) {
 // persisted in config. Reuses the same crtToggleFlash confirmation pattern
 // as toggleCrt().
 const DEFAULT_SLEEP_STEPS = [30, 60, 90, 120];
-// Length of the sleep timer's fade-out; 0 = a straight cut. On by default.
+/**
+ * Length of the sleep timer's fade-out; 0 = a straight cut. On by default.
+ * @returns {number} Fade length in milliseconds.
+ */
 function sleepFadeMs() {
   const c = S.config.controls || {};
   if (c.sleepFadeOut === false) return 0;
   const s = Number(c.sleepFadeSeconds);
   return (Number.isFinite(s) && s >= 5 ? Math.min(120, s) : 25) * 1000;
 }
-// The steps are SETTINGS › System › Tuning & controls; OFF is always first.
+/**
+ * The steps are SETTINGS › System › Tuning & controls; OFF is always first.
+ * @returns {number[]} Minutes for each step, with 0 (off) first.
+ */
 export function sleepOptions() {
   const steps = S.config.controls && S.config.controls.sleepSteps;
   const valid = Array.isArray(steps) ? steps.filter((n) => Number.isFinite(n) && n > 0) : [];
   return [0, ...(valid.length ? valid : DEFAULT_SLEEP_STEPS)];
 }
 
-// A small "SLEEP 4:59" badge over the picture for the last five minutes, so the
-// fade-out never comes as a surprise. The timer is wall-clock by design (a
-// real TV's sleep button), hence Date.now() and not viewNow().
-// "Show the sleep countdown for the last" (controls.sleepBadgeMinutes, 0-15, default 5).
+/**
+ * How long before the sleep timer ends its badge shows: "Show the sleep countdown for the last"
+ * (controls.sleepBadgeMinutes, 0-15, default 5). The badge is a small "SLEEP 4:59" over the
+ * picture, so the fade-out never comes as a surprise. The timer is wall-clock by design (a
+ * real TV's sleep button), hence Date.now() and not viewNow().
+ * @returns {number} The badge's window in ms.
+ */
 function sleepBadgeWindowMs() {
   const m = Number(S.config.controls && S.config.controls.sleepBadgeMinutes);
   return (Number.isFinite(m) && m >= 0 ? Math.min(15, m) : 5) * 60000;
 }
 let sleepBadgeEl = null;
 let sleepBadgeTick = null;
+/**
+ * Time left on the sleep timer.
+ * @returns {number} Milliseconds left, or 0 when no timer is set.
+ */
 export function sleepRemainingMs() {
   return S.sleepEndsAt ? Math.max(0, S.sleepEndsAt - Date.now()) : 0;
 }
+/**
+ * Formats a remaining time as minutes and seconds.
+ * @param {number} ms Milliseconds left.
+ * @returns {string} Text such as `4:59`.
+ */
 export function formatSleepRemaining(ms) {
   const total = Math.ceil(ms / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
+/**
+ * Shows the sleep badge during the timer's last five minutes and hides it otherwise; stops its ticker once the timer is gone.
+ */
 function updateSleepBadge() {
   const left = sleepRemainingMs();
   if (!S.sleepEndsAt || !S.isPoweredOn || left <= 0 || left > sleepBadgeWindowMs()) {
@@ -867,11 +1014,17 @@ function updateSleepBadge() {
   sleepBadgeEl.textContent = `SLEEP ${formatSleepRemaining(left)}`;
   sleepBadgeEl.classList.remove('hidden');
 }
+/**
+ * Clears the sleep end time and hides the badge.
+ */
 function stopSleepBadge() {
   S.sleepEndsAt = 0;
   updateSleepBadge();
 }
 
+/**
+ * Steps to the next sleep timer option and arms the power-off and its fade-out, or clears them for OFF.
+ */
 export function cycleSleepTimer() {
   const options = sleepOptions();
   const idx = options.indexOf(S.sleepMinutes || 0);
@@ -911,6 +1064,9 @@ export function cycleSleepTimer() {
   flashMessage(next > 0 ? `SLEEP TIMER: ${next} MIN` : 'SLEEP TIMER: OFF', 'sleepTimerFlashTimer');
 }
 
+/**
+ * Toggles the CRT effect, saves it as watching state and shows a confirmation.
+ */
 export function toggleCrt() {
   S.config.crtEnabled = S.config.crtEnabled === false ? true : false;
   applyCrtState();
@@ -920,24 +1076,30 @@ export function toggleCrt() {
   flashMessage(`CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`, 'crtFlashTimer');
 }
 
-// Asks main to hold or release a display wake lock, matching "is this set
-// switched on". Powering off is the one state where letting the monitor
-// sleep is obviously right — the screen is already showing nothing on
-// purpose — so the lock tracks S.isPoweredOn rather than merely "the app is
-// running". Host-only: setKeepDisplayAwake isn't part of the LAN viewer's
-// api surface (api-contract.js), and a browser tab has no business holding
-// its device awake for a page it may not even be showing.
+/**
+ * Asks main to hold or release a display wake lock, matching "is this set
+ * switched on". Powering off is the one state where letting the monitor
+ * sleep is obviously right — the screen is already showing nothing on
+ * purpose — so the lock tracks S.isPoweredOn rather than merely "the app is
+ * running". Host-only: setKeepDisplayAwake isn't part of the LAN viewer's
+ * api surface (api-contract.js), and a browser tab has no business holding
+ * its device awake for a page it may not even be showing.
+ */
 export function applyDisplayWakeLock() {
   if (!window.api || typeof window.api.setKeepDisplayAwake !== 'function') return;
   const wanted = S.isPoweredOn && S.config.keepDisplayAwake?.enabled !== false;
   Promise.resolve(window.api.setKeepDisplayAwake(wanted)).catch(() => {});
 }
 
-// `reason` says who is switching the box off: 'user' (the power key, the
-// remote's power button, the TV menu — the default), 'standby' (auto standby,
-// a TV platform hiding the page) or 'screen' (following the TV's power,
-// display/tv-screen.js). Only a deliberate power-off can take the PC down
-// with it (SYSTEM › POWER, playback/pc-power.js).
+/**
+ * `reason` says who is switching the box off: 'user' (the power key, the
+ * remote's power button, the TV menu — the default), 'standby' (auto standby,
+ * a TV platform hiding the page) or 'screen' (following the TV's power,
+ * display/tv-screen.js). Only a deliberate power-off can take the PC down
+ * with it (SYSTEM › POWER, playback/pc-power.js).
+ * @param {object} [opts] Power-off options.
+ * @param {string} [opts.reason='user'] `user`, `standby` or `screen`.
+ */
 export function powerOff({ reason = 'user' } = {}) {
   if (!S.isPoweredOn) return;
   S.isPoweredOn = false;
@@ -993,6 +1155,9 @@ export function powerOff({ reason = 'user' } = {}) {
   if (reason === 'user' && shutsDownPcWithBox()) startPcShutdown({ source: 'power-off', poweredOffBox: true });
 }
 
+/**
+ * Switches the box on and retunes the current channel silently, so the simulated broadcast picks up where it would be now.
+ */
 export function powerOn() {
   if (S.isPoweredOn) return;
   S.isPoweredOn = true;
@@ -1026,6 +1191,9 @@ export function powerOn() {
 // SYSTEM › START-UP & POWER › "Warn before standby" (autoStandby.warnSeconds,
 // 0-120, default 30): the countdown shown before auto standby turns the TV off.
 let standbyCountdown = null;
+/**
+ * Stops the standby warning countdown, if one is running, and hides its card.
+ */
 function clearStandbyCountdown() {
   if (!standbyCountdown) return;
   clearInterval(standbyCountdown);
@@ -1033,6 +1201,9 @@ function clearStandbyCountdown() {
   crtToggleFlash.classList.remove('show');
 }
 
+/**
+ * Restarts the auto standby countdown, when auto standby is on and the TV screen is showing.
+ */
 export function resetIdleTimer() {
   clearStandbyCountdown();
   clearTimeout(S.idleTimer);
@@ -1047,6 +1218,9 @@ export function resetIdleTimer() {
   runCoreHooks('idle-armed');
 }
 
+/**
+ * Auto standby fired: powers off, unless the guide is open, in which case it waits another interval.
+ */
 export function onIdleTimeout() {
   if (!guideGrid.classList.contains('hidden')) {
     // Mid-browse counts as "in use" — check again next interval instead

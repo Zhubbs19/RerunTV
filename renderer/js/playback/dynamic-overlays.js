@@ -32,13 +32,23 @@ const CORNER_STYLE = {
 // fixed timer, so it naturally tracks however long the actual break runs.
 const BREAK_TRIGGERS = new Set(['commercial', 'upNext', 'channelId', 'trivia']);
 
+// Auto-hide timer for the overlay on screen.
 let hideTimer = null;
+// The trigger the current overlay was shown for, or null when none is up.
 let activeTrigger = null;
 
+/**
+ * Returns the overlay rules in effect for a channel: its own list, else the box-wide default.
+ * @param {?object} ch The channel config.
+ * @returns {Array<object>} The effective dynamic-overlay rules.
+ */
 function effectiveDynamicOverlays(ch) {
   return (ch && ch.dynamicOverlays) || (S.config.display && S.config.display.dynamicOverlays) || [];
 }
 
+/**
+ * Hides and empties the dynamic overlay and cancels its timer.
+ */
 export function hideDynamicOverlay() {
   clearTimeout(hideTimer);
   hideTimer = null;
@@ -47,22 +57,29 @@ export function hideDynamicOverlay() {
   dynamicOverlayEl.innerHTML = '';
 }
 
-// Called on every break-end (endBreak, playback.js) — only actually hides
-// the overlay if what's showing was shown FOR a break, so an unrelated
-// tuneIn/contentStart overlay mid-way through its own auto-hide timer isn't
-// cut short by a break elsewhere ending.
+/**
+ * Called on every break-end (endBreak, playback.js) — only actually hides
+ * the overlay if what's showing was shown FOR a break, so an unrelated
+ * tuneIn/contentStart overlay mid-way through its own auto-hide timer isn't
+ * cut short by a break elsewhere ending.
+ */
 export function clearDynamicOverlaysForBreak() {
   if (activeTrigger && BREAK_TRIGGERS.has(activeTrigger)) hideDynamicOverlay();
 }
 
-// Content the rule's own contentTags (if any) must overlap — same "unset/
-// empty = eligible for anything, otherwise must share at least one tag"
-// convention resolveBreakAt (interstitials.js) already uses for ad
-// targeting. Computed from the channel's OWN currently-airing file, same
-// (ch, computeLivePosition) pairing setup-aircheck.js's preview simulator
-// uses, so a rule scoped to e.g. "holiday" only fires while holiday-tagged
-// content is actually on screen, regardless of which moment (trigger)
-// happens to line up with it.
+/**
+ * Content the rule's own contentTags (if any) must overlap — same "unset/
+ * empty = eligible for anything, otherwise must share at least one tag"
+ * convention resolveBreakAt (interstitials.js) already uses for ad
+ * targeting. Computed from the channel's OWN currently-airing file, same
+ * (ch, computeLivePosition) pairing setup-aircheck.js's preview simulator
+ * uses, so a rule scoped to e.g. "holiday" only fires while holiday-tagged
+ * content is actually on screen, regardless of which moment (trigger)
+ * happens to line up with it.
+ * @param {object} ch The channel config.
+ * @param {object} rule A dynamic-overlay rule.
+ * @returns {boolean} True when the rule has no tags or shares one with the airing file.
+ */
 function ruleMatchesCurrentContent(ch, rule) {
   if (!rule.contentTags || !rule.contentTags.length) return true;
   const pos = computeLivePosition(ch);
@@ -70,13 +87,12 @@ function ruleMatchesCurrentContent(ch, rule) {
   return fileTags.length > 0 && rule.contentTags.some((t) => fileTags.includes(t));
 }
 
-// Returns true when a matching custom-media rule was actually found and
-// shown, false otherwise — callers that have their own built-in fallback
-// rendering (e.g. flashRatingBug/showMovieRatingCard, playback.js) use this
-// to know whether they still need to render that fallback themselves.
-// Overlay sizes are in pixels set on one screen, so they are scaled by the
-// screen's height against the "sizes were set on" height (DISPLAY › Logo bug,
-// shared with the logo bug), the same as the bug itself. 0 there means fixed.
+/**
+ * Overlay sizes are in pixels set on one screen, so they are scaled by the
+ * screen's height against the "sizes were set on" height (DISPLAY › Logo bug,
+ * shared with the logo bug), the same as the bug itself. 0 there means fixed.
+ * @returns {number} Scale factor, clamped to 0.25..4.
+ */
 function overlayScale() {
   const display = S.config.display || {};
   const setting = display.logoBugReferenceHeight;
@@ -85,6 +101,16 @@ function overlayScale() {
   return h > 0 ? Math.min(4, Math.max(0.25, h / (Number(setting) || Number(display.logoBugAuthoredHeight) || 1080))) : 1;
 }
 
+/**
+ * Shows the first overlay rule matching `trigger` for the channel and the content on screen.
+ * Returns true when a matching custom-media rule was actually found and
+ * shown, false otherwise — callers that have their own built-in fallback
+ * rendering (e.g. flashRatingBug/showMovieRatingCard, playback.js) use this
+ * to know whether they still need to render that fallback themselves.
+ * @param {object} ch The channel config.
+ * @param {string} trigger The trigger that fired (see DYNAMIC_OVERLAY_TRIGGERS, channels.js).
+ * @returns {boolean} Whether an overlay was shown.
+ */
 export function triggerDynamicOverlays(ch, trigger) {
   const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath && ruleMatchesCurrentContent(ch, r));
   if (!rule) return false;

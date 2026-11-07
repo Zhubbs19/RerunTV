@@ -25,33 +25,53 @@ let openedOn = null; // S.currentNumber when the hub opened; a different one mea
 let idleTimer = null;
 let actionsMenu = null; // a kit Menu this module drives (docs/design/04 §3)
 
-// Something outside the hub (a typed number, a reminder, the guide) tuned while
-// it was open: its browse position is stale, so close it.
+/**
+ * Something outside the hub (a typed number, a reminder, the guide) tuned while
+ * it was open: its browse position is stale, so close it.
+ */
 function dropIfStale() {
   if (browsing != null && S.currentNumber !== openedOn) closeBannerHub();
 }
 
+/**
+ * Tests whether the banner hub is open, closing it first if something else tuned meanwhile.
+ * @returns {boolean} True while browsing.
+ */
 export function bannerHubOpen() {
   dropIfStale();
   return browsing != null;
 }
 
+/**
+ * Tests whether the banner's actions menu is open.
+ * @returns {boolean} True while the menu is up.
+ */
 export function bannerActionsOpen() {
   return !!actionsMenu;
 }
 
-// Every tunable number in order, specials included (doc 11 put them in the
-// guide's list too).
+/**
+ * Every tunable number in order, specials included (doc 11 put them in the
+ * guide's list too).
+ * @returns {number[]} Visible channel numbers and special channels, ascending.
+ */
 function browseNumbers() {
   const real = sortedChannels().filter((ch) => !ch.hidden && !isHiddenForProfile(ch.number)).map((ch) => ch.number);
   return [...new Set([...real, ...virtualChannelNumbers()])].sort((a, b) => a - b);
 }
 
+/**
+ * Restarts the timer that closes the hub after `IDLE_CLOSE_MS` without a press.
+ */
 function armIdleClose() {
   clearTimeout(idleTimer);
   idleTimer = setTimeout(closeBannerHub, IDLE_CLOSE_MS);
 }
 
+/**
+ * Shows the banner for a channel without tuning it and keeps it up while browsing.
+ * @param {number} number The channel number to show.
+ */
 function showFor(number) {
   if (browsing == null) openedOn = S.currentNumber;
   browsing = number;
@@ -65,10 +85,16 @@ function showFor(number) {
   armIdleClose();
 }
 
+/**
+ * Opens the banner hub on the current channel.
+ */
 export function openBannerHub() {
   showFor(S.currentNumber);
 }
 
+/**
+ * Closes the banner hub and its actions menu and hides the banner.
+ */
 export function closeBannerHub() {
   closeBannerActions();
   clearTimeout(idleTimer);
@@ -78,6 +104,10 @@ export function closeBannerHub() {
   guideOverlay.classList.add('hidden');
 }
 
+/**
+ * Shows the next or previous channel in the hub without tuning; opens the hub when it is closed.
+ * @param {number} direction 1 for the next channel, -1 for the previous one.
+ */
 export function browseChannel(direction) {
   dropIfStale();
   const numbers = browseNumbers();
@@ -88,6 +118,9 @@ export function browseChannel(direction) {
   showFor(next);
 }
 
+/**
+ * Closes the hub and tunes to the channel it was showing, or re-shows the banner when that is the current channel.
+ */
 export function tuneBrowsed() {
   dropIfStale();
   const number = browsing;
@@ -98,6 +131,11 @@ export function tuneBrowsed() {
 
 // ---------- Now / Next / actions ----------
 
+/**
+ * Finds what is on now and next on a channel from `viewNow()`, or a special channel's text.
+ * @param {number} number The channel number.
+ * @returns {object} `{ now, next, specialText, ch }`; `now` and `next` are schedule entries or null.
+ */
 function nowAndNext(number) {
   if (isVirtualChannel(number)) {
     const info = virtualChannelInfo(number);
@@ -110,6 +148,9 @@ function nowAndNext(number) {
   return { now: entries[0] || null, next: entries[1] || null, specialText: '', ch };
 }
 
+/**
+ * Closes the banner's actions menu if it is open.
+ */
 export function closeBannerActions() {
   if (!actionsMenu) return;
   const menu = actionsMenu;
@@ -117,6 +158,9 @@ export function closeBannerActions() {
   menu.close();
 }
 
+/**
+ * Opens the actions menu for the channel the hub shows: INFO, plugin actions for the current programme, and WATCH.
+ */
 export function openBannerActions() {
   dropIfStale();
   if (browsing == null || actionsMenu) return;
@@ -153,6 +197,11 @@ export function openBannerActions() {
 
 // ---------- Keys (routed from tv-input's 'banner' context) ----------
 
+/**
+ * Handles a remote action while the banner hub has focus: browse, tune, open or drive the actions menu, or close.
+ * @param {string} action The remote action, e.g. `left`, `ok`, `back`.
+ * @returns {boolean} True when the action was handled.
+ */
 export function bannerKey(action) {
   armIdleClose();
   if (actionsMenu) {

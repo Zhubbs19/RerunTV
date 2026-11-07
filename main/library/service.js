@@ -36,6 +36,13 @@ const REMOTE_METHODS = new Set([
   'status', 'getIndex', 'scanRoot', 'applyItemUpdates', 'saveQuery', 'removeQuery', 'savePreset', 'removePreset', 'resolveReview', 'lastScan',
 ]);
 
+/**
+ * Lists a local root's files with the given extensions, depth first, skipping dot entries and `_originals_backup`.
+ * @param {string} root The root folder.
+ * @param {Set<string>} extensions Lowercase extensions to keep.
+ * @param {number} maxFiles Stop after this many files.
+ * @returns {object} `{ entries, truncated }`; entries are `{ ref, size, mtimeMs }`, sorted by ref.
+ */
 function walkLocal(root, extensions, maxFiles) {
   const out = [];
   let truncated = false;
@@ -60,9 +67,15 @@ function walkLocal(root, extensions, maxFiles) {
   return { entries: out.sort((a, b) => a.ref.localeCompare(b.ref)), truncated };
 }
 
-// Same walk as walkLocal without blocking the main thread: a large library
-// on a slow or network drive can take many seconds to list, and every IPC and
-// LAN request shares that thread. It yields between directories and files.
+/**
+ * Same walk as walkLocal without blocking the main thread: a large library
+ * on a slow or network drive can take many seconds to list, and every IPC and
+ * LAN request shares that thread. It yields between directories and files.
+ * @param {string} root The root folder.
+ * @param {Set<string>} extensions Lowercase extensions to keep.
+ * @param {number} maxFiles Stop after this many files.
+ * @returns {Promise<object>} `{ entries, truncated }`, as `walkLocal` returns.
+ */
 async function walkLocalAsync(root, extensions, maxFiles) {
   const out = [];
   let truncated = false;
@@ -86,6 +99,20 @@ async function walkLocalAsync(root, extensions, maxFiles) {
   return { entries: out.sort((a, b) => a.ref.localeCompare(b.ref)), truncated };
 }
 
+/**
+ * Creates the library service: the store plus the scan, migration, query, preset, review and local-metadata methods, behind one `call(method, payload, { remote })` entry point.
+ * @param {object} opts Options.
+ * @param {string} opts.dir The library folder (scan log, metadata caches).
+ * @param {string} [opts.dbDir=opts.dir] Folder holding rerun.db.
+ * @param {Set<string>} opts.videoExtensions Lowercase video extensions a scan keeps.
+ * @param {?Function} [opts.listProvider=null] Lists a provider root's files.
+ * @param {Function} [opts.getFfmpegPath] Returns the ffmpeg path, or null.
+ * @param {Function} [opts.now] Clock in ms.
+ * @param {number} [opts.maxScanFiles=DEFAULT_MAX_SCAN_FILES] Default file cap per scan.
+ * @param {?object} [opts.metadataReader=null] Local metadata reader override (tests).
+ * @param {?object} [opts.breakDetector=null] Break detection service override (tests).
+ * @returns {object} `{ call, api, store, REMOTE_METHODS }`.
+ */
 function createLibraryService({
   dir,
   dbDir = dir,            // where rerun.db lives (userData in the app)
@@ -410,9 +437,14 @@ function createLibraryService({
   return { call, api, store, REMOTE_METHODS };
 }
 
-// One IPC channel for the whole API. Errors travel back as { error } rather
-// than as rejections, because Electron flattens a thrown Error to its message
-// with an "Error invoking remote method" prefix the setup screen would show.
+/**
+ * One IPC channel for the whole API. Errors travel back as { error } rather
+ * than as rejections, because Electron flattens a thrown Error to its message
+ * with an "Error invoking remote method" prefix the setup screen would show.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ * @param {object} deps Dependencies.
+ * @param {Function} deps.getService Returns the library service.
+ */
 function registerLibraryIpc(ipcMain, { getService }) {
   ipcMain.handle('library:call', async (event, method, payload) => {
     try {

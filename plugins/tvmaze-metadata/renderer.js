@@ -8,10 +8,19 @@ const { episodeOf, searchQueryFor, splitYear, rankByYear, plainSummary } = title
 
 const PLUGIN_ID = 'tvmaze-metadata';
 const HOST_ONLY = 'TVmaze lookups only run on the host device.';
+/**
+ * Tells whether a value is a non-blank string.
+ * @param {*} value The value to test.
+ * @returns {boolean} True for a string with non-space text.
+ */
 const hasText = (value) => typeof value === 'string' && value.trim() !== '';
 
-// The year comes out of the query (TVmaze finds nothing with it left in) and
-// ranks the shows instead: the 1990 revival over the 1960 original.
+/**
+ * The year comes out of the query (TVmaze finds nothing with it left in) and
+ * ranks the shows instead: the 1990 revival over the 1960 original.
+ * @param {string} query The search text, usually from the file name.
+ * @returns {Promise<object>} `{ results, error? }` with shows ranked by year; never rejects.
+ */
 async function searchShows(query) {
   if (!ipc.available()) return { results: [], error: HOST_ONLY };
   const { title, year } = splitYear(query);
@@ -26,6 +35,11 @@ async function searchShows(query) {
 
 // One episode list per show for this session, on top of main.js's cache.
 const episodeLists = new Map();
+/**
+ * Fetches a show's episode list once per session.
+ * @param {number} showId The TVmaze show id.
+ * @returns {Promise<Array<object>>} The show's episodes, or an empty list on failure.
+ */
 async function episodesOf(showId) {
   if (!episodeLists.has(showId)) {
     episodeLists.set(showId, ipc.invoke(PLUGIN_ID, 'tvmaze:episodes', { showId })
@@ -35,7 +49,10 @@ async function episodesOf(showId) {
   return episodeLists.get(showId);
 }
 
-// MATCHING (settings.js). Both default on; read fresh at each match.
+/**
+ * MATCHING (settings.js). Both default on; read fresh at each match.
+ * @returns {{episodeTitles: boolean, seriesNames: boolean}} The matching preferences.
+ */
 function matchPrefs() {
   const settings = window.RCBPlugins.ctx.settings;
   const saved = (settings && typeof settings.getPluginSettings === 'function' && settings.getPluginSettings(PLUGIN_ID)) || {};
@@ -46,6 +63,13 @@ function matchPrefs() {
  * The fields one match writes on a file: the episode's synopsis (or the
  * show's), an empty title from the episode, an empty series from the show,
  * and `tvmaze` — where and when it first aired.
+ * @param {object} file The channel file entry being matched.
+ * @param {object} show The chosen show, as built by main.js's `showFrom`.
+ * @param {?object} episode The matching episode, or null for a show-level match.
+ * @param {object} prefs The matching preferences from `matchPrefs()`.
+ * @param {object} [options] Write options.
+ * @param {boolean} [options.overwriteDescription=false] Replace an existing description.
+ * @returns {object} The fields to write on the file.
  */
 export function fieldsFromShow(file, show, episode, prefs, { overwriteDescription = false } = {}) {
   const tvmaze = { showId: show.id, show: show.name, network: show.network || null, country: show.country || null };
@@ -66,22 +90,38 @@ export function fieldsFromShow(file, show, episode, prefs, { overwriteDescriptio
   return fields;
 }
 
+/**
+ * Finds the episode a file's season and episode code points at.
+ * @param {Array<object>} episodes The show's episode list.
+ * @param {object} file The channel file entry.
+ * @returns {?object} The matching episode, or null.
+ */
 export function findEpisode(episodes, file) {
   const code = episodeOf(file);
   if (!code) return null;
   return episodes.find((e) => e.season === code.season && e.number === code.episode) || null;
 }
 
-// A file a bulk match should look up: an episode with no description yet, or
-// only its show's description from an earlier show-level match.
+/**
+ * A file a bulk match should look up: an episode with no description yet, or
+ * only its show's description from an earlier show-level match.
+ * @param {object} file The channel file entry.
+ * @returns {boolean} True when the file should be looked up.
+ */
 export function needsMatch(file) {
   if (!episodeOf(file)) return false;
   if (!hasText(file.description)) return true;
   return !!(file.tmdb && file.tmdb.mediaType === 'tv' && !file.tmdb.episode && !(file.tvmaze && file.tvmaze.episodeId));
 }
 
-// A match describes the media, not one playlist entry: written on every copy
-// through core's ctx.shareFileFields (TITLES row ctx).
+/**
+ * A match describes the media, not one playlist entry: written on every copy
+ * through core's ctx.shareFileFields (TITLES row ctx).
+ * @param {object} ctx The TITLES row ctx.
+ * @param {object} file The channel file entry.
+ * @param {object} fields The fields to write.
+ * @param {object} [opts] Write options; `commit: false` skips the save.
+ */
 function saveMatch(ctx, file, fields, opts) {
   if (typeof ctx.shareFileFields === 'function') {
     ctx.shareFileFields(file, fields, opts);

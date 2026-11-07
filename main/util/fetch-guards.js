@@ -8,6 +8,12 @@
 // host cannot harvest a plugin's API key or token.
 const CREDENTIAL_HEADERS = new Set(['authorization', 'proxy-authorization', 'cookie', 'x-api-key', 'x-auth-token']);
 
+/**
+ * A copy of `headers` without the credential headers in `CREDENTIAL_HEADERS`.
+ * Accepts the same shapes fetch does and returns the same shape it was given.
+ * @param {Headers|Array<Array<string>>|object} headers The request headers.
+ * @returns {Headers|Array<Array<string>>|object} The filtered headers.
+ */
 function stripCredentialHeaders(headers) {
   if (!headers) return headers;
   const keep = (name) => !CREDENTIAL_HEADERS.has(String(name).toLowerCase());
@@ -23,8 +29,14 @@ function stripCredentialHeaders(headers) {
   return headers;
 }
 
-// The request options for the next redirect hop: same options, minus credential
-// headers when the origin changed.
+/**
+ * The request options for the next redirect hop: same options, minus credential
+ * headers when the origin changed.
+ * @param {object} opts The request options.
+ * @param {string} fromUrl The URL that redirected.
+ * @param {string} toUrl The redirect target.
+ * @returns {object} The options to use for the next hop.
+ */
 function optionsForRedirect(opts, fromUrl, toUrl) {
   let sameOrigin;
   try { sameOrigin = new URL(fromUrl).origin === new URL(toUrl).origin; } catch (e) { sameOrigin = false; }
@@ -34,8 +46,14 @@ function optionsForRedirect(opts, fromUrl, toUrl) {
 
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-// Reads a fetch Response body as text, refusing more than `limit` bytes. A
-// Content-Length over the limit is refused before reading anything.
+/**
+ * Reads a fetch Response body as text, refusing more than `limit` bytes. A
+ * Content-Length over the limit is refused before reading anything.
+ * @param {Response} res The fetch response.
+ * @param {number} [limit=MAX_RESPONSE_BYTES] Maximum body size in bytes.
+ * @returns {Promise<string>} The body text.
+ * @throws {Error} When the body is larger than `limit`.
+ */
 async function readBodyTextLimited(res, limit = MAX_RESPONSE_BYTES) {
   const declared = Number(res.headers && res.headers.get && res.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > limit) throw new Error(`response too large (${declared} bytes)`);
@@ -61,9 +79,13 @@ async function readBodyTextLimited(res, limit = MAX_RESPONSE_BYTES) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-// The only URL schemes a plugin may hand to shell.openExternal: a web page or a
-// mail composer. file:, smb:, custom protocol handlers and javascript: can run
-// local programs or leak credentials.
+/**
+ * The only URL schemes a plugin may hand to shell.openExternal: a web page or a
+ * mail composer. file:, smb:, custom protocol handlers and javascript: can run
+ * local programs or leak credentials.
+ * @param {*} value The URL to check.
+ * @returns {boolean} Whether it may be opened externally.
+ */
 function isAllowedExternalUrl(value) {
   if (typeof value !== 'string' || value.length > 4096) return false;
   let parsed;

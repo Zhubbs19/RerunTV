@@ -8,6 +8,11 @@
 // change: a failure here just means no restore point.
 import { saveConfigNow } from '../core/state.js';
 
+/**
+ * Saves config now and asks the host for a named backup.
+ * @param {string} reason The reason shown in SETTINGS › Backups.
+ * @returns {Promise<void>}
+ */
 export async function takeRestorePoint(reason) {
   try {
     await saveConfigNow();

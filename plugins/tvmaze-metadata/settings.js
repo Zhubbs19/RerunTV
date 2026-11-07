@@ -1,3 +1,6 @@
+// PLUGINS-tab settings for the TVmaze lookup: what it does, its credit line
+// and the matching options.
+
 window.RCBPlugins.registerPluginSettings('tvmaze-metadata', {
   schemaVersion: 1,
   defaults: { episodeTitles: true, seriesNames: true },

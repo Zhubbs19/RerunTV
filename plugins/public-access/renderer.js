@@ -16,6 +16,10 @@ let clockTimer = null;
 let slideTimer = null;
 let slideIdx = 0;
 
+/**
+ * Shows the current bulletin slide, or a welcome message when no slides are set.
+ * @param {object} ctx The plugin context.
+ */
 function showSlide(ctx) {
   if (!currentContainer) return;
   const slideEl = currentContainer.querySelector('[data-el="slide"]');
@@ -29,6 +33,10 @@ function showSlide(ctx) {
   slideEl.textContent = slides[slideIdx];
 }
 
+/**
+ * Writes the time-machine-aware clock into the header.
+ * @param {object} ctx The plugin context.
+ */
 function updateClock(ctx) {
   if (!currentContainer) return;
   const d = new Date(ctx.viewNow());

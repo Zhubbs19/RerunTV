@@ -18,9 +18,21 @@ const NAMED = {
   orange: [255, 165, 0], gold: [255, 215, 0],
 };
 
+/**
+ * Limits a value to [lo, hi].
+ * @param {number} value The value.
+ * @param {number} lo The minimum.
+ * @param {number} hi The maximum.
+ * @returns {number} The clamped value.
+ */
 const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
 
-// Splits on a separator that isn't inside parentheses.
+/**
+ * Splits on a separator that isn't inside parentheses.
+ * @param {string} text The text to split.
+ * @param {string} [separator=','] The separator character.
+ * @returns {string[]} The trimmed parts; an empty last part is dropped.
+ */
 export function splitTopLevel(text, separator = ',') {
   const parts = [];
   let depth = 0;
@@ -34,12 +46,23 @@ export function splitTopLevel(text, separator = ',') {
   return parts;
 }
 
+/**
+ * Reads one colour channel, scaling a percentage to `scale`.
+ * @param {string} token The channel text, e.g. "128" or "50%".
+ * @param {number} scale The value 100% stands for.
+ * @returns {number} The channel value (NaN when unreadable).
+ */
 function channel(token, scale) {
   const text = String(token).trim();
   if (text.endsWith('%')) return (parseFloat(text) / 100) * scale;
   return parseFloat(text);
 }
 
+/**
+ * Reads an alpha token (number or percentage), clamped to 0-1; missing or unreadable is 1.
+ * @param {string} [token] The alpha text.
+ * @returns {number} The alpha.
+ */
 function alphaOf(token) {
   if (token === undefined || token === '') return 1;
   const text = String(token).trim();
@@ -47,7 +70,12 @@ function alphaOf(token) {
   return Number.isFinite(value) ? clamp(value, 0, 1) : 1;
 }
 
-// Channel list of rgb()/hsl()/color(): "1, 2, 3, .5" or "1 2 3 / 50%".
+/**
+ * Channel list of rgb()/hsl()/color(): "1, 2, 3, .5" or "1 2 3 / 50%".
+ * @param {string} body The text inside the function's parentheses.
+ * @returns {{parts: string[], alpha: (string|undefined)}} The first three channels and the alpha
+ *   token.
+ */
 function channelList(body) {
   const [main, slashAlpha] = body.split('/');
   const parts = main.split(/[\s,]+/).filter(Boolean);
@@ -55,6 +83,13 @@ function channelList(body) {
   return { parts: parts.slice(0, 3), alpha };
 }
 
+/**
+ * Converts HSL to RGB.
+ * @param {number} h Hue in degrees, 0-360.
+ * @param {number} s Saturation, 0-1.
+ * @param {number} l Lightness, 0-1.
+ * @returns {number[]} [r, g, b], each 0-255.
+ */
 function hslToRgb(h, s, l) {
   const k = (n) => (n + h / 30) % 12;
   const a = s * Math.min(l, 1 - l);
@@ -62,7 +97,11 @@ function hslToRgb(h, s, l) {
   return [f(0) * 255, f(8) * 255, f(4) * 255];
 }
 
-// Returns { r, g, b, a } (r/g/b 0–255, a 0–1) or null when it isn't a colour.
+/**
+ * Returns { r, g, b, a } (r/g/b 0–255, a 0–1) or null when it isn't a colour.
+ * @param {*} value A CSS colour string.
+ * @returns {?{r: number, g: number, b: number, a: number}} The colour, or null.
+ */
 export function parseColor(value) {
   const text = String(value == null ? '' : value).trim().toLowerCase();
   if (!text) return null;
@@ -107,8 +146,13 @@ export function parseColor(value) {
   return null;
 }
 
-// color-mix(in srgb, A p%, B q%) with the spec's percentage normalization and
-// premultiplied alpha. Other interpolation spaces are approximated in sRGB.
+/**
+ * color-mix(in srgb, A p%, B q%) with the spec's percentage normalization and
+ * premultiplied alpha. Other interpolation spaces are approximated in sRGB.
+ * @param {string} value A `color-mix(...)` string.
+ * @returns {?{r: number, g: number, b: number, a: number}} The mixed colour, or null when it cannot
+ *   be read.
+ */
 export function parseColorMix(value) {
   const m = String(value).trim().toLowerCase().match(/^color-mix\((.*)\)$/);
   if (!m) return null;
@@ -135,8 +179,13 @@ export function parseColorMix(value) {
   return { r: mix('r'), g: mix('g'), b: mix('b'), a: alpha * scale };
 }
 
-// The colours in a gradient, in order. Stop positions are ignored: the worst
-// stop is what the check needs, and every stop is somewhere on screen.
+/**
+ * The colours in a gradient, in order. Stop positions are ignored: the worst
+ * stop is what the check needs, and every stop is somewhere on screen.
+ * @param {string} value A CSS background value.
+ * @returns {?Array<{r: number, g: number, b: number, a: number}>} The stop colours, or null when it
+ *   is not a gradient.
+ */
 export function gradientStops(value) {
   const m = String(value).trim().match(/^(?:repeating-)?(?:linear|radial|conic)-gradient\((.*)\)$/i);
   if (!m) return null;
@@ -153,8 +202,12 @@ export function gradientStops(value) {
   return stops;
 }
 
-// A background value (a colour, a gradient, or comma-separated layers, top
-// first) as a list of layers, each a list of candidate colours.
+/**
+ * A background value (a colour, a gradient, or comma-separated layers, top
+ * first) as a list of layers, each a list of candidate colours.
+ * @param {*} value A computed `background` / `background-image` value.
+ * @returns {Array<Array<object>>} The layers, top first; each a list of { r, g, b, a } colours.
+ */
 export function backgroundLayers(value) {
   const text = String(value == null ? '' : value).trim();
   if (!text || text === 'none') return [];
@@ -168,14 +221,24 @@ export function backgroundLayers(value) {
   return layers;
 }
 
-// fg drawn over an opaque bg.
+/**
+ * fg drawn over an opaque bg.
+ * @param {{r: number, g: number, b: number, a: number}} fg The foreground colour.
+ * @param {{r: number, g: number, b: number, a: number}} bg The opaque background.
+ * @returns {{r: number, g: number, b: number, a: number}} The opaque result.
+ */
 export function composite(fg, bg) {
   const a = fg.a;
   return { r: fg.r * a + bg.r * (1 - a), g: fg.g * a + bg.g * (1 - a), b: fg.b * a + bg.b * (1 - a), a: 1 };
 }
 
-// Flattens layers (top first) over opaque base candidates into every opaque
-// colour that can show through, deduplicated.
+/**
+ * Flattens layers (top first) over opaque base candidates into every opaque
+ * colour that can show through, deduplicated.
+ * @param {Array<Array<object>>} layers Background layers, top first, from `backgroundLayers`.
+ * @param {Array<object>} [base] Colours under the layers; opaque black by default.
+ * @returns {Array<object>} The opaque { r, g, b, a } candidates.
+ */
 export function flattenLayers(layers, base = [{ r: 0, g: 0, b: 0, a: 1 }]) {
   let candidates = base.map((c) => (c.a >= 1 ? c : composite(c, { r: 0, g: 0, b: 0, a: 1 })));
   for (let i = layers.length - 1; i >= 0; i -= 1) {
@@ -189,19 +252,36 @@ export function flattenLayers(layers, base = [{ r: 0, g: 0, b: 0, a: 1 }]) {
   return candidates;
 }
 
+/**
+ * WCAG relative luminance of an sRGB colour.
+ * @param {object} color The colour ({ r, g, b }, 0-255).
+ * @returns {number} The luminance, 0-1.
+ */
 export function relativeLuminance({ r, g, b }) {
   const f = (x) => { const s = x / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
+/**
+ * WCAG contrast ratio between two opaque colours.
+ * @param {object} a The first colour ({ r, g, b }).
+ * @param {object} b The second colour ({ r, g, b }).
+ * @returns {number} The ratio, 1-21.
+ */
 export function contrastRatio(a, b) {
   const x = relativeLuminance(a);
   const y = relativeLuminance(b);
   return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
 
-// The lowest ratio of fg (which may be translucent) against any background
-// candidate. Returns { ratio, fg, bg } for the worst pairing.
+/**
+ * The lowest ratio of fg (which may be translucent) against any background
+ * candidate. Returns { ratio, fg, bg } for the worst pairing.
+ * @param {{r: number, g: number, b: number, a: number}} fg The foreground colour.
+ * @param {Array<object>} backgrounds Opaque background candidates.
+ * @returns {?{ratio: number, fg: object, bg: object}} The worst pairing, or null for no
+ *   backgrounds.
+ */
 export function worstContrast(fg, backgrounds) {
   let worst = null;
   backgrounds.forEach((bg) => {
@@ -212,6 +292,11 @@ export function worstContrast(fg, backgrounds) {
   return worst;
 }
 
+/**
+ * Formats a colour as "#rrggbb".
+ * @param {object} color The colour ({ r, g, b }, 0-255).
+ * @returns {string} The hex string.
+ */
 export function toHex({ r, g, b }) {
   return `#${[r, g, b].map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('')}`;
 }

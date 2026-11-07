@@ -1,3 +1,7 @@
+// Main-process owner of channels.json: the portable userData location and its one-time
+// migration, the pre-update safety copy, the read cache, rotating backups and labels, the
+// config host instance, and the config/backups IPC handlers.
+
 const { app, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -63,14 +67,18 @@ const OWN_DATA_ENTRIES = [
   // re-pairing, and they shouldn't sit in a temp-dir copy between boots.
 ];
 
-// A plugin can declare manifest `"dataDir": "some-folder-name"` for a
-// root-level userData folder it owns beyond its own plugins/<id>/ folder
-// (already covered by the 'plugins' entry above) — e.g. a party server's
-// guest-uploaded media, a music-channel plugin's download cache. Read via a
-// raw manifest scan (not main-plugins.js's discoverPlugins(), which isn't
-// safe to call before this migration has even decided where userData
-// lives) so core doesn't need to hardcode any specific plugin's data
-// folder name here.
+/**
+ * A plugin can declare manifest `"dataDir": "some-folder-name"` for a
+ * root-level userData folder it owns beyond its own plugins/<id>/ folder
+ * (already covered by the 'plugins' entry above) — e.g. a party server's
+ * guest-uploaded media, a music-channel plugin's download cache. Read via a
+ * raw manifest scan (not main-plugins.js's discoverPlugins(), which isn't
+ * safe to call before this migration has even decided where userData
+ * lives) so core doesn't need to hardcode any specific plugin's data
+ * folder name here.
+ * @param {string} userDataDir The userData folder whose `plugins/` folder is scanned.
+ * @returns {string[]} Folder names declared by installed plugins' manifests.
+ */
 function pluginDeclaredDataDirs(userDataDir) {
   const dirs = [];
   try {
@@ -85,12 +93,16 @@ function pluginDeclaredDataDirs(userDataDir) {
   return dirs;
 }
 
-// Shared by the one-time OS-profile migration below AND the pre-update
-// backup/restore pair (backupUserDataForUpdate, restoreUserDataIfWiped) —
-// "what actually matters" in a userData dir is the same list either way:
-// this app's own files/folders, plus whatever a plugin's own manifest
-// declares, plus channels.json's rotating backups/corrupt-preserves (which
-// sit alongside it by name, not as one of the fixed entries above).
+/**
+ * Shared by the one-time OS-profile migration below AND the pre-update
+ * backup/restore pair (backupUserDataForUpdate, restoreUserDataIfWiped) —
+ * "what actually matters" in a userData dir is the same list either way:
+ * this app's own files/folders, plus whatever a plugin's own manifest
+ * declares, plus channels.json's rotating backups/corrupt-preserves (which
+ * sit alongside it by name, not as one of the fixed entries above).
+ * @param {string} fromDir The userData folder to list.
+ * @returns {string[]} Entry names in `fromDir` that belong to the app or its plugins.
+ */
 function ownDataEntryNames(fromDir) {
   const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(fromDir));
   return fs.readdirSync(fromDir).filter((name) => entriesToCopy.includes(name) || name.startsWith('channels.json.'));
@@ -102,9 +114,18 @@ function ownDataEntryNames(fromDir) {
 // cache can take minutes to copy synchronously on the quit path), and it sits
 // in a temp folder, so credential/token files are also not worth leaving there.
 const BACKUP_MAX_FILE_BYTES = 200 * 1024 * 1024;
+// Folder names treated as regenerable caches and skipped by the safety copy.
 const BACKUP_SKIP_DIR = /(?:^|[-_.])caches?$|^cache[-_.]|^(?:tmp|temp|node_modules)$/i;
+// File names that look like credentials or keys and are skipped by the safety copy.
 const BACKUP_SKIP_FILE = /(?:credential|token|secret|oauth|password|api[-_]?key|\.pem$|\.key$)/i;
 
+/**
+ * Whether one path is left out of the pre-update safety copy (caches, credential files,
+ * oversized files).
+ * @param {string} srcPath The file or folder path being considered.
+ * @param {?fs.Stats} stat Its stat result, or null when unknown.
+ * @returns {boolean} True to skip it.
+ */
 function shouldSkipFromUpdateBackup(srcPath, stat) {
   const name = path.basename(srcPath);
   if (stat && stat.isDirectory()) return BACKUP_SKIP_DIR.test(name);
@@ -112,6 +133,11 @@ function shouldSkipFromUpdateBackup(srcPath, stat) {
   return !!(stat && stat.isFile() && stat.size > BACKUP_MAX_FILE_BYTES);
 }
 
+/**
+ * `fs.cpSync` filter for the pre-update safety copy.
+ * @param {string} src The path about to be copied.
+ * @returns {boolean} True to copy it.
+ */
 function updateBackupFilter(src) {
   // An open database in WAL mode can't be file-copied consistently; it's
   // snapshotted separately (snapshotDbForUpdate).
@@ -121,18 +147,28 @@ function updateBackupFilter(src) {
   return !shouldSkipFromUpdateBackup(src, stat);
 }
 
+/**
+ * Copies this app's own userData entries from one folder to another.
+ * @param {string} fromDir Source userData folder.
+ * @param {string} toDir Destination folder.
+ * @param {object} [options={}] Extra `fs.cpSync` options (for example a `filter`).
+ */
 function copyOwnDataEntries(fromDir, toDir, options = {}) {
   ownDataEntryNames(fromDir).forEach((name) => {
     fs.cpSync(path.join(fromDir, name), path.join(toDir, name), { recursive: true, ...options });
   });
 }
 
-// The database's part of the update safety copy: one consistent file written
-// with VACUUM INTO, safe while a loudness sweep is still writing to it. It
-// holds the library catalogue, not just caches, so if the snapshot fails the
-// raw files (database plus WAL) are copied instead: SQLite replays a copied
-// WAL on open, and a copy that might be a few writes stale beats no copy if
-// the installer wipes the folder.
+/**
+ * The database's part of the update safety copy: one consistent file written
+ * with VACUUM INTO, safe while a loudness sweep is still writing to it. It
+ * holds the library catalogue, not just caches, so if the snapshot fails the
+ * raw files (database plus WAL) are copied instead: SQLite replays a copied
+ * WAL on open, and a copy that might be a few writes stale beats no copy if
+ * the installer wipes the folder.
+ * @param {string} localDir The live userData folder holding the database.
+ * @param {string} backupDir The safety-copy folder to write into.
+ */
 function snapshotDbForUpdate(localDir, backupDir) {
   try {
     snapshotDb(localDir, path.join(backupDir, DB_FILE));
@@ -145,6 +181,13 @@ function snapshotDbForUpdate(localDir, backupDir) {
   }
 }
 
+/**
+ * Async version of `copyOwnDataEntries`, so the copy does not block the main thread.
+ * @param {string} fromDir Source userData folder.
+ * @param {string} toDir Destination folder.
+ * @param {object} [options={}] Extra `fs.promises.cp` options (for example a `filter`).
+ * @returns {Promise<void>}
+ */
 async function copyOwnDataEntriesAsync(fromDir, toDir, options = {}) {
   for (const name of ownDataEntryNames(fromDir)) {
     await fs.promises.cp(path.join(fromDir, name), path.join(toDir, name), { recursive: true, ...options });
@@ -196,11 +239,14 @@ function portableUserDataDir() {
   });
 }
 
-// A temp location OUTSIDE the app's own install directory — the whole point
-// is surviving an installer step that wipes/replaces that directory (see
-// backupUserDataForUpdate's own comment). Namespaced by install path (not
-// just a fixed name) so a portable install run from more than one location
-// on the same machine can't clobber each other's pending backup.
+/**
+ * A temp location OUTSIDE the app's own install directory — the whole point
+ * is surviving an installer step that wipes/replaces that directory (see
+ * backupUserDataForUpdate's own comment). Namespaced by install path (not
+ * just a fixed name) so a portable install run from more than one location
+ * on the same machine can't clobber each other's pending backup.
+ * @returns {string} Absolute path of this install's pending pre-update backup folder.
+ */
 function pendingUpdateBackupDir() {
   const crypto = require('crypto');
   const key = crypto.createHash('sha1').update(portableUserDataDir()).digest('hex').slice(0, 16);
@@ -217,6 +263,10 @@ function pendingUpdateBackupDir() {
 // boot, whichever way the install actually behaved.
 let preUpdateSnapshotTaken = false;
 
+/**
+ * Copies the current userData to a temp folder outside the install directory before an
+ * update install (see the comment above `preUpdateSnapshotTaken`). Errors are logged, not thrown.
+ */
 function backupUserDataForUpdate() {
   try {
     const localDir = portableUserDataDir();
@@ -229,8 +279,11 @@ function backupUserDataForUpdate() {
   }
 }
 
-// Same copy without blocking the main thread; for callers that can await it
-// (the IPC install handler). The lineup restore point is still taken first.
+/**
+ * Same copy without blocking the main thread; for callers that can await it
+ * (the IPC install handler). The lineup restore point is still taken first.
+ * @returns {Promise<void>}
+ */
 async function backupUserDataForUpdateAsync() {
   try {
     const localDir = portableUserDataDir();
@@ -243,6 +296,11 @@ async function backupUserDataForUpdateAsync() {
   }
 }
 
+/**
+ * Takes the one-per-process "before-update" restore point and returns an empty, freshly
+ * created pending-backup folder.
+ * @returns {string} The pending-backup folder path.
+ */
 function prepareUpdateBackupDir() {
   {
     // Keep an ordinary, user-visible restore point as well as the external
@@ -260,10 +318,12 @@ function prepareUpdateBackupDir() {
   }
 }
 
-// Called at the very start of migrateUserDataIfNeeded() below, before that
-// function decides where 'userData' should point — reconciles whatever
-// backupUserDataForUpdate() left behind against what the just-installed
-// update actually left in place.
+/**
+ * Called at the very start of migrateUserDataIfNeeded() below, before that
+ * function decides where 'userData' should point — reconciles whatever
+ * backupUserDataForUpdate() left behind against what the just-installed
+ * update actually left in place.
+ */
 function restoreUserDataIfWiped() {
   const backupDir = pendingUpdateBackupDir();
   if (!fs.existsSync(backupDir)) return; // no update was in flight, or nothing needed backing up
@@ -282,6 +342,11 @@ function restoreUserDataIfWiped() {
   }
 }
 
+/**
+ * Restores a wiped userData from a pending update backup, runs the one-time OS-profile
+ * migration if due, and points Electron's `userData` path at the portable folder. Must run
+ * before anything reads `app.getPath('userData')` (see the section comment above).
+ */
 function migrateUserDataIfNeeded() {
   restoreUserDataIfWiped();
   const defaultUserDataDir = app.getPath('userData');
@@ -309,6 +374,10 @@ function migrateUserDataIfNeeded() {
   }
 }
 
+/**
+ * Path of channels.json, resolved on each call (never captured at require time).
+ * @returns {string} Absolute path of channels.json in the current userData folder.
+ */
 function getConfigPath() {
   return path.join(app.getPath('userData'), 'channels.json');
 }
@@ -338,11 +407,20 @@ let cachedConfigMtimeMs = null;
 // /api/config projection) and drop it exactly when the file changes.
 let configVersion = 0;
 
+/**
+ * Current config version, re-reading the file first if its mtime changed.
+ * @returns {number} The counter bumped on every read-after-change or write of channels.json.
+ */
 function getConfigVersion() {
   try { readConfigFileCached(); } catch (e) { /* missing/unreadable: version stays */ }
   return configVersion;
 }
 
+/**
+ * Raw text of channels.json, served from the cache unless the file's mtime changed.
+ * @returns {string} The file's text.
+ * @throws {Error} When the file is missing or unreadable.
+ */
 function readConfigFileCached() {
   const configPath = getConfigPath();
   const stat = fs.statSync(configPath); // throws ENOENT if missing, same as a direct readFileSync would
@@ -354,8 +432,11 @@ function readConfigFileCached() {
   return cachedConfigRaw;
 }
 
-// Every write to channels.json in this module goes through here so the
-// read cache above can never observe stale content after a save/restore.
+/**
+ * Every write to channels.json in this module goes through here so the
+ * read cache above can never observe stale content after a save/restore.
+ * @param {string} raw The full JSON text to write.
+ */
 function writeConfigFile(raw) {
   const configPath = getConfigPath();
   // fsync'd temp file + rename, with the EPERM/EBUSY retry Windows needs when
@@ -367,19 +448,22 @@ function writeConfigFile(raw) {
 }
 
 // ---------- Rotating config backups ----------
-// channels.json is real, irreplaceable per-user data (channel lineups,
-// blocks, interstitials) with no version control anywhere else — the only
-// prior safety nets were the corrupt-JSON preserve-on-load below and a
-// manual EXPORT CONFIG button. This snapshots the file that's about to be
-// overwritten *before* every write, so a bad edit, an accidental bulk
-// action, or something worse always has a recent point to roll back to from
-// the setup screen itself (see listBackups/restoreBackup below).
-// A function, not a top-level constant — computed lazily on every call so
-// this module never captures app.getPath('userData') at require() time.
-// That matters because requiring this module is now also how the one-time
-// portable-userData migration below gets invoked, and that migration has to
-// run (and finish repointing 'userData') before ANYTHING captures the path
-// — including this module's own require().
+/**
+ * channels.json is real, irreplaceable per-user data (channel lineups,
+ * blocks, interstitials) with no version control anywhere else — the only
+ * prior safety nets were the corrupt-JSON preserve-on-load below and a
+ * manual EXPORT CONFIG button. This snapshots the file that's about to be
+ * overwritten *before* every write, so a bad edit, an accidental bulk
+ * action, or something worse always has a recent point to roll back to from
+ * the setup screen itself (see listBackups/restoreBackup below).
+ * A function, not a top-level constant — computed lazily on every call so
+ * this module never captures app.getPath('userData') at require() time.
+ * That matters because requiring this module is now also how the one-time
+ * portable-userData migration below gets invoked, and that migration has to
+ * run (and finish repointing 'userData') before ANYTHING captures the path
+ * — including this module's own require().
+ * @returns {string} Absolute path of the backups folder.
+ */
 function getBackupsDir() { return path.join(app.getPath('userData'), 'backups'); }
 const MAX_BACKUPS = 20;
 // Snapshotting on literally every debounced autosave (as often as every
@@ -394,13 +478,24 @@ const BACKUP_MIN_INTERVAL_MS = 15 * 60 * 1000;
 let lastBackupAtMs = 0;
 
 // ---------- Backup labels ----------
-// A small sidecar file rather than encoding the label into the backup's own
-// filename — keeps the existing filename format (and every regex that
-// validates it below) completely untouched, so labeling is purely additive.
-// Missing/corrupt labels.json just means no labels yet, never an error.
+/**
+ * A small sidecar file rather than encoding the label into the backup's own
+ * filename — keeps the existing filename format (and every regex that
+ * validates it below) completely untouched, so labeling is purely additive.
+ * Missing/corrupt labels.json just means no labels yet, never an error.
+ * @returns {string} Absolute path of the backup labels sidecar file.
+ */
 function getLabelsPath() { return path.join(getBackupsDir(), 'labels.json'); }
+/**
+ * Path of the backup metadata sidecar (reason, creation time, pinned flag per backup).
+ * @returns {string} Absolute path of `backups/metadata.json`.
+ */
 function getBackupMetadataPath() { return path.join(getBackupsDir(), 'metadata.json'); }
 
+/**
+ * Reads the backup labels sidecar.
+ * @returns {object} Map of backup filename to label; empty when missing or corrupt.
+ */
 function readLabels() {
   try {
     return JSON.parse(fs.readFileSync(getLabelsPath(), 'utf-8'));
@@ -409,6 +504,10 @@ function readLabels() {
   }
 }
 
+/**
+ * Writes the backup labels sidecar. Errors are logged, not thrown.
+ * @param {object} labels Map of backup filename to label.
+ */
 function writeLabels(labels) {
   try {
     fs.mkdirSync(getBackupsDir(), { recursive: true });
@@ -418,25 +517,44 @@ function writeLabels(labels) {
   }
 }
 
+/**
+ * Reads the backup metadata sidecar.
+ * @returns {object} Map of backup filename to `{ reason, createdAt, pinned }`; empty when missing or corrupt.
+ */
 function readBackupMetadata() {
   try { return JSON.parse(fs.readFileSync(getBackupMetadataPath(), 'utf-8')); }
   catch (e) { return {}; }
 }
 
+/**
+ * Writes the backup metadata sidecar. Errors are logged, not thrown.
+ * @param {object} metadata Map of backup filename to its metadata.
+ */
 function writeBackupMetadata(metadata) {
   try { fs.writeFileSync(getBackupMetadataPath(), JSON.stringify(metadata, null, 2), 'utf-8'); }
   catch (e) { console.error('Writing backup metadata failed:', e.message); }
 }
 
-// Every one of backupCurrentConfig's own filenames matches this, and every
-// caller below that takes a `file` value back from the renderer (which only
-// ever echoes one it originally got from listBackups) re-validates against
-// it anyway before touching the filesystem, rather than trusting it — a
-// malformed or path-traversal-y value can't escape the backups directory.
+/**
+ * Every one of backupCurrentConfig's own filenames matches this, and every
+ * caller below that takes a `file` value back from the renderer (which only
+ * ever echoes one it originally got from listBackups) re-validates against
+ * it anyway before touching the filesystem, rather than trusting it — a
+ * malformed or path-traversal-y value can't escape the backups directory.
+ * @param {*} file The value to check.
+ * @returns {boolean} True when it is a well-formed backup filename.
+ */
 function isValidBackupFilename(file) {
   return typeof file === 'string' && /^channels-[0-9TZ-]+\.json$/.test(file);
 }
 
+/**
+ * Sets or clears the label of one backup.
+ * @param {string} file Backup filename.
+ * @param {?string} label New label (trimmed, at most 80 characters); empty clears it.
+ * @returns {boolean} Always true.
+ * @throws {Error} When `file` is not a valid backup filename.
+ */
 function setBackupLabel(file, label) {
   if (!isValidBackupFilename(file)) {
     throw new Error('Invalid backup filename');
@@ -448,6 +566,13 @@ function setBackupLabel(file, label) {
   return true;
 }
 
+/**
+ * Pins or unpins one backup; pinned backups are never rotated out.
+ * @param {string} file Backup filename.
+ * @param {boolean} pinned Whether to pin it.
+ * @returns {boolean} Always true.
+ * @throws {Error} When `file` is not a valid backup filename.
+ */
 function setBackupPinned(file, pinned) {
   if (!isValidBackupFilename(file)) throw new Error('Invalid backup filename');
   const metadata = readBackupMetadata();
@@ -456,11 +581,16 @@ function setBackupPinned(file, pinned) {
   return true;
 }
 
-// Returns the created snapshot's filename (or null if nothing was written —
-// no config on disk yet, or skipped by the rate limit) so a caller like the
-// new "SNAPSHOT NOW" button can attach a label to the exact file it made,
-// not just "whichever one is newest" (a second rapid snapshot elsewhere
-// could otherwise race it).
+/**
+ * Returns the created snapshot's filename (or null if nothing was written —
+ * no config on disk yet, or skipped by the rate limit) so a caller like the
+ * new "SNAPSHOT NOW" button can attach a label to the exact file it made,
+ * not just "whichever one is newest" (a second rapid snapshot elsewhere
+ * could otherwise race it).
+ * @param {boolean} force Bypass the rate limit.
+ * @param {string} [reason] Why the snapshot was taken; defaults to 'manual' when forced, else 'automatic'.
+ * @returns {?string} The created backup filename, or null.
+ */
 function backupCurrentConfig(force, reason = force ? 'manual' : 'automatic') {
   const configPath = getConfigPath();
   if (!fs.existsSync(configPath)) return null; // nothing to snapshot yet (fresh install)
@@ -498,6 +628,10 @@ function backupCurrentConfig(force, reason = force ? 'manual' : 'automatic') {
   }
 }
 
+/**
+ * Lists the backups, pinned first then newest first.
+ * @returns {Array<object>} `{ file, mtimeMs, size, label, reason, pinned }` per backup; empty on error.
+ */
 function listBackups() {
   try {
     const backupsDir = getBackupsDir();
@@ -516,6 +650,12 @@ function listBackups() {
   }
 }
 
+/**
+ * Replaces channels.json with a backup, after taking a restore point of the current file.
+ * @param {string} file Backup filename.
+ * @returns {object} The restored config.
+ * @throws {Error} When the filename is invalid or the backup is missing or unparseable.
+ */
 function restoreBackup(file) {
   if (!isValidBackupFilename(file)) {
     throw new Error('Invalid backup filename');
@@ -532,11 +672,16 @@ function restoreBackup(file) {
   return parsed;
 }
 
-// Manual prune, alongside the automatic MAX_BACKUPS rotation above — a
-// snapshot known to be from mid-experiment (a scratch channel, a bad bulk
-// action right before it got fixed) doesn't need to sit in the list for 20
-// more saves before it ages out on its own. Same filename validation as
-// restoreBackup, same reason.
+/**
+ * Manual prune, alongside the automatic MAX_BACKUPS rotation above — a
+ * snapshot known to be from mid-experiment (a scratch channel, a bad bulk
+ * action right before it got fixed) doesn't need to sit in the list for 20
+ * more saves before it ages out on its own. Same filename validation as
+ * restoreBackup, same reason.
+ * @param {string} file Backup filename.
+ * @returns {boolean} Always true.
+ * @throws {Error} When the filename is invalid or the file is missing.
+ */
 function deleteBackup(file) {
   if (!isValidBackupFilename(file)) {
     throw new Error('Invalid backup filename');
@@ -549,6 +694,12 @@ function deleteBackup(file) {
   return true;
 }
 
+/**
+ * Summarises a backup next to the current config for the restore preview.
+ * @param {string} file Backup filename.
+ * @returns {object} `{ snapshot, current, diff }` from `configSummary` and `compareConfigs`.
+ * @throws {Error} When the filename is invalid or the backup is unreadable.
+ */
 function previewBackup(file) {
   if (!isValidBackupFilename(file)) throw new Error('Invalid backup filename');
   const snapshot = JSON.parse(fs.readFileSync(path.join(getBackupsDir(), file), 'utf-8'));
@@ -572,6 +723,13 @@ let corruptConfigBackupAttempted = false;
 // corruptConfigBackupAttempted above.
 let sessionStartBackupTaken = false;
 
+/**
+ * Reads channels.json into a fresh, independently mutable object. Takes the session-start
+ * backup on the first call and migrates renamed plugins. Never throws: a missing file returns
+ * `{ channels: [], _isFirstRun: true }`, an unreadable or corrupt one returns a stub with
+ * `_configLoadError` (preserving corrupt bytes once per run).
+ * @returns {object} The config.
+ */
 function loadConfig() {
   const configPath = getConfigPath();
   if (!sessionStartBackupTaken) {
@@ -638,15 +796,30 @@ function loadConfig() {
 // save that would drop most of it can force a restore point first without a
 // second parse of the file on every autosave.
 let knownChannelCount = null;
+/**
+ * Records the channel count of a config just read or written.
+ * @param {object} config The config.
+ */
 function noteChannelCount(config) {
   if (config && Array.isArray(config.channels) && !config._configLoadError) knownChannelCount = config.channels.length;
 }
-// True when `next` channels is a sharp drop from `previous` (a bulk delete,
-// a bad import, a stale in-memory config) rather than an ordinary edit.
+/**
+ * True when `next` channels is a sharp drop from `previous` (a bulk delete,
+ * a bad import, a stale in-memory config) rather than an ordinary edit.
+ * @param {?number} previous Previous channel count.
+ * @param {?number} next Incoming channel count.
+ * @returns {boolean} True for a sharp drop.
+ */
 function isSharpChannelDrop(previous, next) {
   return Number.isInteger(previous) && Number.isInteger(next) && previous >= 4 && next <= Math.floor(previous / 2);
 }
 
+/**
+ * Writes a config to channels.json, taking a restore point first (forced on a sharp channel
+ * drop, rate-limited otherwise), and announces viewer-relevant changes.
+ * @param {object} config The full config to write.
+ * @returns {boolean} Always true.
+ */
 function saveConfig(config) {
   const incoming = config && Array.isArray(config.channels) ? config.channels.length : null;
   if (isSharpChannelDrop(knownChannelCount, incoming)) backupCurrentConfig(true, 'before-bulk-drop');
@@ -669,6 +842,12 @@ const configChanges = createChangeAnnouncer({
 });
 let configChangesPrimed = false;
 
+/**
+ * Subscribes to viewer-relevant config writes. The first subscriber primes the announcer
+ * with the current config.
+ * @param {Function} fn Called with no arguments after such a write.
+ * @returns {Function} Unsubscribe function.
+ */
 function onViewerRelevantConfigChange(fn) {
   configWrittenListeners.add(fn);
   if (!configChangesPrimed) {
@@ -684,6 +863,11 @@ function onViewerRelevantConfigChange(fn) {
 // subscribes here so paired control clients hear the same thing (main.js).
 const configAppliedListeners = new Set();
 
+/**
+ * Subscribes to commands the config host applied.
+ * @param {Function} fn Called with the applied update.
+ * @returns {Function} Unsubscribe function.
+ */
 function onConfigApplied(fn) {
   configAppliedListeners.add(fn);
   return () => configAppliedListeners.delete(fn);
@@ -710,11 +894,16 @@ const configHost = createConfigHost({
   loadCommands: () => import(pathToFileURL(COMMANDS_MODULE_PATH).href),
 });
 
-// Headless Companion edits have no desktop renderer/autosave owner. Merge
-// only existing, same-shaped settings into the current disk config; never
-// accept a projected viewer config or replace the channel/plugin registry.
-// Applied as a config.patch of plain value sets (never splices), so it can be
-// replayed onto a later renderer save without doubling anything.
+/**
+ * Headless Companion edits have no desktop renderer/autosave owner. Merge
+ * only existing, same-shaped settings into the current disk config; never
+ * accept a projected viewer config or replace the channel/plugin registry.
+ * Applied as a config.patch of plain value sets (never splices), so it can be
+ * replayed onto a later renderer save without doubling anything.
+ * @param {object} patch Nested settings values to merge.
+ * @returns {Promise<boolean>} True once applied (or when nothing changed).
+ * @throws {Error} When the config is unreadable or `patch` is not an object.
+ */
 async function applyHeadlessSettingsPatch(patch) {
   const config = loadConfig();
   if (config._configLoadError) throw new Error('Cannot edit an unreadable config');
@@ -768,6 +957,10 @@ function loadSettingsRegistry() {
   return import(pathToFileURL(SETTINGS_REGISTRY_PATH).href);
 }
 
+/**
+ * Registers the `backups:*` IPC handlers.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ */
 function registerBackupsIpc(ipcMain) {
   ipcMain.handle('backups:list', async () => listBackups());
   ipcMain.handle('backups:preview', async (event, file) => previewBackup(file));
@@ -787,6 +980,10 @@ function registerBackupsIpc(ipcMain) {
   ipcMain.handle('backups:createNow', async (_event, reason) => backupCurrentConfig(true, RESTORE_POINT_REASONS.has(reason) ? reason : 'manual'));
 }
 
+/**
+ * Registers the `config:*` IPC handlers (load, save, revision, snapshot, command, export, import).
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ */
 function registerConfigIpc(ipcMain) {
   ipcMain.handle('config:load', async () => loadConfig());
   // baseRevision: the newest host revision the renderer had applied when it

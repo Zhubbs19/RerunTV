@@ -25,8 +25,16 @@ const MAX_QUERY = 30;
 // one show fold into a single row, and a cap would undercount a busy show and
 // push later shows off the list.
 
+/**
+ * Whether search results fold into one row per show (display.searchGroupByTitle, default on).
+ * @returns {boolean} True when grouping by title.
+ */
 const groupByTitle = () => !(S.config.display && S.config.display.searchGroupByTitle === false);
 
+/**
+ * Opens the Search page.
+ * @returns {object} The open page, as returned by `openCgPage`.
+ */
 export function openSearchPage() {
   let query = '';
   let results = [];

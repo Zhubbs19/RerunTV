@@ -46,10 +46,15 @@ import './channel-bulk-actions.js';
 import './channel-search.js';
 import './channel-toolbar.js';
 
-// Loads a file into a detached <video> element and confirms a frame
-// actually decodes within timeoutMs — same check used live in
-// playChannelLive, just against a hidden probe element instead of the
-// on-screen player so it can run in bulk without disturbing playback.
+/**
+ * Loads a file into a detached <video> element and confirms a frame
+ * actually decodes within timeoutMs — same check used live in
+ * playChannelLive, just against a hidden probe element instead of the
+ * on-screen player so it can run in bulk without disturbing playback.
+ * @param {string} url The file's playable URL.
+ * @param {number} timeoutMs How long to wait for a decoded frame after metadata loads.
+ * @returns {Promise<boolean>} True when a frame decoded in time.
+ */
 function probePlayback(url, timeoutMs) {
   return new Promise((resolve) => {
     const v = document.createElement('video');
@@ -78,6 +83,13 @@ function probePlayback(url, timeoutMs) {
   });
 }
 
+/**
+ * FIX PLAYBACK: probes every file a channel can air (its own, its blocks' and its bumper reels) and transcodes the ones that fail to decode.
+ * Runs one channel at a time; pressing the button again sets `S.batchFixCancel` to stop between files.
+ * @param {object} ch The channel config.
+ * @param {HTMLButtonElement} btn The FIX PLAYBACK button, relabelled while the run is active.
+ * @returns {Promise<void>}
+ */
 export async function fixChannelPlayback(ch, btn) {
   if (S.batchFixRunning) return;
   S.batchFixRunning = ch;
@@ -124,6 +136,7 @@ export async function fixChannelPlayback(ch, btn) {
   }
 }
 
+// The editor page each channel last had open, keyed by channel number.
 const openChannelEditTabs = new Map();
 
 // A channel's editor pages (docs/design/03 §3): OVERVIEW (the common options),
@@ -136,11 +149,20 @@ const LEGACY_EDIT_TAB_PAGES = {
   logo: 'look', overlays: 'look', ticker: 'look', identity: 'look',
   ads: 'breaks', credits: 'breaks',
 };
+/**
+ * Maps an older sub-tab id to the editor page that now holds it.
+ * @param {string} id A page id or legacy sub-tab id.
+ * @returns {string} The page id.
+ */
 function channelPageFor(id) {
   return LEGACY_EDIT_TAB_PAGES[id] || id;
 }
 
-// A page made of several titled sections, each built into its own body.
+/**
+ * A page made of several titled sections, each built into its own body.
+ * @param {Array<Array>} parts `[key, title, build]` triples; `build(ch, bodyEl)` fills each section.
+ * @returns {(ch: object, pageEl: HTMLElement) => void} A page builder for the channel editor.
+ */
 function sectionedPage(parts) {
   return (ch, pageEl) => parts.forEach(([key, title, build]) => {
     const section = document.createElement('section');
@@ -157,11 +179,15 @@ function sectionedPage(parts) {
   });
 }
 
-// The page bar is created with each channel card, so the static
-// setup-keyboard.js initializer never sees it. Give it the same
-// roving Left/Right/Home/End behavior locally; activation still delegates
-// to each button's normal click handler, keeping mouse and keyboard paths
-// identical.
+/**
+ * The page bar is created with each channel card, so the static
+ * setup-keyboard.js initializer never sees it. Give it the same
+ * roving Left/Right/Home/End behavior locally; activation still delegates
+ * to each button's normal click handler, keeping mouse and keyboard paths
+ * identical.
+ * @param {HTMLElement} bar The tab bar element.
+ * @param {string} buttonSelector Selector for the bar's buttons.
+ */
 function enableDynamicBarKeyboard(bar, buttonSelector) {
   bar.addEventListener('keydown', (event) => {
     const buttons = Array.from(bar.querySelectorAll(buttonSelector));
@@ -179,10 +205,13 @@ function enableDynamicBarKeyboard(bar, buttonSelector) {
   });
 }
 
-// The CHANNELS page is a list + detail (docs/design/03 §4): renderChannelList
-// draws the compact lineup into #channel-list-pane and the selected channel's
-// full editor into #channel-list (the detail pane). S.setupSelectedChannel is a
-// channel number, 'plugins' for the plugin-channels section, or null.
+/**
+ * The CHANNELS page is a list + detail (docs/design/03 §4): renderChannelList
+ * draws the compact lineup into #channel-list-pane and the selected channel's
+ * full editor into #channel-list (the detail pane). S.setupSelectedChannel is a
+ * channel number, 'plugins' for the plugin-channels section, or null.
+ * Redraws the CHANNELS page: the lineup list, and the selected channel's editor, the multi-select card or the plugin-channels section.
+ */
 export function renderChannelList() {
   if (!channelListEl) return;
   if (subChannelsEnabledEl) subChannelsEnabledEl.checked = subChannelsEnabled();

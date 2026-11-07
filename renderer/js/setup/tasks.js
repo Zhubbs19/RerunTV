@@ -5,7 +5,11 @@ import { StatusBar } from '../ui/toast.js';
 
 const statusBar = StatusBar({ taskEl: document.getElementById('setup-task-status') });
 
-// Starts a task line. update() changes its text; end() removes it.
+/**
+ * Starts a task line. update() changes its text; end() removes it.
+ * @param {string} label The task's text.
+ * @returns {object} The task handle, with `update(text)` and `end()`.
+ */
 export function beginTask(label) {
   return statusBar.beginTask(label);
 }

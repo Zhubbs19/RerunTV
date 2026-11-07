@@ -15,8 +15,19 @@
 import { h, rovingIndex } from './kit-core.js';
 
 // ---------- Pure ----------
-// Where a popup of `size` goes beside `anchor`, inside `bounds` (all rects in
-// the same coordinates). prefer: 'below' | 'above'. align: 'start' | 'end'.
+/**
+ * Where a popup of `size` goes beside `anchor`, inside `bounds` (all rects in
+ * the same coordinates). prefer: 'below' | 'above'. align: 'start' | 'end'.
+ * @param {object} anchor `{ left, top, width, height }` of what the popup opens from.
+ * @param {object} size `{ width, height }` of the popup.
+ * @param {object} bounds `{ left, top, width, height }` the popup must stay inside.
+ * @param {object} [opts] Placement options.
+ * @param {string} [opts.prefer='below'] Side to try first.
+ * @param {string} [opts.align='start'] Align the popup's left edge (`'start'`) or right edge (`'end'`) with the anchor.
+ * @param {number} [opts.gap=4] Space between anchor and popup.
+ * @param {number} [opts.margin=8] Minimum space from the bounds' edges.
+ * @returns {object} `{ left, top }` for the popup.
+ */
 export function placePopup(anchor, size, bounds, { prefer = 'below', align = 'start', gap = 4, margin = 8 } = {}) {
   const minLeft = bounds.left + margin;
   const maxLeft = bounds.left + bounds.width - size.width - margin;
@@ -32,7 +43,13 @@ export function placePopup(anchor, size, bounds, { prefer = 'below', align = 'st
   return { left, top: Math.max(bounds.top + margin, top) };
 }
 
-// Index of the next enabled item for a remote/keyboard key, or null.
+/**
+ * Index of the next enabled item for a remote/keyboard key, or null.
+ * @param {Array<object>} items Menu items; `disabled` ones are skipped.
+ * @param {number} current The highlighted index, or -1.
+ * @param {string} key `'ArrowUp'`, `'ArrowDown'`, `'Home'` or `'End'`.
+ * @returns {?number} The item index to highlight, or null.
+ */
 export function menuMove(items, current, key) {
   const enabled = items.map((item, i) => (item.disabled ? -1 : i)).filter((i) => i !== -1);
   if (!enabled.length) return null;
@@ -41,11 +58,16 @@ export function menuMove(items, current, key) {
   return to === null ? null : enabled[to];
 }
 
+// Class names for each menu part; `classes` overrides them per surface.
 const DEFAULT_CLASSES = { root: 'row-menu', item: 'row-menu-item', rule: 'row-menu-rule', heading: 'row-menu-heading', active: 'active', danger: 'is-danger' };
 
 let openMenu = null; // the one focus-mode menu open at a time
 let globalListeners = false;
 
+/**
+ * Installs, once, the document listeners that close a focus-mode menu on outside
+ * pointer, blur or scroll, and open a row's menu on Shift+F10 / ContextMenu.
+ */
 function installGlobalListeners() {
   if (globalListeners) return;
   globalListeners = true;
@@ -67,10 +89,22 @@ function installGlobalListeners() {
   });
 }
 
-// Menu({ label, heading, groups: [[{ label, time, run, disabled, title,
-//   danger, className }]], focus, classes, role, onClose })
-// → { popup, open({ anchor, point, container, prefer, align, initialIndex }),
-//     close({ restoreFocus }), key(action), isOpen() }
+/**
+ * Menu({ label, heading, groups: [[{ label, time, run, disabled, title,
+ *   danger, className }]], focus, classes, role, onClose })
+ * → { popup, open({ anchor, point, container, prefer, align, initialIndex }),
+ *     close({ restoreFocus }), key(action), isOpen() }
+ * @param {object} [opts] Options.
+ * @param {string} [opts.label=''] Accessible name.
+ * @param {string} [opts.heading=''] Heading shown at the top.
+ * @param {Array<Array<object>>} [opts.groups=[]] Item groups, separated by rules.
+ * @param {boolean} [opts.focus=true] Items take real focus; false for owner-driven menus.
+ * @param {object} [opts.classes={}] Overrides for DEFAULT_CLASSES.
+ * @param {string} [opts.role] ARIA role; defaults to menu or listbox.
+ * @param {string} [opts.className=''] Extra classes on the popup.
+ * @param {Function} [opts.onClose] Called after the menu closes.
+ * @returns {object} `{ popup, contains, isOpen, key, close, open }`.
+ */
 export function Menu({ label = '', heading = '', groups = [], focus = true, classes = {}, role, className = '', onClose } = {}) {
   const cls = { ...DEFAULT_CLASSES, ...classes };
   const items = [];
@@ -213,9 +247,17 @@ export function Menu({ label = '', heading = '', groups = [], focus = true, clas
   return api;
 }
 
-// MenuButton({ label, groups, icon }) — a ⋯ button that opens a focus-mode
-// Menu beside itself. Returns { button, open, openAt } (openAt for a row's
-// contextmenu event).
+/**
+ * MenuButton({ label, groups, icon }) — a ⋯ button that opens a focus-mode
+ * Menu beside itself. Returns { button, open, openAt } (openAt for a row's
+ * contextmenu event).
+ * @param {object} [opts] Options.
+ * @param {string} opts.label Accessible name and tooltip.
+ * @param {Array<Array<object>>|Function} opts.groups Menu groups, or a function building them at open time.
+ * @param {string} [opts.icon='⋯'] Button glyph.
+ * @param {string} [opts.className=''] Extra classes on the button.
+ * @returns {object} `{ button, open, openAt }`.
+ */
 export function MenuButton({ label, groups, icon = '⋯', className = '' } = {}) {
   const button = h('button', {
     type: 'button',

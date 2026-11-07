@@ -6,6 +6,10 @@
 // reading a value out of ctx, and cleaning up on quit. See
 // PLUGIN_DEVELOPMENT.md's "main-process side" section for the full ctx
 // contract (ipcMain/app/shell/desktopCapturer/pluginDir/services/...).
+/**
+ * Registers the starter plugin's IPC handler and quit hook.
+ * @param {object} ctx The main-process plugin context (`ipcMain`, `app`, ...).
+ */
 function activate(ctx) {
   const { ipcMain } = ctx;
 

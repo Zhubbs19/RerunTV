@@ -32,7 +32,9 @@ import { scheduleClockFor } from '../library/sync.js';
 import { renderPresetsPanel } from './presets.js';
 
 const DAY_MS = 24 * 3600 * 1000;
+// Days of schedule previewed before a smart-channel rebuild.
 const PREVIEW_DAYS = 7;
+// Days of schedule checked before an UPDATE LOCATION is applied.
 const ROOT_MOVE_PREVIEW_DAYS = 14;
 const KINDS = ['episode', 'movie', 'short', 'commercial', 'bumper', 'music', 'other'];
 const ORDER_LABELS = { series: 'Series order', natural: 'By title', shuffle: 'Shuffled (stable)', recent: 'Newest first' };
@@ -54,6 +56,7 @@ const L = {
   notice: { catalogue: '', review: '', reviewDetails: '', smart: '' },
 };
 
+// Getters for each LIBRARY subtab's container element.
 const roots = {
   catalogue: () => document.getElementById('library-catalogue-root'),
   reviewScan: () => document.getElementById('library-review-scan-root'),
@@ -63,6 +66,13 @@ const roots = {
 
 // ---------- Host calls ----------
 
+/**
+ * Calls one method on the host's media library.
+ * @param {string} method The library service method name.
+ * @param {object} [payload={}] Arguments for the method.
+ * @returns {Promise<*>} The method's result.
+ * @throws {Error} When the library is unavailable or the call fails.
+ */
 async function call(method, payload = {}) {
   if (!window.api || typeof window.api.libraryCall !== 'function') throw new Error('The media library is not available on this device.');
   const response = await window.api.libraryCall(method, payload);
@@ -70,6 +80,10 @@ async function call(method, payload = {}) {
   return response.result;
 }
 
+/**
+ * Refetches the library status, index and last scans from the host, then redraws every panel.
+ * @returns {Promise<void>}
+ */
 async function refresh() {
   try {
     L.status = await call('status');
@@ -83,8 +97,13 @@ async function refresh() {
   renderAll();
 }
 
-// Runs one long action, reporting failures in a dialog and never leaving the
-// screen stuck busy.
+/**
+ * Runs one long action, reporting failures in a dialog and never leaving the
+ * screen stuck busy.
+ * @param {string} busy The busy key shown while it runs (for example `'scan:<root>'`).
+ * @param {() => Promise<void>} fn The action.
+ * @returns {Promise<void>}
+ */
 async function run(busy, fn) {
   if (L.busy) return;
   L.busy = busy;
@@ -101,8 +120,21 @@ async function run(busy, fn) {
 
 // ---------- Small helpers ----------
 
+/**
+ * A library item's display name: its title, else its file name.
+ * @param {?object} item The library item.
+ * @returns {string} The label.
+ */
 const itemLabel = (item) => (item && (item.title || basename(item.ref))) || 'Unknown item';
+/**
+ * The library items that are still attached to a location.
+ * @returns {Array<object>} The items; empty when the index is not loaded.
+ */
 const liveItems = () => (L.index ? Object.values(L.index.items).filter((item) => !item.detached) : []);
+/**
+ * The channels built from at least one saved query.
+ * @returns {Array<object>} The channel configs.
+ */
 const smartChannels = () => (S.config.channels || []).filter((ch) => (ch.sources || []).some((s) => s && s.type === 'query'));
 
 // Whether config still says what it said when a plan was made. The generation
@@ -111,9 +143,17 @@ const smartChannels = () => (S.config.channels || []).filter((ch) => (ch.sources
 // on its 30-minute timer, the last channel tuned — bump it too, and must not
 // throw away minutes of checking.
 const WATCH_STATE = new Set(['librarySync', 'lastChannel', 'lastSeenAt', 'muted', 'volume', 'pictureMode', 'aspectMode']);
+/**
+ * Serializes config without the watching-state fields in `WATCH_STATE`.
+ * @returns {string} A JSON string to compare against.
+ */
 function configSignature() {
   return JSON.stringify(S.config, (key, value) => (WATCH_STATE.has(key) ? undefined : value));
 }
+/**
+ * Captures config as it stands now, so a long-running plan can tell whether config changed under it.
+ * @returns {object} `{ changed() }`, true once config differs in anything a schedule reads.
+ */
 function configGuard() {
   let generation = S.configGeneration;
   const signature = configSignature();
@@ -127,40 +167,83 @@ function configGuard() {
   };
 }
 
+/**
+ * Lets the event loop run once so the screen can repaint.
+ * @returns {Promise<void>}
+ */
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/**
+ * Builds a status paragraph.
+ * @param {string} text The message.
+ * @param {string} [tone=''] Optional tone suffix for a `text-<tone>` class (for example `'error'`).
+ * @returns {HTMLElement} The paragraph.
+ */
 function note(text, tone = '') {
   return h('p', { className: `panel-status library-note${tone ? ` text-${tone}` : ''}`, text, attrs: { role: 'status' } });
 }
 
+/**
+ * Builds a library table.
+ * @param {string[]} headers Column header labels.
+ * @param {Array<HTMLElement>} rows Body rows.
+ * @returns {HTMLElement} The table.
+ */
 function table(headers, rows) {
   return h('table', { className: 'library-table' },
     h('thead', {}, h('tr', {}, headers.map((label) => h('th', { text: label, attrs: { scope: 'col' } })))),
     h('tbody', {}, rows));
 }
 
+/**
+ * Builds a table cell.
+ * @param {*} content A node or text for the cell.
+ * @param {string} [className=''] Class for the cell.
+ * @returns {HTMLElement} The `td`.
+ */
 function cell(content, className = '') {
   return h('td', { className }, content);
 }
 
+/**
+ * The quoted title of a schedule entry, for messages.
+ * @param {?object} entry A program from `querySchedule`.
+ * @returns {string} The title in quotes, or `'nothing'`.
+ */
 function programTitle(entry) {
   if (!entry || !entry.file) return 'nothing';
   return `“${entry.file.title || basename(entry.file.path)}”`;
 }
 
+/**
+ * The program a channel airs at one instant.
+ * @param {object} channel The channel config.
+ * @param {number} atMs Timestamp in ms.
+ * @returns {?object} The program, or null when nothing airs.
+ */
 function programAt(channel, atMs) {
   return querySchedule(channel, atMs, atMs + 1, { breaks: false, offAir: false }).programs[0] || null;
 }
 
+/**
+ * A comparable key for a channel's file list (item or path plus duration).
+ * @param {?Array<object>} files The channel's files.
+ * @returns {string} JSON key.
+ */
 function playlistKey(files) {
   return JSON.stringify((files || []).map((file) => [file.item || file.path, Math.round((file.duration || 0) * 1000)]));
 }
 
-// Durations are read by the renderer (a <video> element or the provider's
-// probe) and sent back. An unreadable file stays without one rather than
-// getting a guess: smart channels skip it until it can be read.
+/**
+ * Durations are read by the renderer (a <video> element or the provider's
+ * probe) and sent back. An unreadable file stays without one rather than
+ * getting a guess: smart channels skip it until it can be read.
+ * @param {?string[]} itemIds Ids of the items to read.
+ * @param {object} task The progress task from `beginTask`.
+ * @returns {Promise<object>} `{ read, failed }` counts.
+ */
 async function probeDurations(itemIds, task) {
   if (!itemIds || !itemIds.length) return { read: 0, failed: 0 };
   const index = await call('getIndex');
@@ -178,9 +261,14 @@ async function probeDurations(itemIds, task) {
   return { read: updates.length, failed: itemIds.length - updates.length };
 }
 
-// What each item's .nfo files and tags say, kept on the item as `local`
-// evidence for REVIEW's suggestions (tagging.js analyzeItem). Writes evidence
-// only: no title, rating or description changes until a group is applied.
+/**
+ * What each item's .nfo files and tags say, kept on the item as `local`
+ * evidence for REVIEW's suggestions (tagging.js analyzeItem). Writes evidence
+ * only: no title, rating or description changes until a group is applied.
+ * @param {Array<object>} items Library items; only local files are read.
+ * @param {object} task The progress task from `beginTask`.
+ * @returns {Promise<object>} `{ read, found }`: files read and files that had details.
+ */
 async function readItemDetails(items, task) {
   const local = items.filter((item) => item && localPathOf(item.ref));
   if (!local.length) return { read: 0, found: 0 };
@@ -199,6 +287,12 @@ async function readItemDetails(items, task) {
 
 // ---------- CATALOGUE: building the library ----------
 
+/**
+ * Plans moving every channel onto the library and checks each one airs the same schedule afterwards.
+ * @param {object} [opts={}] Options.
+ * @param {boolean} [opts.replace=false] Whether the build should replace an existing library.
+ * @returns {Promise<void>}
+ */
 async function checkChannels({ replace = false } = {}) {
   await run('check', async () => {
     const task = beginTask('CHECKING CHANNELS FOR THE LIBRARY…');
@@ -230,6 +324,11 @@ async function checkChannels({ replace = false } = {}) {
   });
 }
 
+/**
+ * Builds the library from the checked plan and switches the channels that passed the check onto it.
+ * @returns {Promise<void>}
+ * @throws {Error} When channels changed after they were checked.
+ */
 async function buildLibrary() {
   await run('build', async () => {
     const check = L.check;
@@ -258,6 +357,10 @@ async function buildLibrary() {
   });
 }
 
+/**
+ * Draws the channel check's progress or its per-channel results.
+ * @param {HTMLElement} root The CATALOGUE container.
+ */
 function renderCheck(root) {
   const check = L.check;
   if (!check) return;
@@ -288,6 +391,11 @@ function renderCheck(root) {
 
 // ---------- CATALOGUE: roots ----------
 
+/**
+ * Scans one library location for new, changed and missing files.
+ * @param {object} rootEntry The library root (`{ id, ref, kind }`).
+ * @returns {Promise<void>}
+ */
 async function scanRoot(rootEntry) {
   await run(`scan:${rootEntry.id}`, async () => {
     const label = basename(rootEntry.ref) || rootEntry.ref;
@@ -325,6 +433,11 @@ async function scanRoot(rootEntry) {
   });
 }
 
+/**
+ * Rewrites a library location's paths after its files were moved on disk, with a schedule preview first.
+ * @param {object} rootEntry The library root.
+ * @returns {Promise<void>}
+ */
 async function updateLocation(rootEntry) {
   await run(`move:${rootEntry.id}`, async () => {
     const from = await promptDialog({
@@ -386,6 +499,10 @@ async function updateLocation(rootEntry) {
   });
 }
 
+/**
+ * Draws the table of library locations with their item counts, last scan and actions.
+ * @param {HTMLElement} root The CATALOGUE container.
+ */
 function renderRoots(root) {
   const counts = new Map();
   liveItems().forEach((item) => counts.set(item.root, (counts.get(item.root) || 0) + 1));
@@ -407,10 +524,15 @@ function renderRoots(root) {
   root.appendChild(table(['Location', 'Items', 'Last scan', ''], rows));
 }
 
-// docs/design/07 §8: "no UI yet to remove a root or an item". Items are left
-// behind on purpose (store.removeRoot's own comment) — a root is often
-// removed because a drive is temporarily unplugged, and dropping every item
-// would throw away tags and review decisions attached to them.
+/**
+ * Asks, then forgets one library location while keeping its items.
+ * docs/design/07 §8: "no UI yet to remove a root or an item". Items are left
+ * behind on purpose (store.removeRoot's own comment) — a root is often
+ * removed because a drive is temporarily unplugged, and dropping every item
+ * would throw away tags and review decisions attached to them.
+ * @param {object} entry The library root.
+ * @returns {Promise<void>}
+ */
 async function removeRootEntry(entry) {
   const count = liveItems().filter((item) => item.root === entry.id).length;
   const ok = await confirmDialog({
@@ -425,9 +547,13 @@ async function removeRootEntry(entry) {
   });
 }
 
-// The single-item editor (doc §8): title, kind, series, genre/era facets,
-// rating and tags. Saved fields get `provenance: 'user'`, so no later
-// automatic tagging pass ever overwrites a hand edit (§5's own rule).
+/**
+ * The single-item editor (doc §8): title, kind, series, genre/era facets,
+ * rating and tags. Saved fields get `provenance: 'user'`, so no later
+ * automatic tagging pass ever overwrites a hand edit (§5's own rule).
+ * @param {object} item The library item.
+ * @returns {object} `{ body, read }`: the form element and a function returning the changed fields.
+ */
 function itemEditorBody(item) {
   const titleInput = h('input', { type: 'text', className: 'title-row-input', value: item.title || '' });
   const kindSelect = h('select', { className: 'block-hour-select' }, ...(item.kind && !KINDS.includes(item.kind) ? [item.kind] : []).concat(KINDS).map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
@@ -478,6 +604,11 @@ function itemEditorBody(item) {
   };
 }
 
+/**
+ * Opens the single-item editor and saves what changed.
+ * @param {object} item The library item.
+ * @returns {Promise<void>}
+ */
 async function openItemEditor(item) {
   const { body, read } = itemEditorBody(item);
   const saved = await Dialog({
@@ -497,6 +628,11 @@ async function openItemEditor(item) {
   });
 }
 
+/**
+ * Asks, then removes one item from the library.
+ * @param {object} item The library item.
+ * @returns {Promise<void>}
+ */
 async function removeItemEntry(item) {
   const ok = await confirmDialog({
     message: `Remove "${itemLabel(item)}" from the library? Its tags and review history are lost. A channel that has already used it keeps playing it exactly as it does now — this only removes it as a future candidate for smart channels and tagging.`,
@@ -510,6 +646,10 @@ async function removeItemEntry(item) {
   });
 }
 
+/**
+ * Draws CATALOGUE's find-an-item box and its results.
+ * @param {HTMLElement} root The CATALOGUE container.
+ */
 function renderItemSearch(root) {
   const wrap = h('div', { className: 'library-item-search' });
   const resultsEl = h('div', { className: 'library-item-search-results' });
@@ -522,6 +662,10 @@ function renderItemSearch(root) {
   renderItemSearchResults(resultsEl);
 }
 
+/**
+ * Lists up to 25 items matching the search box, each with edit and remove buttons.
+ * @param {HTMLElement} container The results container.
+ */
 function renderItemSearchResults(container) {
   container.replaceChildren();
   const term = (L.itemSearch || '').trim().toLowerCase();
@@ -538,6 +682,9 @@ function renderItemSearchResults(container) {
   if (matches.length === 25) container.appendChild(note('Showing the first 25 matches — narrow the search for more.'));
 }
 
+/**
+ * Draws the CATALOGUE subtab.
+ */
 function renderCatalogue() {
   const root = roots.catalogue();
   if (!root) return;
@@ -582,6 +729,12 @@ function renderCatalogue() {
 
 // ---------- REVIEW: scan decisions ----------
 
+/**
+ * Saves one REVIEW decision for a location's waiting files.
+ * @param {string} rootId The library root id.
+ * @param {object} decision The decision fields passed to the host.
+ * @returns {Promise<void>}
+ */
 async function resolveReview(rootId, decision) {
   await run('review', async () => {
     const task = beginTask('SAVING REVIEW DECISION…');
@@ -596,6 +749,9 @@ async function resolveReview(rootId, decision) {
   });
 }
 
+/**
+ * Draws REVIEW's list of files each scan is waiting on a decision for.
+ */
 function renderScanReview() {
   const root = roots.reviewScan();
   if (!root) return;
@@ -645,6 +801,12 @@ function renderScanReview() {
 
 // ---------- REVIEW: tag suggestions ----------
 
+/**
+ * Applies one suggested tag group to its ticked items.
+ * @param {object} group A suggestion group from tagging.
+ * @returns {Promise<void>}
+ * @throws {Error} When every item is excluded or already tagged.
+ */
 async function applyGroup(group) {
   await run(`tags:${group.key}`, async () => {
     const exclude = [...(L.excluded.get(group.key) || [])];
@@ -658,10 +820,20 @@ async function applyGroup(group) {
   });
 }
 
+/**
+ * Formats a field value for display, joining arrays with commas.
+ * @param {*} value The value.
+ * @returns {string} The text.
+ */
 function fieldValue(value) {
   return Array.isArray(value) ? value.join(', ') : String(value);
 }
 
+/**
+ * Builds the card for one suggested tag group.
+ * @param {object} group A suggestion group from tagging.
+ * @returns {HTMLElement} The card.
+ */
 function renderGroup(group) {
   const excluded = L.excluded.get(group.key) || new Set();
   const count = group.itemIds.length - excluded.size;
@@ -702,6 +874,10 @@ function renderGroup(group) {
   return card;
 }
 
+/**
+ * Reads .nfo files and tags for every live item.
+ * @returns {Promise<void>}
+ */
 async function readAllItemDetails() {
   await run('details', async () => {
     const task = beginTask('READING FILE DETAILS…');
@@ -717,6 +893,9 @@ async function readAllItemDetails() {
   });
 }
 
+/**
+ * Draws REVIEW's tag suggestions.
+ */
 function renderReviewTags() {
   const root = roots.reviewTags();
   if (!root) return;
@@ -736,6 +915,11 @@ function renderReviewTags() {
 
 // ---------- SMART CHANNELS ----------
 
+/**
+ * Every distinct value one field takes across the live items, sorted.
+ * @param {(item: object) => *} read Reads the field from an item (a value or an array).
+ * @returns {string[]} The values.
+ */
 function knownValues(read) {
   const values = new Set();
   liveItems().forEach((item) => {
@@ -745,10 +929,21 @@ function knownValues(read) {
   return [...values].sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Builds a `datalist` of suggestions.
+ * @param {string} id Element id.
+ * @param {string[]} values The options.
+ * @returns {HTMLElement} The datalist.
+ */
 function datalist(id, values) {
   return h('datalist', { attrs: { id } }, values.map((value) => h('option', { value })));
 }
 
+/**
+ * Counts the items the saved-query form currently matches.
+ * @param {object} form The form state (`L.editing`).
+ * @returns {object} `{ matched, ready, empty }`; `ready` counts items with a known duration.
+ */
 function formCount(form) {
   const where = buildWhere(form);
   if (!Object.keys(where).length) return { matched: 0, ready: 0, empty: true };
@@ -756,6 +951,11 @@ function formCount(form) {
   return { matched: matched.length, ready: matched.filter((item) => item.duration > 0).length };
 }
 
+/**
+ * Saves the saved-query form.
+ * @returns {Promise<void>}
+ * @throws {Error} When the query has no name or no conditions.
+ */
 async function saveEditing() {
   await run('query', async () => {
     const form = L.editing;
@@ -770,6 +970,10 @@ async function saveEditing() {
   });
 }
 
+/**
+ * Draws the saved-query form with a live match count.
+ * @param {HTMLElement} root The SMART CHANNELS container.
+ */
 function renderQueryForm(root) {
   const form = L.editing;
   const countEl = h('p', { className: 'panel-status', attrs: { role: 'status', 'aria-live': 'polite' } });
@@ -811,6 +1015,10 @@ function renderQueryForm(root) {
   root.appendChild(card);
 }
 
+/**
+ * Opens the saved-query form for a query, or for a new one.
+ * @param {?object} query The saved query, or null for a new one.
+ */
 function editQuery(query) {
   const form = formFromWhere(query ? query.where : {});
   L.editing = { ...form, id: query ? query.id : null, name: query ? query.name : '', order: (query && query.order) || 'series', where: query ? query.where : {} };
@@ -819,6 +1027,11 @@ function editQuery(query) {
   if (name) name.focus();
 }
 
+/**
+ * Asks, then removes a saved query; channels built from it keep their files.
+ * @param {object} query The saved query.
+ * @returns {Promise<void>}
+ */
 async function removeQuery(query) {
   const users = smartChannels().filter((ch) => ch.sources.some((s) => s.query === query.id)).map((ch) => ch.number);
   const ok = await confirmDialog({
@@ -836,6 +1049,11 @@ async function removeQuery(query) {
   });
 }
 
+/**
+ * Creates a new channel from a saved query.
+ * @param {object} query The saved query.
+ * @returns {Promise<void>}
+ */
 async function buildChannelFromQuery(query) {
   await run('query', async () => {
     const channel = freshChannel();
@@ -872,8 +1090,13 @@ async function buildChannelFromQuery(query) {
   });
 }
 
-// What a rebuild would do, in the words the confirm dialog and the unattended
-// path both use.
+/**
+ * What a rebuild would do, in the words the confirm dialog and the unattended
+ * path both use.
+ * @param {object} channel The channel config.
+ * @param {object} index The library index.
+ * @returns {object} `{ plan, atMs, unchanged }`.
+ */
 function planRebuild(channel, index) {
   const atMs = scheduleClockFor(channel);
   const plan = planChannelFiles(channel, index, { atMs });
@@ -881,6 +1104,11 @@ function planRebuild(channel, index) {
   return { plan, atMs, unchanged };
 }
 
+/**
+ * Rebuilds one smart channel from its queries after previewing the change.
+ * @param {object} channel The channel config.
+ * @returns {Promise<void>}
+ */
 async function rebuildChannel(channel) {
   await run(`rebuild:${channel.number}`, async () => {
     const guard = configGuard();
@@ -926,8 +1154,11 @@ async function rebuildChannel(channel) {
   });
 }
 
-// After a scan, with the setting on: rebuild only the channels whose rebuild
-// keeps what's on now. Everything else is left for a person, with a preview.
+/**
+ * After a scan, with the setting on: rebuild only the channels whose rebuild
+ * keeps what's on now. Everything else is left for a person, with a preview.
+ * @returns {Promise<?object>} `{ rebuilt, waiting }` channel numbers, or null when the setting is off or there are no smart channels.
+ */
 export async function rebuildSmartChannelsUnattended() {
   if (!(S.config.librarySync && S.config.librarySync.rebuildSmartChannels)) return null;
   const channels = smartChannels();
@@ -950,6 +1181,9 @@ export async function rebuildSmartChannelsUnattended() {
   return result;
 }
 
+/**
+ * Draws the SMART CHANNELS subtab.
+ */
 function renderSmart() {
   const root = roots.smart();
   const setting = document.getElementById('library-smart-rebuild');
@@ -1003,6 +1237,9 @@ function renderSmart() {
 
 // ---------- Wiring ----------
 
+/**
+ * Redraws every LIBRARY subtab.
+ */
 function renderAll() {
   renderCatalogue();
   renderScanReview();
@@ -1010,8 +1247,10 @@ function renderAll() {
   renderSmart();
 }
 
-// Called from renderSettingsPanels whenever the setup screen opens or config
-// is replaced. Draws what it has, then refetches.
+/**
+ * Called from renderSettingsPanels whenever the setup screen opens or config
+ * is replaced. Draws what it has, then refetches.
+ */
 export function renderLibraryPanels() {
   renderAll();
   refresh();

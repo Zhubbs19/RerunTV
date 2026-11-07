@@ -4,6 +4,10 @@
 let currentContainer = null;
 let clockTimer = null;
 
+/**
+ * Writes the current view time into the channel's clock element, if the channel is on screen.
+ * @param {object} ctx The renderer plugin context (uses `viewNow()`).
+ */
 function updateClock(ctx) {
   if (!currentContainer) return;
   const el = currentContainer.querySelector('[data-el="clock"]');

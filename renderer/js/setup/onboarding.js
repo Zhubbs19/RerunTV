@@ -4,6 +4,7 @@
 // Channel Setup. The main process deliberately skips its pre-launch update gate
 // on this first run so the default is explained before it is enforced.
 
+// The update strategies offered on the first-run updates page.
 const UPDATE_CHOICES = [
   {
     value: 'startup-auto', title: 'UPDATE BEFORE RERUNTV OPENS', badge: 'RECOMMENDED',
@@ -27,6 +28,7 @@ const UPDATE_CHOICES = [
   },
 ];
 
+// The comfort levels offered on the first-run comfort page.
 const COMFORT_CHOICES = [
   {
     value: 'full', title: 'FULL RETRO LOOK', badge: 'DEFAULT',
@@ -42,8 +44,13 @@ const COMFORT_CHOICES = [
   },
 ];
 
-// Applies a comfort level to a config object in place and returns it. 'full' (or anything
-// unknown) changes nothing. Pure, so it is unit-tested without a DOM.
+/**
+ * Applies a comfort level to a config object in place and returns it. 'full' (or anything
+ * unknown) changes nothing. Pure, so it is unit-tested without a DOM.
+ * @param {object} config The config object.
+ * @param {string} level `'full'`, `'gentle'` or `'minimal'`.
+ * @returns {object} The same config.
+ */
 export function applyComfortLevel(config, level) {
   if (!config || (level !== 'gentle' && level !== 'minimal')) return config;
   config.staticEffect = { ...(config.staticEffect || {}), enabled: false };
@@ -52,6 +59,12 @@ export function applyComfortLevel(config, level) {
   return config;
 }
 
+/**
+ * Creates a plain `type="button"` button.
+ * @param {string} label Button text.
+ * @param {string} [className='btn'] Class name.
+ * @returns {HTMLButtonElement} The button.
+ */
 function makeButton(label, className = 'btn') {
   const button = document.createElement('button');
   button.type = 'button';
@@ -60,6 +73,13 @@ function makeButton(label, className = 'btn') {
   return button;
 }
 
+/**
+ * Shows the first-run pages and resolves with what the person chose.
+ * @param {object} [defaults={}] Initial choices.
+ * @param {string} [defaults.updateStrategy='startup-auto'] The preselected update strategy.
+ * @param {string} [defaults.comfort='full'] The preselected comfort level.
+ * @returns {Promise<object>} `{ updateStrategy, comfort }`.
+ */
 export function showOnboarding({ updateStrategy = 'startup-auto', comfort = 'full' } = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');

@@ -34,6 +34,16 @@ const path = require('path');
 const { runFfmpegCollectStdout } = require('./ffmpeg-runner');
 const { parseArgs, fmtTime, meanAbsDiff, matchRuns } = require('./cuts');
 
+/**
+ * Grabs one reference frame as a grayscale thumbnail, from an image file or a time in the input.
+ * @param {object} ref Where to take it from.
+ * @param {string} [ref.input] The video, when grabbing by time.
+ * @param {number} [ref.logoTime] Seconds into the video.
+ * @param {string} [ref.logoImage] A reference image file.
+ * @param {number} thumb The thumbnail's side length in pixels.
+ * @returns {Promise<Uint8Array>} `thumb * thumb` gray values.
+ * @throws {Error} When no frame could be read.
+ */
 async function getOneReferenceVector({ input, logoTime, logoImage }, thumb) {
   const args = logoImage
     ? ['-i', logoImage, '-frames:v', '1', '-vf', `scale=${thumb}:${thumb}:force_original_aspect_ratio=disable,format=gray`, '-f', 'rawvideo', '-']
@@ -43,6 +53,12 @@ async function getOneReferenceVector({ input, logoTime, logoImage }, thumb) {
   return Uint8Array.from(buf.subarray(0, thumb * thumb));
 }
 
+/**
+ * Grabs every reference frame named by `--logo-image` and `--logo-time`.
+ * @param {object} opts Parsed options with `input`, `logoImages` and `logoTimes`.
+ * @param {number} thumb The thumbnail's side length in pixels.
+ * @returns {Promise<Uint8Array[]>} One thumbnail per reference.
+ */
 async function getReferenceVectors(opts, thumb) {
   const refs = [];
   if (opts.logoImages.length) {
@@ -54,6 +70,13 @@ async function getReferenceVectors(opts, thumb) {
   return refs;
 }
 
+/**
+ * Decodes the whole video into grayscale thumbnails at a fixed sample rate.
+ * @param {string} input The video.
+ * @param {number} fps Frames sampled per second.
+ * @param {number} thumb The thumbnail's side length in pixels.
+ * @returns {Promise<Uint8Array[]>} The sampled frames.
+ */
 async function getFrameStream(input, fps, thumb) {
   const args = ['-i', input, '-vf', `fps=${fps},scale=${thumb}:${thumb}:force_original_aspect_ratio=disable,format=gray`, '-f', 'rawvideo', '-'];
   const buf = await runFfmpegCollectStdout(args);
@@ -66,6 +89,10 @@ async function getFrameStream(input, fps, thumb) {
   return frames;
 }
 
+/**
+ * Runs the detector from the command line and prints where the logo appears.
+ * @returns {Promise<void>} Resolves when the report is printed.
+ */
 async function main() {
   const argv = parseArgs(process.argv.slice(2));
   const input = argv._[0];

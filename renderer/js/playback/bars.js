@@ -21,41 +21,62 @@ const known = new Map();
 let installed = false;
 let sweepStarted = false;
 
+/**
+ * @returns {boolean} True when "Remove baked-in black bars" is on.
+ */
 export function bakedBarsEnabled() {
   return !!(S.config && S.config.display && S.config.display.removeBakedBars);
 }
 
-// The logo bug sits on the picture, so it needs the bars found even when they
-// aren't being removed.
+/**
+ * The logo bug sits on the picture, so it needs the bars found even when they
+ * aren't being removed.
+ * @returns {boolean} True unless the logo bug is set not to follow the picture.
+ */
 function logoFollowsPicture() {
   return !!(S.config && S.config.display && S.config.display.logoBugFollowPicture !== false);
 }
 
+/**
+ * @returns {boolean} True when bar detection is needed for either use.
+ */
 function detectionWanted() {
   return bakedBarsEnabled() || logoFollowsPicture();
 }
 
+/**
+ * @returns {?string} The media path of the file in the player.
+ */
 function loadedPath() {
   return mediaPathFromUrl(player.currentSrc || player.src);
 }
 
-// The picture box for the file in the player right now, or null when the
-// option is off, the file has no bars, or it hasn't been checked yet (it plays
-// as it always did until the answer lands, then re-frames).
+/**
+ * The picture box for the file in the player right now, or null when the
+ * option is off, the file has no bars, or it hasn't been checked yet (it plays
+ * as it always did until the answer lands, then re-frames).
+ * @returns {?object} `{ x, y, w, h }` as fractions of the frame, or `null`.
+ */
 export function currentBakedCrop() {
   if (!bakedBarsEnabled()) return null;
   const filePath = loadedPath();
   return (filePath && known.get(filePath)) || null;
 }
 
-// Same box, but whether or not the bars are being removed: for placing the
-// logo bug on the picture when the frame still shows its bars.
+/**
+ * Same box, but whether or not the bars are being removed: for placing the
+ * logo bug on the picture when the frame still shows its bars.
+ * @returns {?object} `{ x, y, w, h }` as fractions of the frame, or `null`.
+ */
 export function currentPictureCrop() {
   if (!detectionWanted()) return null;
   const filePath = loadedPath();
   return (filePath && known.get(filePath)) || null;
 }
 
+/**
+ * Asks main for the loaded file's bars, once per file, and re-frames when they arrive.
+ */
 function onLoadedMetadata() {
   if (!detectionWanted()) return;
   const filePath = loadedPath();
@@ -68,7 +89,9 @@ function onLoadedMetadata() {
   }).catch(() => {});
 }
 
-// Applies config.display.removeBakedBars. Safe to call any time, as often as needed.
+/**
+ * Applies config.display.removeBakedBars. Safe to call any time, as often as needed.
+ */
 export function applyBakedBars() {
   const api = window.api;
   if (!api || typeof api.getCrop !== 'function') return;

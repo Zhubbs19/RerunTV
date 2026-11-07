@@ -7,6 +7,11 @@ let rebuildTimer = null;
 let spotlightTimer = null;
 let spotlightIndex = 0;
 
+/**
+ * Reads CH 1's `landing` settings with defaults and bounds applied.
+ * @param {object} ctx The plugin context.
+ * @returns {object} `{ label, scrollPace, rotateSpotlight, spotlightSeconds, audio }`.
+ */
 function landingConfig(ctx) {
   const cfg = ctx.S.config.landing || {};
   return {
@@ -18,6 +23,12 @@ function landingConfig(ctx) {
   };
 }
 
+/**
+ * Finds what one channel is airing at `viewNow()`, what follows it and how far through it is.
+ * @param {object} ctx The plugin context.
+ * @param {object} channel The channel config.
+ * @returns {object} `{ channel, current, next, progress }`, with `progress` from 0 to 1.
+ */
 function channelSnapshot(ctx, channel) {
   const now = ctx.viewNow();
   const schedule = ctx.getChannelSchedule(channel, now, now + 3 * 3600000);
@@ -30,10 +41,24 @@ function channelSnapshot(ctx, channel) {
   return { channel, current, next, progress };
 }
 
+/**
+ * Display title for a schedule entry, or a fallback when there is none.
+ * @param {object} ctx The plugin context.
+ * @param {?object} entry A schedule entry from `getChannelSchedule()`.
+ * @param {string} [fallback='NO PROGRAM INFORMATION'] Text used when `entry` is empty.
+ * @returns {string} The title to show.
+ */
 function programTitle(ctx, entry, fallback = 'NO PROGRAM INFORMATION') {
   return entry ? ctx.getDisplayTitle(entry.file) : fallback;
 }
 
+/**
+ * Builds one set of scrolling guide rows (badge, number, now and next) for every channel.
+ * @param {object} ctx The plugin context.
+ * @param {Array<object>} snapshots Per-channel snapshots from `channelSnapshot()`.
+ * @param {boolean} [duplicate=false] Marks the set `aria-hidden` when it is the second copy used for a seamless loop.
+ * @returns {HTMLElement} The row-set element.
+ */
 function buildLandingRows(ctx, snapshots, duplicate = false) {
   const rows = document.createElement('div');
   rows.className = 'landing-rowset';
@@ -84,10 +109,20 @@ function buildLandingRows(ctx, snapshots, duplicate = false) {
   return rows;
 }
 
+/**
+ * Snapshots every channel in guide order.
+ * @param {object} ctx The plugin context.
+ * @returns {Array<object>} One `channelSnapshot()` result per channel.
+ */
 function snapshots(ctx) {
   return ctx.sortedChannels().map((channel) => channelSnapshot(ctx, channel));
 }
 
+/**
+ * Rebuilds the scrolling listings (two copies for a seamless loop) and the spotlight.
+ * Shows an empty-lineup message when there are no channels.
+ * @param {object} ctx The plugin context.
+ */
 function rebuildLandingScroll(ctx) {
   if (!currentContainer) return;
   const scroll = currentContainer.querySelector('[data-el="scroll"]');
@@ -110,6 +145,10 @@ function rebuildLandingScroll(ctx) {
   updateSpotlight(ctx, entries);
 }
 
+/**
+ * Writes the time-machine-aware clock and date into the header.
+ * @param {object} ctx The plugin context.
+ */
 function updateClock(ctx) {
   if (!currentContainer) return;
   const date = new Date(ctx.viewNow());
@@ -119,6 +158,11 @@ function updateClock(ctx) {
   if (dateElement) dateElement.textContent = `${ctx.WEEKDAYS[date.getDay()]} · ${ctx.MONTHS[date.getMonth()]} ${date.getDate()}`;
 }
 
+/**
+ * Fills the spotlight panel with the channel at `spotlightIndex`, or a set-up prompt when there are none.
+ * @param {object} ctx The plugin context.
+ * @param {Array<object>} [providedSnapshots] Snapshots already taken this tick; taken fresh when omitted.
+ */
 function updateSpotlight(ctx, providedSnapshots) {
   if (!currentContainer) return;
   const entries = providedSnapshots || snapshots(ctx);
@@ -152,12 +196,19 @@ function updateSpotlight(ctx, providedSnapshots) {
   spotlight.classList.add('is-changing');
 }
 
+/**
+ * Moves the spotlight to the next channel when rotation is on.
+ * @param {object} ctx The plugin context.
+ */
 function advanceSpotlight(ctx) {
   if (!currentContainer || !landingConfig(ctx).rotateSpotlight) return;
   spotlightIndex += 1;
   updateSpotlight(ctx);
 }
 
+/**
+ * Clears the clock, rebuild and spotlight timers.
+ */
 function stopTimers() {
   if (clockTimer) clearInterval(clockTimer);
   if (rebuildTimer) clearInterval(rebuildTimer);

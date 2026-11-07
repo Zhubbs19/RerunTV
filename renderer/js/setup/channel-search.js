@@ -10,10 +10,13 @@ import { basenameNoExt, getDisplayTitle } from '../core/util.js';
 import { renderChannelList } from './channels.js';
 
 // ---------- Cross-channel library search ----------
-// The existing Titles-tab filter and channel-list filter both search within
-// one already-known scope (one channel's files, or the channel list by
-// name) — this searches every channel's file list at once, for "which
-// channel has this episode/show" when you don't remember where you put it.
+/**
+ * The existing Titles-tab filter and channel-list filter both search within
+ * one already-known scope (one channel's files, or the channel list by
+ * name) — this searches every channel's file list at once, for "which
+ * channel has this episode/show" when you don't remember where you put it.
+ * @param {string} query The search text; blank shows a hint instead of results.
+ */
 function renderLibrarySearchResults(query) {
   librarySearchResultsEl.innerHTML = '';
   const q = query.trim().toLowerCase();

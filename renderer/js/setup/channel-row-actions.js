@@ -13,6 +13,11 @@ import { addFolderToChannel, pickFilesForChannel } from './channel-sources.js';
 import { openPreviewModal } from './channel-preview-modal.js';
 
 // ---------- Channel row actions (list ⋯ menu and the card's) ----------
+/**
+ * Moves a channel one place up or down the lineup by swapping numbers with its neighbor.
+ * @param {object} ch The channel config.
+ * @param {number} direction -1 to move up, 1 to move down.
+ */
 function moveSetupChannel(ch, direction) {
   const list = sortedForSetup();
   const neighbor = list[list.indexOf(ch) + direction];
@@ -24,6 +29,11 @@ function moveSetupChannel(ch, direction) {
   channelListPaneEl?.querySelector('.channel-list-item.selected')?.focus();
 }
 
+/**
+ * Asks for a number of hours, then duplicates a channel running that far behind (or ahead, if negative).
+ * @param {object} ch The channel config to copy.
+ * @returns {Promise<void>}
+ */
 async function duplicateShiftedChannel(ch) {
   const answer = await promptDialog({
     title: 'Duplicate behind / ahead',
@@ -37,6 +47,12 @@ async function duplicateShiftedChannel(ch) {
   duplicateSetupChannel(ch, { shiftHours: hours });
 }
 
+/**
+ * Inserts a copy of a channel at the next free number, optionally with its anchor shifted, and selects it.
+ * @param {object} ch The channel config to copy.
+ * @param {object} [opts] Options.
+ * @param {number} [opts.shiftHours=0] Hours to shift the copy's anchor; 0 keeps it identical.
+ */
 function duplicateSetupChannel(ch, { shiftHours = 0 } = {}) {
   const clone = deepClone(ch);
   clone.number = nextChannelNumber();
@@ -50,6 +66,11 @@ function duplicateSetupChannel(ch, { shiftHours = 0 } = {}) {
   renderChannelList();
 }
 
+/**
+ * Removes a channel after confirmation and selects its neighbor in the list.
+ * @param {object} ch The channel config to remove.
+ * @returns {Promise<void>}
+ */
 async function removeSetupChannel(ch) {
   const label = ch.name && ch.name.trim() ? `"${ch.name.trim()}"` : `channel ${ch.number}`;
   const detail = ch.files.length
@@ -65,6 +86,11 @@ async function removeSetupChannel(ch) {
   renderChannelList();
 }
 
+/**
+ * Builds the ⋯ actions menu for a channel row or card.
+ * @param {object} ch The channel config.
+ * @returns {object} The `MenuButton` result; callers append its `button`.
+ */
 export function channelRowMenu(ch) {
   const list = sortedForSetup();
   const at = list.indexOf(ch);
@@ -87,6 +113,13 @@ export function channelRowMenu(ch) {
   });
 }
 
+/**
+ * Selects a channel (or the plugin-channels section) in the setup list and redraws it.
+ * Clears any multi-selection and scrolls the editor back to its top.
+ * @param {?(number|string)} value A channel number, 'plugins', or null for no selection.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.focus=false] Also focus the selected list row.
+ */
 export function selectSetupChannel(value, { focus = false } = {}) {
   S.bulkSelectedChannels.clear();
   S.setupSelectedChannel = value;

@@ -8,12 +8,20 @@
 import { runCoreHooks } from '../plugin/host.js';
 import { CABLE_GUIDE_UI, LEGACY_UI } from './model.js';
 
+/**
+ * Reads which on-screen layout the page is showing.
+ * @returns {string} `CABLE_GUIDE_UI` or `LEGACY_UI`.
+ */
 export function currentUiMode() {
   return document.documentElement.dataset.ui === CABLE_GUIDE_UI ? CABLE_GUIDE_UI : LEGACY_UI;
 }
 
-// Plugins hear about a change through the 'ui-mode-change' core hook,
-// with the new mode as its argument.
+/**
+ * Sets the on-screen layout and runs the 'ui-mode-change' hook when it changes.
+ * Plugins hear about a change through the 'ui-mode-change' core hook,
+ * with the new mode as its argument.
+ * @param {string} mode `CABLE_GUIDE_UI`; anything else means `LEGACY_UI`.
+ */
 export function setUiMode(mode) {
   const next = mode === CABLE_GUIDE_UI ? CABLE_GUIDE_UI : LEGACY_UI;
   const root = document.documentElement;

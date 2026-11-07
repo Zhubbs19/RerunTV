@@ -19,8 +19,13 @@
 import { h, rovingIndex } from './kit-core.js';
 
 // ---------- Pure ----------
-// How to get from the rows on screen (keys, in order) to the wanted ones.
-// Rows keep their element when their key survives.
+/**
+ * How to get from the rows on screen (keys, in order) to the wanted ones.
+ * Rows keep their element when their key survives.
+ * @param {string[]} currentKeys Keys of the rows on screen.
+ * @param {string[]} nextKeys Keys wanted, in order.
+ * @returns {object} `{ remove, create, order }` key lists.
+ */
 export function reconcilePlan(currentKeys, nextKeys) {
   const nextSet = new Set(nextKeys);
   const currentSet = new Set(currentKeys);
@@ -31,7 +36,11 @@ export function reconcilePlan(currentKeys, nextKeys) {
   };
 }
 
-// J/K as arrows; null for any other key.
+/**
+ * J/K as arrows; null for any other key.
+ * @param {string} key The lower-cased key.
+ * @returns {?string} `'ArrowDown'` for j, `'ArrowUp'` for k, otherwise null.
+ */
 export function listLetterKey(key) {
   if (key === 'j') return 'ArrowDown';
   if (key === 'k') return 'ArrowUp';
@@ -39,6 +48,15 @@ export function listLetterKey(key) {
 }
 
 // ---------- DOM ----------
+/**
+ * Updates a container's rows to match `items` by key, reusing elements whose key survives.
+ * @param {Element} container The list element; rows carry `data-key`.
+ * @param {Array<*>} items The wanted items, in order.
+ * @param {object} [opts] Callbacks.
+ * @param {(item: *) => *} opts.key Returns an item's key.
+ * @param {(item: *) => HTMLElement} opts.render Builds a row for a new item.
+ * @param {(el: HTMLElement, item: *) => void} [opts.update] Refreshes a reused row.
+ */
 export function reconcileList(container, items, { key, render, update } = {}) {
   const existing = new Map();
   Array.from(container.children).forEach((el) => { if (el.dataset.key !== undefined) existing.set(el.dataset.key, el); });
@@ -56,10 +74,16 @@ export function reconcileList(container, items, { key, render, update } = {}) {
   });
 }
 
+// Selectors for the markup contract above.
 const WRAPPER = '[data-ui-list-detail]';
 const LIST = '[data-ui-list]';
 const DETAIL = '[data-ui-detail]';
 
+/**
+ * Whether an element takes typed text, so letter shortcuts should leave it alone.
+ * @param {?Element} el The focused element.
+ * @returns {boolean} True for text inputs, textareas, selects and editable content.
+ */
 function isTypingTarget(el) {
   if (!el) return false;
   if (el.isContentEditable) return true;
@@ -67,12 +91,18 @@ function isTypingTarget(el) {
   return el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes(el.type);
 }
 
-// listDetailBehavior({ rows, selectedRow }) — rows/selectedRow are the
-// selectors for the collections' rows (default [data-ui-row] and its
-// .selected). Returns the pieces a screen wires into its own key handling,
-// so ordering against its other shortcuts stays the screen's call:
-//   { closeDetail(wrapper, { focusRow }), handleEscape(event), handleListKey(event, key),
-//     install(root) }  — install adds the narrow-window Back buttons and row clicks.
+/**
+ * listDetailBehavior({ rows, selectedRow }) — rows/selectedRow are the
+ * selectors for the collections' rows (default [data-ui-row] and its
+ * .selected). Returns the pieces a screen wires into its own key handling,
+ * so ordering against its other shortcuts stays the screen's call:
+ *   { closeDetail(wrapper, { focusRow }), handleEscape(event), handleListKey(event, key),
+ *     install(root) }  — install adds the narrow-window Back buttons and row clicks.
+ * @param {object} [opts] Selectors.
+ * @param {string} [opts.rows='[data-ui-row]'] Selector for rows.
+ * @param {string} [opts.selectedRow='[data-ui-row].selected'] Selector for the chosen row.
+ * @returns {object} `{ closeDetail, handleEscape, handleListKey, install, isTypingTarget }`.
+ */
 export function listDetailBehavior({ rows = '[data-ui-row]', selectedRow = '[data-ui-row].selected' } = {}) {
   function closeDetail(wrapper, { focusRow = true } = {}) {
     if (!wrapper || !wrapper.classList.contains('is-detail-open')) return;
@@ -150,10 +180,22 @@ export function listDetailBehavior({ rows = '[data-ui-row]', selectedRow = '[dat
   return { closeDetail, handleEscape, handleListKey, install, isTypingTarget };
 }
 
-// ListDetail({ items, key, renderRow, renderDetail, selected, onSelect, label })
-// → wrapper with refresh(items, selected). Rows get ▲▼ Home End (wrapping),
-// Enter/Space to choose; the shared behaviour above covers the rest once the
-// screen has installed it.
+/**
+ * ListDetail({ items, key, renderRow, renderDetail, selected, onSelect, label })
+ * → wrapper with refresh(items, selected). Rows get ▲▼ Home End (wrapping),
+ * Enter/Space to choose; the shared behaviour above covers the rest once the
+ * screen has installed it.
+ * @param {object} [opts] Options.
+ * @param {Array<*>} [opts.items=[]] The collection.
+ * @param {(item: *) => *} [opts.key] Returns an item's key; defaults to `item.id`.
+ * @param {(item: *) => HTMLElement} opts.renderRow Builds a row.
+ * @param {(item: *) => HTMLElement} [opts.renderDetail] Builds the chosen item's detail.
+ * @param {*} [opts.selected=null] Key of the chosen item.
+ * @param {(item: *) => void} [opts.onSelect] Called when a row is chosen.
+ * @param {string} [opts.label=''] Accessible name of the list.
+ * @param {string} [opts.className=''] Extra classes on the wrapper.
+ * @returns {HTMLElement} The wrapper, with `.refresh(items, selected)`.
+ */
 export function ListDetail({ items = [], key = (item) => item.id, renderRow, renderDetail, selected = null, onSelect, label = '', className = '' } = {}) {
   const list = h('div', { className: 'list-detail-list', attrs: { role: 'listbox', 'aria-label': label || undefined }, dataset: { uiList: '' } });
   const detail = h('div', { className: 'list-detail-detail', dataset: { uiDetail: '' } });

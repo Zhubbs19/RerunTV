@@ -16,17 +16,38 @@ const RENAME_ATTEMPTS = 6;
 const RETRYABLE = new Set(['EPERM', 'EBUSY', 'EACCES']);
 let tempCounter = 0;
 
+/**
+ * A unique temp file path beside `file`, made from the pid, the time and a counter.
+ * @param {string} file The target file path.
+ * @returns {string} The temp path to write before renaming.
+ */
 function tempPathFor(file) {
   tempCounter += 1;
   return `${file}.tmp-${process.pid}-${Date.now()}-${tempCounter}`;
 }
 
+/**
+ * Coerces string or Buffer data to a Buffer.
+ * @param {string|Buffer} data The data to write.
+ * @param {string} [encoding] Text encoding for string data; utf8 when absent.
+ * @returns {Buffer} The bytes to write.
+ */
 function toBuffer(data, encoding) {
   return Buffer.isBuffer(data) ? data : Buffer.from(String(data), encoding || 'utf8');
 }
 
-// Same signature in both flavours: (file, data, { mode, encoding, mkdir }).
-// `data` is a string or Buffer; use serialize helpers below for JSON.
+/**
+ * Same signature in both flavours: (file, data, { mode, encoding, mkdir }).
+ * `data` is a string or Buffer; use serialize helpers below for JSON.
+ * Synchronous flavour; sleeps between rename retries with `Atomics.wait`.
+ * @param {string} file The target file path.
+ * @param {string|Buffer} data The contents.
+ * @param {object} [options] Write options.
+ * @param {number} [options.mode=0o666] File mode for the new file.
+ * @param {string} [options.encoding] Encoding for string data.
+ * @param {boolean} [options.mkdir] Create the parent directory first.
+ * @throws {Error} When the write fails or the rename keeps failing; the temp file is removed.
+ */
 function atomicWriteFileSync(file, data, options = {}) {
   const tempPath = tempPathFor(file);
   try {
@@ -53,6 +74,14 @@ function atomicWriteFileSync(file, data, options = {}) {
   }
 }
 
+/**
+ * Asynchronous flavour of `atomicWriteFileSync`, with the same signature and guarantees.
+ * @param {string} file The target file path.
+ * @param {string|Buffer} data The contents.
+ * @param {object} [options] Write options (`mode`, `encoding`, `mkdir`).
+ * @returns {Promise<void>} Resolves once the file has been renamed into place.
+ * @throws {Error} When the write fails or the rename keeps failing; the temp file is removed.
+ */
 async function atomicWriteFile(file, data, options = {}) {
   const tempPath = tempPathFor(file);
   try {
@@ -79,12 +108,31 @@ async function atomicWriteFile(file, data, options = {}) {
   }
 }
 
+/**
+ * Serializes `value` as JSON, with a trailing newline when indented.
+ * @param {*} value The value to serialize.
+ * @param {number|string} [space] Indentation passed to `JSON.stringify`.
+ * @returns {string} The JSON text.
+ */
 const jsonText = (value, space) => `${JSON.stringify(value, null, space)}${space ? '\n' : ''}`;
 
+/**
+ * Writes `value` as JSON to `file` atomically, synchronously.
+ * @param {string} file The target file path.
+ * @param {*} value The value to serialize.
+ * @param {object} [options] `atomicWriteFileSync` options plus `space` for indentation.
+ */
 function atomicWriteJsonSync(file, value, options = {}) {
   atomicWriteFileSync(file, jsonText(value, options.space), options);
 }
 
+/**
+ * Writes `value` as JSON to `file` atomically.
+ * @param {string} file The target file path.
+ * @param {*} value The value to serialize.
+ * @param {object} [options] `atomicWriteFile` options plus `space` for indentation.
+ * @returns {Promise<void>} Resolves once the file is in place.
+ */
 function atomicWriteJson(file, value, options = {}) {
   return atomicWriteFile(file, jsonText(value, options.space), options);
 }

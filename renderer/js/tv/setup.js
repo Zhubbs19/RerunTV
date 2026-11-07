@@ -20,16 +20,33 @@ import { openLearnMode, openRemoteTest } from '../remote/test.js';
 import { openOnScreenKeyboard } from '../ui/on-screen-keyboard.js';
 import { isFavorite, toggleFavorite } from '../personal/state.js';
 
+// Content ratings the RATING item cycles through; '' means none.
 const RATINGS = ['', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'];
 const UPDATE_STRATEGIES = ['startup-auto', 'background-auto', 'background-notify', 'manual', 'off'];
 const UPDATE_LABELS = {
   'startup-auto': 'INSTALL BEFORE OPENING', 'background-auto': 'INSTALL WHEN I QUIT', 'background-notify': 'ASK WHEN READY', manual: 'ONLY WHEN I ASK', off: 'NEVER',
 };
 
+/**
+ * Formats a flag as ON or OFF.
+ * @param {*} v The value; truthy means on.
+ * @returns {string} `'ON'` or `'OFF'`.
+ */
 const onOff = (v) => (v ? 'ON' : 'OFF');
+/**
+ * Formats a number as a rounded percentage.
+ * @param {number} v The value, already in percent.
+ * @returns {string} For example `'40%'`.
+ */
 const pct = (v) => `${Math.round(v)}%`;
 
-// A menu item for a value: OK and ▶ step forward, ◀ steps back.
+/**
+ * A menu item for a value: OK and ▶ step forward, ◀ steps back.
+ * @param {string} label The setting's name.
+ * @param {() => *} read Returns the value to display.
+ * @param {(direction: number) => void} write Applies one step in a direction (+1 or -1).
+ * @returns {object} A TV menu item with `label`, `name`, `value`, `run` and `adjust`.
+ */
 function valueItem(label, read, write) {
   const value = read();
   return {
@@ -43,6 +60,12 @@ function valueItem(label, read, write) {
   };
 }
 
+/**
+ * Dispatches a `settings.set` command for one config path.
+ * @param {string[]} path The config path, e.g. `['display', 'clock24']`.
+ * @param {*} value The new value.
+ * @param {string} [coalesce] Undo-coalescing key, so a burst of steps is one undo step.
+ */
 function setSetting(path, value, coalesce) {
   dispatch({ type: 'settings.set', path, value }, coalesce ? { coalesce } : {});
 }
@@ -51,6 +74,10 @@ function setSetting(path, value, coalesce) {
 
 const PAUSE_LABELS = { '': 'BOX SETTING', on: 'ON', off: 'OFF' };
 
+/**
+ * One submenu entry per channel, in channel order.
+ * @returns {Array<object>} TV menu items.
+ */
 function channelItems() {
   return sortedChannels().map((ch) => ({
     label: `CH ${ch.number} · ${(ch.name || 'UNTITLED').toUpperCase()}${ch.hidden ? ' (HIDDEN)' : ''}`,
@@ -61,12 +88,23 @@ function channelItems() {
   }));
 }
 
+/**
+ * The channel before or after `ch` in channel order.
+ * @param {object} ch The channel config.
+ * @param {number} direction -1 for the previous channel, +1 for the next.
+ * @returns {?object} The neighbouring channel, or null at either end.
+ */
 function neighbour(ch, direction) {
   const list = sortedChannels();
   const i = list.indexOf(ch);
   return list[i + direction] || null;
 }
 
+/**
+ * The per-channel setup submenu: move, hide, favourite, rating, rename and call letters.
+ * @param {object} ch The channel config (the live object, so the menu follows it when renumbered).
+ * @returns {object} A submenu with `title` and `items`.
+ */
 function channelMenu(ch) {
   const move = (direction) => {
     const other = neighbour(ch, direction);
@@ -119,23 +157,39 @@ const APPLY = {
   wakeLock: () => applyDisplayWakeLock(),
 };
 
+/**
+ * The ids of every registered theme pack.
+ * @returns {string[]} Theme ids in registration order.
+ */
 function themeIds() {
   return themePackEntries().map((entry) => entry.id);
 }
 
+/**
+ * The upper-case display name of a theme.
+ * @param {?string} id The theme id.
+ * @returns {string} The pack's label, the id, or `'DEFAULT'`.
+ */
 function themeLabel(id) {
   const entry = themePackEntries().find((e) => e.id === id);
   return (entry && entry.label ? entry.label : id || 'DEFAULT').toUpperCase();
 }
 
-// docs/design/10 §6: Left/Right steps built-in eras (plus "BOX SETTINGS" for
-// no era), applying live behind the menu the same way THEME does.
+/**
+ * docs/design/10 §6: Left/Right steps built-in eras (plus "BOX SETTINGS" for
+ * no era), applying live behind the menu the same way THEME does.
+ * @param {?string} id The era id, or null for none.
+ * @returns {string} The era's upper-case label, or `'BOX SETTINGS'`.
+ */
 function eraLabel(id) {
   if (!id) return 'BOX SETTINGS';
   const era = listEras().find((e) => e.id === id);
   return era ? era.label.toUpperCase() : id.toUpperCase();
 }
 
+/**
+ * Re-applies theme, CRT and display mode after an era change.
+ */
 function applyEraVisuals() {
   applyTheme();
   applyCrtState();
@@ -163,16 +217,33 @@ const CUSTOM = {
   }),
 };
 
+/**
+ * The upper-case label a choice setting shows for a value: its choice's label, else the value.
+ * @param {object} entry The registry entry (its `choices`).
+ * @param {*} value The saved value.
+ * @returns {string} The label.
+ */
 function choiceLabel(entry, value) {
   const hit = (entry.choices || []).find(([v]) => String(v) === String(value));
   return (hit ? hit[1] : String(value == null ? '' : value)).toUpperCase();
 }
 
-// A choice saved as a number (guide width 3) stays a number.
+/**
+ * The value to save for a picked choice. A choice saved as a number (guide width 3) stays a number.
+ * @param {object} entry The registry entry.
+ * @param {string} value The picked choice, as a string.
+ * @returns {*} The value to save.
+ */
 function choiceValue(entry, value) {
   return typeof entry.default === 'number' ? Number(value) : value;
 }
 
+/**
+ * A TV menu item for a registry setting with a `tv` entry: a switch, choice or number that ◀▶
+ * steps, or the entry's custom item.
+ * @param {object} entry The registry entry.
+ * @returns {?object} The TV menu item, or null when the type has no TV form.
+ */
 function registryItem(entry) {
   const tv = entry.tv;
   const label = tv.label || entry.label.toUpperCase();
@@ -202,10 +273,19 @@ function registryItem(entry) {
   return null;
 }
 
+/**
+ * The TV menu items for every registry setting in a TV section.
+ * @param {string} section The TV section name.
+ * @returns {Array<object>} TV menu items.
+ */
 function registryItems(section) {
   return tvSettings(section).map(registryItem).filter(Boolean);
 }
 
+/**
+ * The GUIDE & THEME section's items.
+ * @returns {Array<object>} TV menu items.
+ */
 function guideItems() {
   return [
     valueItem('ERA', () => eraLabel(S.config.era && S.config.era.id), (d) => {
@@ -221,6 +301,10 @@ function guideItems() {
 
 // ---------- Parental lock ----------
 
+/**
+ * The PARENTAL LOCK section's items: the lock switch and a number pad for a new PIN.
+ * @returns {Array<object>} TV menu items.
+ */
 function pinItems() {
   const lock = () => S.config.pinLock || { enabled: false, code: '1234' };
   let entry = '';
@@ -246,6 +330,10 @@ function pinItems() {
 
 // ---------- Updates & power ----------
 
+/**
+ * The UPDATES section's items: the update strategy and, when available, a check-now action.
+ * @returns {Array<object>} TV menu items.
+ */
 function updateItems() {
   const strategy = () => (S.config.updates && S.config.updates.strategy) || 'startup-auto';
   const items = [valueItem('UPDATES', () => UPDATE_LABELS[strategy()] || strategy().toUpperCase(), (d) => setSetting(['updates', 'strategy'], cycleChoice(UPDATE_STRATEGIES, strategy(), d)))];
@@ -253,6 +341,10 @@ function updateItems() {
   return items;
 }
 
+/**
+ * The POWER section's items: auto standby, sleep timer, wake lock and the opt-in PC shutdown.
+ * @returns {Array<object>} TV menu items.
+ */
 function powerItems() {
   return [
     ...registryItems('power'),
@@ -265,8 +357,11 @@ function powerItems() {
   ];
 }
 
-// SETUP › REMOTE: what each button does on live TV (remote.buttons, the same
-// map as SYSTEM › REMOTE & KEYS). '' is the button's own default.
+/**
+ * SETUP › REMOTE: what each button does on live TV (remote.buttons, the same
+ * map as SYSTEM › REMOTE & KEYS). '' is the button's own default.
+ * @returns {Array<object>} TV menu items, one per button.
+ */
 function remoteButtonItems() {
   const ids = ['', ...REMOTE_BUTTON_ACTIONS.map((a) => a.id)];
   const actionLabel = (id) => (REMOTE_BUTTON_ACTIONS.find((a) => a.id === id) || {}).label || 'nothing';
@@ -280,8 +375,12 @@ function remoteButtonItems() {
   });
 }
 
-// The SETUP section of the TV menu. Each entry is a menu item; `section` is
-// tv-menu.js's helper for a titled submenu.
+/**
+ * The SETUP section of the TV menu. Each entry is a menu item; `section` is
+ * tv-menu.js's helper for a titled submenu.
+ * @param {(label: string, title: string, items: () => Array<object>) => object} section Builds a titled submenu item.
+ * @returns {Array<object>} TV menu items.
+ */
 export function tvSetupItems(section) {
   return [
     section('CHANNELS', 'SETUP · CHANNELS', channelItems),

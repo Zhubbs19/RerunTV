@@ -7,6 +7,11 @@ export const AWAY_MIN_MS = 2 * 60 * 60 * 1000; // shorter absences aren't worth 
 export const DIGEST_WINDOW_MS = 12 * 60 * 60 * 1000;
 export const DIGEST_MAX = 4;
 
+/**
+ * Formats an absence as minutes, hours or days ("45 MIN", "6 HR", "3 DAYS").
+ * @param {number} ms The absence, in ms.
+ * @returns {string} The label.
+ */
 export function formatAway(ms) {
   const minutes = Math.round(ms / 60000);
   if (minutes < 60) return `${minutes} MIN`;
@@ -15,7 +20,17 @@ export function formatAway(ms) {
   return `${Math.floor(hours / 24)} DAYS`;
 }
 
-// Returns { title, lines } or null when there is nothing worth saying.
+/**
+ * Builds the sign-on card text.
+ * Returns { title, lines } or null when there is nothing worth saying.
+ * @param {object} opts The inputs.
+ * @param {number} opts.now The real current time, in ms.
+ * @param {number} opts.lastSeenAt When the box was last seen running, in ms.
+ * @param {Array<object>} opts.reminders The viewer's reminders ({ start, end, title, channelNumber
+ *   }).
+ * @param {(ms: number) => string} opts.formatTime Formats a reminder's start time.
+ * @returns {?{title: string, lines: string[]}} The card text, or null.
+ */
 export function buildSignOn({ now, lastSeenAt, reminders, formatTime, awayMs = AWAY_MIN_MS }) {
   const lines = [];
   if (Number.isFinite(lastSeenAt) && lastSeenAt > 0 && now - lastSeenAt >= awayMs) {

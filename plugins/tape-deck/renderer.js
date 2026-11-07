@@ -20,25 +20,38 @@
 const CHANNEL_NUMBER = 101;
 const PLUGIN_ID = 'tape-deck';
 
-// A break that resolves to no playable file is a card core draws over a
-// paused picture (trivia, a local-avail slide, the default sign-off
-// pattern). The tape holds that time as black so everything after it stays
-// at the right place. The one exception is a text-only station-ID bar,
-// which core deliberately overlays WITHOUT pausing the show — see
-// startBreak's isTextOnlyChannelId. That one is not a segment at all.
+/**
+ * A break that resolves to no playable file is a card core draws over a
+ * paused picture (trivia, a local-avail slide, the default sign-off
+ * pattern). The tape holds that time as black so everything after it stays
+ * at the right place. The one exception is a text-only station-ID bar,
+ * which core deliberately overlays WITHOUT pausing the show — see
+ * startBreak's isTextOnlyChannelId. That one is not a segment at all.
+ * @param {object} brk A break from `resolveBreakAt()`.
+ * @returns {boolean} True for a text-only station-ID bar.
+ */
 function isTextOnlyStationId(brk) {
   return brk.type === 'channelId' && !(brk.entry && brk.entry.file);
 }
 
-// Which file a break segment plays, if any. A dynamic bumper loops a
-// background clip under generated text; the tape keeps the clip. The text
-// itself is drawn by core at playback time and does not survive to a file.
+/**
+ * Which file a break segment plays, if any. A dynamic bumper loops a
+ * background clip under generated text; the tape keeps the clip. The text
+ * itself is drawn by core at playback time and does not survive to a file.
+ * @param {?object} entry The break's resolved entry.
+ * @returns {?object} The file to cut, or null when the break has none.
+ */
 function breakFile(entry) {
   if (!entry) return null;
   if (entry.dynamic) return entry.bgFile || null;
   return entry.file || null;
 }
 
+/**
+ * Human label for a break type, used for tape segments and chapters.
+ * @param {object} brk A break from `resolveBreakAt()`.
+ * @returns {string} Text such as `COMMERCIAL BREAK`; `BREAK` for unknown types.
+ */
 function breakLabel(brk) {
   const named = {
     commercial: 'COMMERCIAL BREAK',
@@ -58,16 +71,24 @@ function breakLabel(brk) {
   return named[brk.type] || 'BREAK';
 }
 
-// The walk. At every instant the box is either in a break or showing
-// content, and core answers both questions analytically, so this steps
-// boundary to boundary rather than sampling.
-//
-// One deliberate fidelity note: core credits back time lost to a break
-// during a LIVE session (S.contentLostMs) so a show resumes where it was
-// paused. That credit is session-local and is not part of the schedule —
-// the guide and the time machine both show the uncredited schedule, and so
-// does a tape. A tape therefore matches what the guide said was on, which
-// is the contract the rest of the app keeps.
+/**
+ * The walk. At every instant the box is either in a break or showing
+ * content, and core answers both questions analytically, so this steps
+ * boundary to boundary rather than sampling.
+ *
+ * One deliberate fidelity note: core credits back time lost to a break
+ * during a LIVE session (S.contentLostMs) so a show resumes where it was
+ * paused. That credit is session-local and is not part of the schedule —
+ * the guide and the time machine both show the uncredited schedule, and so
+ * does a tape. A tape therefore matches what the guide said was on, which
+ * is the contract the rest of the app keeps.
+ * @param {object} ctx The plugin context.
+ * @param {object} channel The channel config to record.
+ * @param {number} startMs Range start, in milliseconds.
+ * @param {number} endMs Range end, in milliseconds.
+ * @param {boolean} [includeBreaks=true] False to record the programs only, skipping break windows.
+ * @returns {Array<object>} Segments as `{ kind, path, source, inSeconds, outSeconds, label }`; slates have no path.
+ */
 function planSegments(ctx, channel, startMs, endMs, includeBreaks = true) {
   const segments = [];
   const { resolveBreakAt, nextBreakBoundary, getChannelSchedule } = ctx.channels;
@@ -145,12 +166,17 @@ function planSegments(ctx, channel, startMs, endMs, includeBreaks = true) {
   return segments;
 }
 
-// A channel's file path can be a mediasource:<provider>:<ref> string routed
-// to a plugin rather than a real file, and ffmpeg can only read a real file.
-// resolvePlayablePath hands back a genuine local path once a provider has
-// cached one; anything still a live plugin stream cannot be taped, and the
-// honest answer is to refuse the whole tape by name rather than quietly
-// produce one with holes in it.
+/**
+ * A channel's file path can be a mediasource:<provider>:<ref> string routed
+ * to a plugin rather than a real file, and ffmpeg can only read a real file.
+ * resolvePlayablePath hands back a genuine local path once a provider has
+ * cached one; anything still a live plugin stream cannot be taped, and the
+ * honest answer is to refuse the whole tape by name rather than quietly
+ * produce one with holes in it.
+ * Rewrites each segment's `path` to a local file in place.
+ * @param {Array<object>} segments Segments from `planSegments()`.
+ * @returns {Promise<string[]>} Labels of the segments that could not be resolved; empty when all can be taped.
+ */
 async function resolveSegmentPaths(segments) {
   const cache = new Map();
   const unresolvable = new Set();
@@ -180,6 +206,10 @@ let recOsdEl = null;
 let lastStatus = { active: null, queued: [] };
 let osdHideTimer = null;
 
+/**
+ * Returns the REC readout element, creating it on first use.
+ * @returns {HTMLElement} The readout element.
+ */
 function recOsd() {
   if (recOsdEl) return recOsdEl;
   recOsdEl = document.createElement('div');
@@ -191,6 +221,11 @@ function recOsd() {
   return recOsdEl;
 }
 
+/**
+ * Formats seconds as `M:SS`, or `H:MM:SS` from an hour up.
+ * @param {number} totalSeconds Duration in seconds.
+ * @returns {string} The formatted duration.
+ */
 function formatDuration(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds));
   const h = Math.floor(s / 3600);
@@ -207,6 +242,9 @@ const STAGE_TEXT = {
   assembling: 'ASSEMBLING',
 };
 
+/**
+ * Shows the active recording's stage, channel, percent and queue length, or hides the readout when idle.
+ */
 function paintRecOsd() {
   const el = recOsd();
   const job = lastStatus.active;
@@ -220,13 +258,15 @@ function paintRecOsd() {
   el.classList.remove('hidden');
 }
 
-// Marks the channel being recorded in the programme guide.
-//
-// Two halves, because the guide does not rebuild its rows on every tick: a
-// core hook decorates a row as it is built (for a guide opened mid-record),
-// and a sweep re-applies whenever progress changes (for a record started
-// while the guide is already open). Both find the row the same way, by the
-// channel number core stamps on the cell.
+/**
+ * Marks the channel being recorded in the programme guide.
+ *
+ * Two halves, because the guide does not rebuild its rows on every tick: a
+ * core hook decorates a row as it is built (for a guide opened mid-record),
+ * and a sweep re-applies whenever progress changes (for a record started
+ * while the guide is already open). Both find the row the same way, by the
+ * channel number core stamps on the cell.
+ */
 function paintGuideMarkers() {
   const recording = lastStatus.active ? String(lastStatus.active.channelNumber) : null;
   document.querySelectorAll('.guide-row-chan[data-channel-number]').forEach((cell) => {
@@ -297,6 +337,11 @@ window.RCBPlugins.registerCoreHook('guide-program-actions', ({ channel, entry, a
   });
 });
 
+/**
+ * Shows a short message in the REC readout for about four seconds, then returns it to the recording status.
+ * @param {string} message The message.
+ * @param {string} [tone] `bad` styles it as an error.
+ */
 function flashToast(message, tone) {
   const el = recOsd();
   clearTimeout(osdHideTimer);
@@ -329,10 +374,19 @@ const RECORD_MODES = {
   unlimited: { label: 'UNLIMITED', maxMinutes: Infinity, media: null },
 };
 
+/**
+ * @param {string} id A record mode id.
+ * @returns {object} The mode's `{ label, maxMinutes, media }`; UNLIMITED for an unknown id.
+ */
 function modeInfo(id) {
   return RECORD_MODES[id] || RECORD_MODES.unlimited;
 }
 
+/**
+ * Reads the tape deck's settings with defaults and bounds applied.
+ * @param {object} ctx The plugin context.
+ * @returns {object} `{ format, quality, recordMode, degrade, recordOnto, defaultMinutes, scheduled }`.
+ */
 function settingsFor(ctx) {
   const cfg = ctx.settings.getPluginSettings(PLUGIN_ID) || {};
   const clamp = (value, min, max, fallback) => (
@@ -349,12 +403,27 @@ function settingsFor(ctx) {
   };
 }
 
+/**
+ * @returns {boolean} True when the main-process recorder is reachable.
+ */
 function recorderAvailable() {
   return typeof window.api.tapesRecord === 'function';
 }
 
-// The one place a recording actually starts. Everything else — the hotkey,
-// the TV menu button, a scheduled entry firing — comes through here.
+/**
+ * The one place a recording actually starts. Everything else — the hotkey,
+ * the TV menu button, a scheduled entry firing — comes through here.
+ * @param {object} ctx The plugin context.
+ * @param {object} opts What to record.
+ * @param {object} opts.channel The channel config.
+ * @param {number} opts.startMs Range start, in milliseconds.
+ * @param {number} opts.endMs Range end, in milliseconds.
+ * @param {string} [opts.title] Tape title; defaults to the first program's.
+ * @param {string} [opts.mode] Record mode id; defaults to the setting.
+ * @param {?string} [opts.overwriteId] Id of a tape to record over, or null for a new blank.
+ * @param {string} [opts.breaks] `program` to skip breaks.
+ * @returns {Promise<object>} The recorder's result, or `{ error }` when the recording was refused.
+ */
 async function startRecording(ctx, opts) {
   if (!recorderAvailable()) {
     flashToast('RECORDING IS NOT AVAILABLE ON THIS DEVICE', 'bad');
@@ -442,6 +511,12 @@ let scheduleTimer = null;
 // here if the recording turns out not to have started, up to a few tries.
 const SCHEDULE_MAX_ATTEMPTS = 3;
 
+/**
+ * Re-arms a scheduled recording whose start failed, or marks it done after the last attempt.
+ * @param {object} ctx The plugin context.
+ * @param {object} entry The scheduled entry.
+ * @param {string} [reason] Why the recording did not start.
+ */
 function restoreScheduledEntry(ctx, entry, reason) {
   const attempts = (entry.attempts || 0) + 1;
   const same = (other) => other && other.startMs === entry.startMs && other.endMs === entry.endMs
@@ -460,6 +535,10 @@ function restoreScheduledEntry(ctx, entry, reason) {
   });
 }
 
+/**
+ * Starts every scheduled recording whose wall-clock start has passed, marking each done first.
+ * @param {object} ctx The plugin context.
+ */
 function scheduleTick(ctx) {
   const cfg = settingsFor(ctx);
   if (!cfg.scheduled.length) return;
@@ -494,6 +573,10 @@ function scheduleTick(ctx) {
   });
 }
 
+/**
+ * Starts the 30-second scheduled-recording timer once and runs a first check.
+ * @param {object} ctx The plugin context.
+ */
 function startScheduleWatch(ctx) {
   if (scheduleTimer) return;
   // Half a minute is fine granularity for a VCR timer and costs nothing.
@@ -514,6 +597,10 @@ function startScheduleWatch(ctx) {
 // pointing at its folder, which is the same code path from here on.
 const DRIVE_LETTERS = 'DEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+/**
+ * Finds Windows drive letters with a DVD's VIDEO_TS folder on them.
+ * @returns {Promise<Array<object>>} Drives as `{ letter, videoTsPath }`; empty when the check is unavailable.
+ */
 async function detectDiscDrives() {
   if (typeof window.api.checkPathsExist !== 'function') return [];
   const candidates = DRIVE_LETTERS.map((letter) => `${letter}:\\VIDEO_TS\\VIDEO_TS.IFO`);
@@ -528,8 +615,12 @@ async function detectDiscDrives() {
     .filter(Boolean);
 }
 
-// Everything the deck could load right now: any disc in a drive, a folder
-// the viewer pointed at, and then the tapes on the shelf.
+/**
+ * Everything the deck could load right now: any disc in a drive, a folder
+ * the viewer pointed at, and then the tapes on the shelf.
+ * @param {object} ctx The plugin context.
+ * @returns {Array<object>} Disc sources as `{ kind, id, label, videoTsPath }`.
+ */
 function discSources(ctx) {
   const folder = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).discFolder;
   const sources = discDrives.map((drive) => ({
@@ -549,12 +640,23 @@ function discSources(ctx) {
   return sources;
 }
 
-// The shelf is discs first, then tapes — a disc is the thing you just put in,
-// and it should not be hiding at the end of a long library.
+/**
+ * The shelf is discs first, then tapes — a disc is the thing you just put in,
+ * and it should not be hiding at the end of a long library.
+ * @param {object} ctx The plugin context.
+ * @returns {Array<object>} Disc items first, then tapes as `{ kind, id, tape }`.
+ */
 function shelfItems(ctx) {
   return [...discSources(ctx), ...tapes.map((tape) => ({ kind: 'tape', id: tape.id, tape }))];
 }
 
+/**
+ * Re-detects discs in drives, and redraws the shelf if asked and it is showing.
+ * @param {object} ctx The plugin context.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.repaint] Redraw the shelf afterwards.
+ * @returns {Promise<void>} Resolves once detection finishes.
+ */
 async function refreshDiscs(ctx, opts) {
   discDrives = await detectDiscDrives();
   if (opts && opts.repaint && deckState === 'shelf' && container) renderShelf(ctx);
@@ -580,6 +682,9 @@ let endedHandler = null;
 let errorHandler = null;
 let shuttleDirection = 0;
 
+/**
+ * Clears the deck's clock, counter, stage and disc timers.
+ */
 function clearDeckTimers() {
   clearInterval(clockTimer); clockTimer = null;
   clearInterval(counterTimer); counterTimer = null;
@@ -587,30 +692,47 @@ function clearDeckTimers() {
   clearInterval(discTimer); discTimer = null;
 }
 
+/**
+ * Removes the deck's ended and error listeners from the shared player.
+ * @param {object} ctx The plugin context.
+ */
 function detachPlayer(ctx) {
   if (endedHandler) { ctx.player.removeEventListener('ended', endedHandler); endedHandler = null; }
   if (errorHandler) { ctx.player.removeEventListener('error', errorHandler); errorHandler = null; }
 }
 
-// Which machine a given tape belongs in. Recorded onto the tape at record
-// time, so a shelf holding both cassettes and discs loads each one in its
-// own deck — the setting is only the fallback, for an UNLIMITED recording
-// (which is not any particular format) and for a tape made before this
-// existed.
+/**
+ * Which machine a given tape belongs in. Recorded onto the tape at record
+ * time, so a shelf holding both cassettes and discs loads each one in its
+ * own deck — the setting is only the fallback, for an UNLIMITED recording
+ * (which is not any particular format) and for a tape made before this
+ * existed.
+ * @param {?object} tape A tape's sidecar record.
+ * @param {object} ctx The plugin context.
+ * @returns {string} `disc` or `vhs`.
+ */
 function mediaOf(tape, ctx) {
   if (tape && (tape.media === 'disc' || tape.media === 'vhs')) return tape.media;
   return settingsFor(ctx).format === 'dvd' ? 'disc' : 'vhs';
 }
 
-// Whatever the shelf cursor is on: a disc in a drive, or a tape.
+/**
+ * Whatever the shelf cursor is on: a disc in a drive, or a tape.
+ * @param {object} ctx The plugin context.
+ * @returns {?object} The selected shelf item, or null when the shelf is empty.
+ */
 function selectedItem(ctx) {
   const items = shelfItems(ctx);
   return items[Math.min(shelfIndex, items.length - 1)] || null;
 }
 
-// The deck currently on screen: the loaded tape's own, or the one the
-// selected case would need while still browsing the shelf. A real disc is
-// always a disc, whatever the settings say.
+/**
+ * The deck currently on screen: the loaded tape's own, or the one the
+ * selected case would need while still browsing the shelf. A real disc is
+ * always a disc, whatever the settings say.
+ * @param {object} ctx The plugin context.
+ * @returns {boolean} True when the disc player is the deck on screen.
+ */
 function isDvd(ctx) {
   if (loadedDisc) return true;
   if (loaded) return mediaOf(loaded, ctx) === 'disc';
@@ -681,6 +803,12 @@ const SOUND_SLOTS = {
 // remembered as null so a broken sound costs one attempt, not one per press.
 const sfxBufferCache = new Map();
 
+/**
+ * Decodes a custom sound file once and caches the result.
+ * @param {object} ctx The plugin context.
+ * @param {string} filePath Path to the sound file.
+ * @returns {Promise<?AudioBuffer>} The decoded audio, or null when it could not be decoded.
+ */
 async function sfxBuffer(ctx, filePath) {
   if (sfxBufferCache.has(filePath)) return sfxBufferCache.get(filePath);
   let buffer;
@@ -695,11 +823,21 @@ async function sfxBuffer(ctx, filePath) {
   return buffer;
 }
 
+/**
+ * @param {object} ctx The plugin context.
+ * @returns {object} Sound slot id to custom file path, from settings.
+ */
 function customSounds(ctx) {
   const stored = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).sounds;
   return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
 }
 
+/**
+ * Plays a deck sound: the slot's custom file through core's `sfxGain`, or its built-in default.
+ * @param {object} ctx The plugin context.
+ * @param {string} slot A `SOUND_SLOTS` key, such as `insert` or `eject`.
+ * @param {object} [opts={}] Slot options, such as `disc`, `up` or `forward`.
+ */
 function playDeckSfx(ctx, slot, opts = {}) {
   const definition = SOUND_SLOTS[slot];
   if (!definition) return;
@@ -717,8 +855,11 @@ function playDeckSfx(ctx, slot, opts = {}) {
   });
 }
 
-// Warms the decode cache so the first press is not the one that waits on a
-// disk read.
+/**
+ * Warms the decode cache so the first press is not the one that waits on a
+ * disk read.
+ * @param {object} ctx The plugin context.
+ */
 function preloadDeckSfx(ctx) {
   const custom = customSounds(ctx);
   Object.keys(SOUND_SLOTS).forEach((slot) => {
@@ -742,6 +883,12 @@ const ANIMATION_SLOTS = {
   eject: { label: 'REWINDING AND EJECTING', defaultMs: 2200 },
 };
 
+/**
+ * The viewer's animation for a deck phase, if any, and how long the phase lasts.
+ * @param {object} ctx The plugin context.
+ * @param {string} slot An `ANIMATION_SLOTS` key.
+ * @returns {object} `{ path, ms }`, with `path` null for the built-in animation.
+ */
 function animationFor(ctx, slot) {
   const stored = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).animations;
   const entry = stored && typeof stored === 'object' ? stored[slot] : null;
@@ -752,9 +899,14 @@ function animationFor(ctx, slot) {
   return { path: (entry && entry.path) || null, ms };
 }
 
-// Lays a supplied animation over the deck for the length of that phase. The
-// built-in chassis animation keeps running underneath rather than being
-// branched around, so there is one state machine, not two.
+/**
+ * Lays a supplied animation over the deck for the length of that phase. The
+ * built-in chassis animation keeps running underneath rather than being
+ * branched around, so there is one state machine, not two.
+ * @param {object} ctx The plugin context.
+ * @param {string} slot An `ANIMATION_SLOTS` key.
+ * @returns {number} How long the phase lasts, in milliseconds.
+ */
 function showPhaseAnimation(ctx, slot) {
   const { path, ms } = animationFor(ctx, slot);
   if (!path || !container) return ms;
@@ -779,6 +931,11 @@ function showPhaseAnimation(ctx, slot) {
 // every repaint.
 const artUrlCache = new Map();
 
+/**
+ * Resolves an image path to a loadable URL, cached per path.
+ * @param {?string} filePath The image file.
+ * @returns {Promise<?string>} The URL, or null when there is none.
+ */
 async function artUrl(filePath) {
   if (!filePath) return null;
   if (artUrlCache.has(filePath)) return artUrlCache.get(filePath);
@@ -792,10 +949,16 @@ async function artUrl(filePath) {
   return url;
 }
 
-// Paints whichever art slots a tape has into elements tagged with
-// data-art="<slot>", after the markup is already on screen. Drawing the
-// layout first and letting art arrive afterwards keeps the shelf instant on
-// a slow disk instead of blocking every repaint on an image resolve.
+/**
+ * Paints whichever art slots a tape has into elements tagged with
+ * data-art="<slot>", after the markup is already on screen. Drawing the
+ * layout first and letting art arrive afterwards keeps the shelf instant on
+ * a slow disk instead of blocking every repaint on an image resolve.
+ * @param {?Element} root Element to search for `data-art` targets.
+ * @param {?object} tape The tape's sidecar record.
+ * @param {string[]} slots Art slots to paint, such as `front`, `back` or `label`.
+ * @returns {Promise<void>} Resolves once every slot is painted.
+ */
 async function applyArt(root, tape, slots) {
   if (!root || !tape || !tape.art) return;
   for (const slot of slots) {
@@ -814,18 +977,26 @@ async function applyArt(root, tape, slots) {
   }
 }
 
-// The cassette shell's colour, or the disc's rim. A tape carries its own
-// override once a user picks one; otherwise it gets a stable colour derived
-// from its id, so a shelf of untouched tapes is still recognisable at a
-// glance without anything extra having to persist.
-// How many times this physical tape has been recorded over. A disc never
-// wears — burning it again writes clean data — so it always reads zero
-// however many times it has been used.
+/**
+ * How many times this physical tape has been recorded over. A disc never
+ * wears — burning it again writes clean data — so it always reads zero
+ * however many times it has been used.
+ * @param {?object} tape A tape's sidecar record.
+ * @returns {number} The tape's generation count.
+ */
 function wearOf(tape) {
   if (!tape || tape.media === 'disc') return 0;
   return Number.isInteger(tape.generation) ? tape.generation : 0;
 }
 
+/**
+ * The cassette shell's colour, or the disc's rim. A tape carries its own
+ * override once a user picks one; otherwise it gets a stable colour derived
+ * from its id, so a shelf of untouched tapes is still recognisable at a
+ * glance without anything extra having to persist.
+ * @param {object} tape A tape's sidecar record.
+ * @returns {string} A CSS colour.
+ */
 function tapeSpineColor(tape) {
   if (typeof tape.shellColor === 'string' && /^#[0-9a-f]{6}$/i.test(tape.shellColor)) return tape.shellColor;
   let hash = 0;
@@ -833,11 +1004,21 @@ function tapeSpineColor(tape) {
   return `hsl(${hash % 360} 42% 32%)`;
 }
 
+/**
+ * Short case label for when a tape was recorded, such as `NOV 4 26`.
+ * @param {object} ctx The plugin context.
+ * @param {object} tape A tape's sidecar record.
+ * @returns {string} The date label.
+ */
 function tapeDateLabel(ctx, tape) {
   const d = new Date(tape.startMs || tape.recordedMs || 0);
   return `${ctx.util.MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()} ${String(d.getFullYear()).slice(2)}`;
 }
 
+/**
+ * Draws the shelf screen (cases, machine and hint) and starts its clock.
+ * @param {object} ctx The plugin context.
+ */
 function renderShelf(ctx) {
   const format = isDvd(ctx) ? 'dvd' : 'vhs';
   const empty = !shelfItems(ctx).length;
@@ -873,9 +1054,14 @@ function renderShelf(ctx) {
   clockTimer = setInterval(() => updateDeckClock(ctx), 1000);
 }
 
-// A disc in a drive, drawn as the plain unprinted case a disc you just put in
-// actually comes in — no cover art, no chapter listing, because nothing has
-// been read off it yet.
+/**
+ * A disc in a drive, drawn as the plain unprinted case a disc you just put in
+ * actually comes in — no cover art, no chapter listing, because nothing has
+ * been read off it yet.
+ * @param {object} item A disc shelf item from `discSources()`.
+ * @param {number} i The item's shelf index.
+ * @returns {string} The case's HTML.
+ */
 function discCaseHtml(item, i) {
   const known = loadedDisc && loadedDisc.id === item.id && discTitles;
   return `
@@ -897,6 +1083,10 @@ function discCaseHtml(item, i) {
   `;
 }
 
+/**
+ * Draws every case on the shelf, scrolls the selected one into view and paints cover art afterwards.
+ * @param {object} ctx The plugin context.
+ */
 function paintShelf(ctx) {
   const shelf = container && container.querySelector('[data-el="shelf"]');
   if (!shelf) return;
@@ -956,8 +1146,11 @@ function paintShelf(ctx) {
   syncMachineToSelection(ctx);
 }
 
-// Moving along a mixed shelf swaps the machine underneath it, so the deck
-// you are about to put something into is always the right one.
+/**
+ * Moving along a mixed shelf swaps the machine underneath it, so the deck
+ * you are about to put something into is always the right one.
+ * @param {object} ctx The plugin context.
+ */
 function syncMachineToSelection(ctx) {
   const deck = container && container.querySelector('.tape-deck');
   if (!deck) return;
@@ -980,24 +1173,41 @@ function syncMachineToSelection(ctx) {
   }
 }
 
+/**
+ * @param {*} value The text to escape; null and undefined become empty.
+ * @returns {string} HTML-safe text.
+ */
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/**
+ * Writes text to the deck's front-panel display.
+ * @param {string} text The display text.
+ */
 function setVfd(text) {
   const vfd = container && container.querySelector('[data-el="vfd"]');
   if (vfd) vfd.textContent = text;
 }
 
+/**
+ * Writes the time-machine-aware clock into the shelf header.
+ * @param {object} ctx The plugin context.
+ */
 function updateDeckClock(ctx) {
   const clock = container && container.querySelector('[data-el="clock"]');
   if (clock) clock.textContent = ctx.util.formatClock(new Date(ctx.viewNow()));
 }
 
-// Loading is the whole point of the channel: a tape does not simply start,
-// it goes in, the mechanism takes it, and the deck thinks about it for a
-// moment before anything appears.
+/**
+ * Loading is the whole point of the channel: a tape does not simply start,
+ * it goes in, the mechanism takes it, and the deck thinks about it for a
+ * moment before anything appears.
+ * @param {object} ctx The plugin context.
+ * @param {object} tape The tape's sidecar record.
+ * @param {number} [startSeconds=0] Where to start playing a cassette.
+ */
 function loadTape(ctx, tape, startSeconds = 0) {
   if (!tape) return;
   loaded = tape;
@@ -1036,6 +1246,10 @@ function loadTape(ctx, tape, startSeconds = 0) {
   }, seatMs);
 }
 
+/**
+ * Shows a recorded disc's chapter menu, with PLAY FROM START first.
+ * @param {object} ctx The plugin context.
+ */
 function showDiscMenu(ctx) {
   deckState = 'menu';
   menuIndex = 0;
@@ -1065,6 +1279,9 @@ function showDiscMenu(ctx) {
   applyArt(container, loaded, ['front']);
 }
 
+/**
+ * Highlights the selected menu row and scrolls it into view.
+ */
 function paintMenu() {
   const list = container && container.querySelector('[data-el="chapters"]');
   if (!list) return;
@@ -1075,9 +1292,14 @@ function paintMenu() {
 
 // ---------- loading a disc ----------
 
-// Reads a disc's table of contents and shows what is on it. The mechanism
-// animation runs for real while the IFOs are being fetched, so the wait is
-// the deck thinking rather than a frozen screen.
+/**
+ * Reads a disc's table of contents and shows what is on it. The mechanism
+ * animation runs for real while the IFOs are being fetched, so the wait is
+ * the deck thinking rather than a frozen screen.
+ * @param {object} ctx The plugin context.
+ * @param {object} item The disc shelf item.
+ * @returns {Promise<void>} Resolves once the disc is read or refused.
+ */
 async function loadDisc(ctx, item) {
   loadedDisc = item;
   discTitles = null;
@@ -1119,6 +1341,11 @@ async function loadDisc(ctx, item) {
   showDiscTitleMenu(ctx);
 }
 
+/**
+ * Summary line for a disc title: running time, chapter count and audio languages.
+ * @param {object} title A title from the disc structure.
+ * @returns {string} Text such as `1:42:10 · 24 CH · EN/FR`.
+ */
 function titleLine(title) {
   const parts = [`${formatDuration(title.durationS || 0)}`];
   if (title.chapterCount) parts.push(`${title.chapterCount} CH`);
@@ -1127,11 +1354,14 @@ function titleLine(title) {
   return parts.join(' · ');
 }
 
-// The disc's titles, in the deck's own menu. Not the disc's pressed menu —
-// that needs a subpicture decoder and the disc's own bytecode interpreter,
-// which this deliberately does not carry. This is built from the structure
-// the disc really has, which is the part that matters for choosing something
-// to keep.
+/**
+ * The disc's titles, in the deck's own menu. Not the disc's pressed menu —
+ * that needs a subpicture decoder and the disc's own bytecode interpreter,
+ * which this deliberately does not carry. This is built from the structure
+ * the disc really has, which is the part that matters for choosing something
+ * to keep.
+ * @param {object} ctx The plugin context.
+ */
 function showDiscTitleMenu(ctx) {
   deckState = 'discmenu';
   menuIndex = 0;
@@ -1163,10 +1393,15 @@ function showDiscTitleMenu(ctx) {
   paintMenu();
 }
 
-// Which VOBs actually hold a title. A DVD splits one across numbered files at
-// a 1GB boundary, and only the disc knows how many there are — so ask which
-// exist rather than assuming. VTS_nn_0.VOB is the title set's own menu and is
-// deliberately not included.
+/**
+ * Which VOBs actually hold a title. A DVD splits one across numbered files at
+ * a 1GB boundary, and only the disc knows how many there are — so ask which
+ * exist rather than assuming. VTS_nn_0.VOB is the title set's own menu and is
+ * deliberately not included.
+ * @param {string} videoTsPath The disc's VIDEO_TS folder.
+ * @param {number} vts The title-set number.
+ * @returns {Promise<string[]>} Paths of the VOB files that exist; empty when the check fails.
+ */
 async function titleVobFiles(videoTsPath, vts) {
   const set = String(vts).padStart(2, '0');
   const candidates = [];
@@ -1180,9 +1415,14 @@ async function titleVobFiles(videoTsPath, vts) {
   return candidates.filter((_, i) => found[i]);
 }
 
-// Copies one title off the disc onto the shelf. It goes through the ordinary
-// recording queue — same progress readout, same shelf, same case artwork —
-// with the disc as its one segment.
+/**
+ * Copies one title off the disc onto the shelf. It goes through the ordinary
+ * recording queue — same progress readout, same shelf, same case artwork —
+ * with the disc as its one segment.
+ * @param {object} ctx The plugin context.
+ * @param {object} title A title from the disc structure.
+ * @returns {Promise<void>} Resolves once the copy is queued or refused.
+ */
 async function keepDiscTitle(ctx, title) {
   if (!recorderAvailable()) { flashToast('RECORDING IS NOT AVAILABLE ON THIS DEVICE', 'bad'); return; }
   if (!loadedDisc) return;
@@ -1221,6 +1461,13 @@ async function keepDiscTitle(ctx, title) {
   flashToast(`COPYING TITLE ${title.title} · ${formatDuration(title.durationS || 0)}`);
 }
 
+/**
+ * Shows the playback screen, loads the tape into the shared player and runs the blue-screen and tracking lead-in.
+ * A cassette rewinds and ejects at its end; a disc returns to its menu.
+ * @param {object} ctx The plugin context.
+ * @param {number} startSeconds Where to start, in seconds.
+ * @returns {Promise<void>} Resolves once playback is set up.
+ */
 async function beginPlayback(ctx, startSeconds) {
   deckState = 'playing';
   clearDeckTimers();
@@ -1293,22 +1540,38 @@ async function beginPlayback(ctx, startSeconds) {
   counterTimer = setInterval(() => updateCounter(ctx), 250);
 }
 
+/**
+ * Replaces the playback readout with an error message.
+ * @param {string} message The message.
+ */
 function setStageMessage(message) {
   const osd = container && container.querySelector('[data-el="osd"]');
   if (osd) osd.innerHTML = `<span class="tape-osd-mode tape-osd-bad">${escapeHtml(message)}</span>`;
 }
 
+/**
+ * Updates the playback counter from the player's position.
+ * @param {object} ctx The plugin context.
+ */
 function updateCounter(ctx) {
   const counter = container && container.querySelector('[data-el="counter"]');
   if (!counter) return;
   counter.textContent = formatDuration(ctx.player.currentTime || 0);
 }
 
+/**
+ * Sets the playback mode readout, such as PLAY or PAUSE.
+ * @param {string} text The mode text.
+ */
 function setMode(text) {
   const mode = container && container.querySelector('[data-el="mode"]');
   if (mode) mode.textContent = text;
 }
 
+/**
+ * Briefly shows the rewind or fast-forward indicator.
+ * @param {string} text The indicator text.
+ */
 function showShuttle(text) {
   const shuttle = container && container.querySelector('[data-el="shuttle"]');
   if (!shuttle) return;
@@ -1319,6 +1582,10 @@ function showShuttle(text) {
   showShuttle.timer = setTimeout(() => shuttle.classList.add('hidden'), 900);
 }
 
+/**
+ * Stops playback, shows the rewinding screen and then ejects to the shelf.
+ * @param {object} ctx The plugin context.
+ */
 function rewindAndEject(ctx) {
   deckState = 'rewinding';
   clearDeckTimers();
@@ -1339,6 +1606,10 @@ function rewindAndEject(ctx) {
   }, ejectMs);
 }
 
+/**
+ * Stops playback, unloads the tape and returns to the shelf.
+ * @param {object} ctx The plugin context.
+ */
 function ejectToShelf(ctx) {
   clearDeckTimers();
   detachPlayer(ctx);
@@ -1350,8 +1621,11 @@ function ejectToShelf(ctx) {
   renderShelf(ctx);
 }
 
-// Putting a disc back on the shelf. Nothing to rewind and nothing playing,
-// so this is just the deck letting go of what it read.
+/**
+ * Putting a disc back on the shelf. Nothing to rewind and nothing playing,
+ * so this is just the deck letting go of what it read.
+ * @param {object} ctx The plugin context.
+ */
 function ejectDisc(ctx) {
   clearDeckTimers();
   playDeckSfx(ctx, 'eject', { disc: true });
@@ -1362,6 +1636,13 @@ function ejectDisc(ctx) {
   renderShelf(ctx);
 }
 
+/**
+ * Reloads the tape list from the main process, keeps the shelf cursor in range and optionally redraws.
+ * @param {object} ctx The plugin context.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.repaint] Redraw the shelf afterwards when it is showing.
+ * @returns {Promise<void>} Resolves once the list is loaded.
+ */
 async function refreshTapes(ctx, opts) {
   if (typeof window.api.tapesList !== 'function') { tapes = []; return; }
   try {

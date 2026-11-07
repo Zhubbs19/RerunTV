@@ -12,6 +12,12 @@ import { actionIcon, actionMeaning, stepTile } from './model.js';
 import { iconSvg } from './icons.js';
 
 
+/**
+ * Builds one action tile's button markup.
+ * @param {object} item The action (`label`, optional `icon` and `className`).
+ * @param {number} index The tile's index.
+ * @returns {string} The button HTML.
+ */
 function tileHtml(item, index) {
   const icon = actionIcon(item.label, item.icon);
   const inner = icon
@@ -21,6 +27,15 @@ function tileHtml(item, index) {
   return `<button type="button" class="cg-tile${muted}" data-index="${index}" aria-label="${escapeHtml(actionMeaning(item.label))}">${inner}</button>`;
 }
 
+/**
+ * Opens program info inside the guide grid, with a Back tile before the actions.
+ * @param {object} opts What to show.
+ * @param {HTMLElement} opts.grid The `#guide-grid` element.
+ * @param {Array<object>} opts.items The program actions (`label`, `run`, `className`, `icon`).
+ * @param {string} [opts.description=''] The program description.
+ * @param {?Function} opts.onClose Called after the page closes.
+ * @returns {object} The controller guide.js keeps as its `popover` (`key`, `handleKey`, `close`).
+ */
 export function openProgramInfo({ grid, items, description = '', onClose }) {
   const back = { label: 'Back', icon: 'back', run: () => {} };
   const all = [back, ...items];

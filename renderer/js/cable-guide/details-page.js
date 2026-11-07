@@ -18,7 +18,12 @@ let page = null;
 let header = null;
 let resizeWatch = null;
 
-// The airing this file belongs to on that channel around now, for the range.
+/**
+ * The airing this file belongs to on that channel around now, for the range.
+ * @param {?object} ch The channel config.
+ * @param {?object} file The file entry being described.
+ * @returns {string} The airing's time range, or '' when it is not on around now.
+ */
 function airingRange(ch, file) {
   if (!ch || !file) return '';
   const now = viewNow();
@@ -29,6 +34,15 @@ function airingRange(ch, file) {
   return entry ? guideRange(new Date(entry.start), new Date(entry.end), !!(S.config.display && S.config.display.clock24)) : '';
 }
 
+/**
+ * Draws or refreshes the program info page inside the details overlay.
+ * @param {HTMLElement} overlay The `#details-overlay` element.
+ * @param {object} opts What to describe.
+ * @param {string} opts.title Fallback title when the file has none.
+ * @param {?object} opts.file The file entry being described.
+ * @param {object} opts.ctx Card context (`channelNumber`, `channelName`, `airTime`, `why`).
+ * @param {Function} opts.onBack Called when the Back tile is pressed.
+ */
 export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
   if (!page) {
     page = document.createElement('div');
@@ -68,6 +82,10 @@ export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
   }
 }
 
+/**
+ * Removes the program info page and releases its header, watcher and picture box.
+ * @param {HTMLElement} overlay The `#details-overlay` element.
+ */
 export function hideDetailsPage(overlay) {
   if (resizeWatch) { resizeWatch.disconnect(); resizeWatch = null; }
   if (header) { header.destroy(); header = null; }

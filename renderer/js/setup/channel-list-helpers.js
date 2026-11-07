@@ -6,9 +6,13 @@ import { formatChannelNumber } from '../core/channels.js';
 import { remapChannelRefs } from './util.js';
 import { S, commitConfigPatch } from '../core/state.js';
 
-// Two channels trade numbers. Every number-keyed reference (ad affinity, flow/preset
-// channel lists, PIN locks) is swapped with them, and the whole thing is one undo
-// step — a bare number swap left those references pointing at the wrong channel.
+/**
+ * Two channels trade numbers. Every number-keyed reference (ad affinity, flow/preset
+ * channel lists, PIN locks) is swapped with them, and the whole thing is one undo
+ * step — a bare number swap left those references pointing at the wrong channel.
+ * @param {object} a One channel config (mutated in place).
+ * @param {object} b The other channel config (mutated in place).
+ */
 export function swapChannelNumbers(a, b) {
   const aNum = a.number;
   const bNum = b.number;
@@ -17,12 +21,20 @@ export function swapChannelNumbers(a, b) {
   commitConfigPatch(`Swap CH ${formatChannelNumber(aNum)} and CH ${formatChannelNumber(bNum)}`);
 }
 
+/**
+ * Returns a copy of the configured channels sorted by channel number.
+ * @returns {Array<object>} The channel configs in lineup order.
+ */
 export function sortedForSetup() {
   return [...((S.config && S.config.channels) || [])].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
 }
 
-// Channels shown in the setup list, narrowed by S.setupFilterQuery — same
-// name-or-number substring match as the guide's filteredChannels().
+/**
+ * Channels shown in the setup list, narrowed by S.setupFilterQuery — same
+ * name-or-number substring match as the guide's filteredChannels().
+ * @param {Array<object>} fullList The channel configs to narrow.
+ * @returns {Array<object>} The matching channels, or `fullList` itself when no filter is set.
+ */
 export function filteredSetupChannels(fullList) {
   const q = (S.setupFilterQuery || '').trim().toLowerCase();
   if (!q) return fullList;

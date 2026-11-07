@@ -11,9 +11,14 @@ import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 const MAX_RECENT = 6;
 let cardEl = null;
+// Index of the highlighted row in the card.
 let cursor = 0;
 let hideTimer = null;
 
+/**
+ * Moves a channel number to the front of the session's recent-channel list.
+ * @param {?number} number The channel number just tuned; null or undefined is ignored.
+ */
 export function noteRecentChannel(number) {
   if (number == null) return;
   const list = (S.recentChannels || []).filter((n) => n !== number);
@@ -21,24 +26,42 @@ export function noteRecentChannel(number) {
   S.recentChannels = list.slice(0, MAX_RECENT + 1);
 }
 
-// The channels worth listing: the ones before the one on screen.
+/**
+ * The channels worth listing: the ones before the one on screen.
+ * @returns {number[]} Channel numbers, most recent first.
+ */
 export function recentChannelList() {
   return (S.recentChannels || []).filter((n) => n !== S.currentNumber).slice(0, MAX_RECENT);
 }
 
+/**
+ * Reports whether the recent-channels card is on screen.
+ * @returns {boolean} True while the card is visible.
+ */
 export function isRecentOpen() {
   return !!cardEl && !cardEl.classList.contains('hidden');
 }
 
-// The cable-guide layout writes in title case and keeps a name as typed.
+/**
+ * Whether the cable-guide layout is on (it writes in title case and keeps a name as typed).
+ * @returns {boolean} True on the cable-guide layout.
+ */
 const cableGuide = () => currentUiMode() === CABLE_GUIDE_UI;
 
+/**
+ * Builds a card row label: the formatted number and the channel's name in capitals.
+ * @param {number} number The channel number.
+ * @returns {string} The row text.
+ */
 function label(number) {
   const ch = getChannel(number);
   const name = ch && ch.name ? (cableGuide() ? ch.name : ch.name.toUpperCase()) : `${cableGuide() ? 'Channel' : 'CHANNEL'} ${number}`;
   return `${formatChannelNumber(number)}  ${name}`;
 }
 
+/**
+ * Redraws the card's rows, highlighting the cursor row.
+ */
 function render() {
   const list = recentChannelList();
   cardEl.innerHTML = '';
@@ -62,16 +85,26 @@ function render() {
   });
 }
 
+/**
+ * Hides the recent-channels card and cancels its auto-hide timer.
+ */
 export function closeRecentChannels() {
   clearTimeout(hideTimer);
   if (cardEl) cardEl.classList.add('hidden');
 }
 
+/**
+ * Closes the card and tunes to the chosen channel.
+ * @param {number} number The channel number to tune.
+ */
 function pick(number) {
   closeRecentChannels();
   if (window.tuneToChannel) window.tuneToChannel(number);
 }
 
+/**
+ * Opens the recent-channels card (cursor on the first row), or closes it if it is open.
+ */
 export function toggleRecentChannels() {
   if (isRecentOpen()) { closeRecentChannels(); return; }
   if (!cardEl) {
@@ -86,7 +119,11 @@ export function toggleRecentChannels() {
   hideTimer = setTimeout(closeRecentChannels, 8000);
 }
 
-// Keys while the card is up. Returns true when the key was used.
+/**
+ * Keys while the card is up. Returns true when the key was used.
+ * @param {KeyboardEvent} e The keydown event.
+ * @returns {boolean} Whether the key was consumed.
+ */
 export function handleRecentKey(e) {
   if (!isRecentOpen()) return false;
   const list = recentChannelList();

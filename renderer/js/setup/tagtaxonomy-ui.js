@@ -13,8 +13,12 @@ import { renderChannelList } from './channels.js';
 import { renderInterstitialsList, renderPresetsList } from './interstitials.js';
 import { renderAutoCurateList } from './autocurate.js';
 
-// A config from before the taxonomy existed (or a hand-edited one) can lack the
-// object or any single category list; every reader goes through here.
+/**
+ * A config from before the taxonomy existed (or a hand-edited one) can lack the
+ * object or any single category list; every reader goes through here.
+ * @param {string} key The category key: `genres`, `eras` or `moods`.
+ * @returns {string[]} The live category list in `S.config.tagTaxonomy`, created if missing.
+ */
 function taxList(key) {
   if (!S.config.tagTaxonomy || typeof S.config.tagTaxonomy !== 'object') S.config.tagTaxonomy = { genres: [], eras: [], moods: [] };
   if (!Array.isArray(S.config.tagTaxonomy[key])) S.config.tagTaxonomy[key] = [];
@@ -27,8 +31,10 @@ const CATEGORIES = [
   ['moods', 'MOODS'],
 ];
 
-// Everything a rename/remove could have touched — cheap enough to just
-// refresh all of it rather than track exactly which panels are affected.
+/**
+ * Everything a rename/remove could have touched — cheap enough to just
+ * refresh all of it rather than track exactly which panels are affected.
+ */
 function refreshEverything() {
   renderChannelList();
   renderInterstitialsList();
@@ -37,6 +43,12 @@ function refreshEverything() {
   renderTagTaxonomyPanel();
 }
 
+/**
+ * Builds the card for one taxonomy category: its canonical tags as removable chips and an input to add one.
+ * @param {string} categoryKey The category key: `genres`, `eras` or `moods`.
+ * @param {string} label The category heading, e.g. `GENRES`.
+ * @returns {HTMLElement} The card element.
+ */
 function buildCategoryCard(categoryKey, label) {
   const card = document.createElement('div');
   card.className = 'interstitial-card open autocurate-card-body';
@@ -102,6 +114,11 @@ function buildCategoryCard(categoryKey, label) {
   return card;
 }
 
+/**
+ * Builds the TAG USAGE row for one tag: thumbnails, use count, category toggles, and RENAME and REMOVE that rewrite the tag everywhere.
+ * @param {object} entry A `collectTagUsage()` entry (`tag`, `count`, `categories`, `mediaPaths`).
+ * @returns {HTMLElement} The row element.
+ */
 function buildUsageRow(entry) {
   const row = document.createElement('div');
   row.className = 'interstitial-card';
@@ -210,6 +227,9 @@ function buildUsageRow(entry) {
   return row;
 }
 
+/**
+ * Renders the Tag Taxonomy panel: the three category cards and the usage report, most-used first.
+ */
 export function renderTagTaxonomyPanel() {
   if (!tagtaxonomyRootEl) return;
   tagtaxonomyRootEl.innerHTML = '';

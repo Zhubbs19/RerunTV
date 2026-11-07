@@ -23,18 +23,32 @@ const MAX_MOOV_BYTES = 32 * 1024 * 1024;
 
 const FIELDS = ['artist', 'title', 'album', 'albumArtist', 'year'];
 
+/**
+ * Tag text with nulls and runs of whitespace collapsed, or null when nothing is left.
+ * @param {*} value The raw tag value.
+ * @returns {?string} The cleaned text.
+ */
 function clean(value) {
   if (value == null) return null;
   const text = String(value).replaceAll('\u0000', ' ').replace(/\s+/g, ' ').trim();
   return text || null;
 }
 
-// "1997", "1997-05-12", "1997/2003", "12 May 1997" all mean 1997.
+/**
+ * "1997", "1997-05-12", "1997/2003", "12 May 1997" all mean 1997.
+ * @param {*} value A date or year string.
+ * @returns {?string} The four-digit year, or null.
+ */
 function yearOf(value) {
   const match = String(value || '').match(/\b(1[89]\d{2}|20\d{2})\b/);
   return match ? match[1] : null;
 }
 
+/**
+ * The final tag object: cleaned values for `FIELDS` only, with `year` reduced to four digits and empty fields left out.
+ * @param {object} raw The fields a reader found.
+ * @returns {object} The tags to return.
+ */
 function finish(raw) {
   const out = {};
   FIELDS.forEach((field) => {
@@ -46,11 +60,21 @@ function finish(raw) {
 
 // ---------- ID3v2 ----------
 
+/**
+ * A byte-swapped copy of a UTF-16 buffer (big-endian to little-endian), dropping an odd trailing byte.
+ * @param {Buffer} buf The UTF-16 bytes.
+ * @returns {Buffer} The swapped copy.
+ */
 function swap16(buf) {
   const even = Buffer.from(buf.subarray(0, buf.length - (buf.length % 2)));
   return even.swap16();
 }
 
+/**
+ * Decodes an ID3 text frame body by its leading encoding byte; only the first of several values is kept.
+ * @param {Buffer} frame The frame body.
+ * @returns {?string} The cleaned text, or null.
+ */
 function decodeId3Text(frame) {
   if (!frame.length) return null;
   const encoding = frame[0];
@@ -68,6 +92,11 @@ function decodeId3Text(frame) {
   return clean(text.replace(/^\uFEFF/, '').split('\u0000')[0]);
 }
 
+/**
+ * Reverses ID3 unsynchronisation: drops the zero byte inserted after each 0xFF.
+ * @param {Buffer} buf The unsynchronised bytes.
+ * @returns {Buffer} The original bytes.
+ */
 function undoUnsync(buf) {
   const out = [];
   for (let i = 0; i < buf.length; i++) {
@@ -83,6 +112,11 @@ const ID3_FRAMES = {
   4: { TIT2: 'title', TPE1: 'artist', TPE2: 'albumArtist', TALB: 'album', TDRC: 'year', TDOR: 'originalYear' },
 };
 
+/**
+ * The text fields from an ID3v2 tag, preferring the original release year when one is recorded.
+ * @param {Buffer} buf The bytes of the whole tag, starting with the ID3 header.
+ * @returns {object} The fields found (`title`, `artist`, `album`, `albumArtist`, `year`), possibly empty.
+ */
 function readId3Text(buf) {
   if (buf.length < 10 || buf.toString('latin1', 0, 3) !== 'ID3') return {};
   const version = buf[3];
@@ -126,6 +160,11 @@ function readId3Text(buf) {
   return out;
 }
 
+/**
+ * The fields from an ID3v1 tag in the last 128 bytes of a file.
+ * @param {Buffer} tail The file's last bytes (at least 128).
+ * @returns {object} The fields found (`title`, `artist`, `album`, `albumArtist`, `year`), possibly empty.
+ */
 function readId3v1(tail) {
   if (!tail || tail.length < 128) return {};
   const tag = tail.subarray(tail.length - 128);
@@ -141,6 +180,12 @@ const VORBIS_KEYS = {
   DATE: 'year', YEAR: 'year', ORIGINALDATE: 'originalYear', ORIGINALYEAR: 'originalYear',
 };
 
+/**
+ * The fields from a Vorbis comment block (FLAC, Ogg Vorbis, Opus).
+ * @param {Buffer} buf The bytes holding the block.
+ * @param {number} start Where the vendor-length field starts.
+ * @returns {object} The fields found (`title`, `artist`, `album`, `albumArtist`, `year`), possibly empty.
+ */
 function readVorbisComment(buf, start) {
   const out = {};
   let p = start;
@@ -166,6 +211,11 @@ function readVorbisComment(buf, start) {
   return out;
 }
 
+/**
+ * Reads a FLAC file's VORBIS_COMMENT metadata block.
+ * @param {object} io `{ size, readRange(start, length) }`.
+ * @returns {Promise<object>} The fields found, possibly empty.
+ */
 async function readFlacTags(io) {
   let offset = 4;
   for (let guard = 0; guard < 64 && offset + 4 <= io.size; guard++) {
@@ -186,8 +236,13 @@ async function readFlacTags(io) {
   return {};
 }
 
-// Reassembles Ogg packets from page segments until `count` packets are whole.
-// The comment packet is the second one in both Vorbis and Opus streams.
+/**
+ * Reassembles Ogg packets from page segments until `count` packets are whole.
+ * The comment packet is the second one in both Vorbis and Opus streams.
+ * @param {Buffer} buf The start of the Ogg stream.
+ * @param {number} count How many packets to collect.
+ * @returns {Buffer[]} The packets, the last possibly cut short.
+ */
 function oggPackets(buf, count) {
   const packets = [];
   let parts = [];
@@ -211,6 +266,11 @@ function oggPackets(buf, count) {
   return packets;
 }
 
+/**
+ * The fields from an Ogg Vorbis or Opus stream's comment packet.
+ * @param {Buffer} head The start of the file.
+ * @returns {object} The fields found (`title`, `artist`, `album`, `albumArtist`, `year`), possibly empty.
+ */
 function readOggTags(head) {
   const comment = oggPackets(head, 2)[1];
   if (!comment) return {};
@@ -223,6 +283,11 @@ function readOggTags(head) {
 
 const MP4_KEYS = { '©nam': 'title', '©ART': 'artist', aART: 'albumArtist', '©alb': 'album', '©day': 'year' };
 
+/**
+ * The fields from the `ilst` atoms inside an MP4 `moov` atom body.
+ * @param {Buffer} moov The `moov` atom body.
+ * @returns {object} The fields found (`title`, `artist`, `album`, `albumArtist`, `year`), possibly empty.
+ */
 function readIlst(moov) {
   const out = {};
   const visit = (start, end) => walkAtoms(moov, start, end, (type, body, atomEnd) => {
@@ -242,6 +307,11 @@ function readIlst(moov) {
   return out;
 }
 
+/**
+ * Finds the top-level `moov` atom and reads its tags.
+ * @param {object} io `{ size, readRange(start, length) }`.
+ * @returns {Promise<object>} The fields found, possibly empty.
+ */
 async function readMp4Tags(io) {
   let offset = 0;
   for (let guard = 0; guard < 1000 && offset + 8 <= io.size; guard++) {
@@ -272,8 +342,12 @@ async function readMp4Tags(io) {
 
 // ---------- Entry point ----------
 
-// `io` is { size, readRange(start, length) -> Promise<Buffer> }. The container
-// is sniffed from its magic bytes, not the extension, same as embedded-art.js.
+/**
+ * `io` is { size, readRange(start, length) -> Promise<Buffer> }. The container
+ * is sniffed from its magic bytes, not the extension, same as embedded-art.js.
+ * @param {object} io `{ size, readRange(start, length) }`.
+ * @returns {Promise<object>} The cleaned fields (`title`, `artist`, `album`, `albumArtist`, `year`) found.
+ */
 async function readTrackTags(io) {
   if (!io || !(io.size > 0)) return {};
   const head = await io.readRange(0, Math.min(HEAD_BYTES, io.size));
@@ -300,8 +374,12 @@ async function readTrackTags(io) {
   return finish(raw);
 }
 
-// An `io` over a Buffer already in memory — for tests, and for a host whose
-// ctx.fs predates readRange.
+/**
+ * An `io` over a Buffer already in memory — for tests, and for a host whose
+ * ctx.fs predates readRange.
+ * @param {Buffer} buf The whole file.
+ * @returns {object} `{ size, readRange }`.
+ */
 function bufferIo(buf) {
   return { size: buf.length, readRange: async (start, length) => buf.subarray(start, start + length) };
 }

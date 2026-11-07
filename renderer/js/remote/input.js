@@ -41,6 +41,11 @@ export const OPTIONAL_KEY_GROUPS = {
   colour: ['red', 'green', 'yellow', 'blue'],
 };
 
+/**
+ * Returns the optional key group a RemoteKey belongs to.
+ * @param {string} remoteKey The RemoteKey.
+ * @returns {?string} The group name (such as 'colour'), or null.
+ */
 export function optionalGroupOf(remoteKey) {
   return Object.keys(OPTIONAL_KEY_GROUPS).find((group) => OPTIONAL_KEY_GROUPS[group].includes(remoteKey)) || null;
 }
@@ -53,9 +58,13 @@ const BY_KEY_CODE = {
   415: 'play', 19: 'pause', 413: 'stop', 412: 'rewind', 417: 'fastForward', 10252: 'playPause',
 };
 
-// KeyboardEvent-like {key, keyCode} -> RemoteKey or null. Modifier combos are
-// never a remote button (Shift+Up is "favourites" on a keyboard), so they
-// stay with the keyboard handler.
+/**
+ * KeyboardEvent-like {key, keyCode} -> RemoteKey or null. Modifier combos are
+ * never a remote button (Shift+Up is "favourites" on a keyboard), so they
+ * stay with the keyboard handler.
+ * @param {?object} event A KeyboardEvent or `{ key, keyCode }`-like object.
+ * @returns {?string} The RemoteKey, or null.
+ */
 export function normalizeKey(event) {
   if (!event || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return null;
   const { key } = event;
@@ -242,8 +251,13 @@ export function routeRemoteKey(context, remoteKey, { longPress = false, buttons 
   return table[remoteKey] || null;
 }
 
-// Whether a key has a long-press meaning in a context — only those keys wait
-// for keyup (or a hold) before acting; every other key acts on keydown.
+/**
+ * Whether a key has a long-press meaning in a context — only those keys wait
+ * for keyup (or a hold) before acting; every other key acts on keydown.
+ * @param {string} context The on-screen context.
+ * @param {string} remoteKey The RemoteKey.
+ * @returns {boolean} True when the context maps `long:<remoteKey>`.
+ */
 export function hasLongPress(context, remoteKey) {
   const table = CONTEXT_ACTIONS[context];
   return !!(table && table[`long:${remoteKey}`]);
@@ -255,6 +269,11 @@ export function hasLongPress(context, remoteKey) {
 // timer; this only decides.
 export const LONG_PRESS_MS = 500;
 
+/**
+ * Creates a tracker that classifies key presses as short or long from caller-supplied timestamps.
+ * @param {number} [thresholdMs=LONG_PRESS_MS] How long a key must be held to count as long.
+ * @returns {object} `{ press, hold, release, isDown, reset }`, each keyed by RemoteKey.
+ */
 export function createLongPressTracker(thresholdMs = LONG_PRESS_MS) {
   const down = new Map(); // remoteKey -> { at, fired }
   return {
@@ -316,12 +335,21 @@ export const ANDROID_KEYCODES = {
   96: 'ok', 97: 'back', 99: 'info', 100: 'guide', 102: 'chDown', 103: 'chUp', 104: 'rewind', 105: 'fastForward', 108: 'menu', 109: 'back',
 };
 
+/**
+ * Maps an Android KeyEvent code to a RemoteKey.
+ * @param {number|string} keyCode The Android key code.
+ * @returns {?string} The RemoteKey, or null for an unmapped code.
+ */
 export function normalizeAndroidKeyCode(keyCode) {
   return ANDROID_KEYCODES[Number(keyCode)] || null;
 }
 
-// A stable id for "this physical button on this source", which learn mode
-// keys its overrides on (remote-profile.js).
+/**
+ * A stable id for "this physical button on this source", which learn mode
+ * keys its overrides on (remote-profile.js).
+ * @param {?object} evt A raw input event (`source`, `keyCode`, `button`, `code` or `key`).
+ * @returns {?string} An id such as `android:23` or `key:Enter`, or null.
+ */
 export function rawKeyId(evt) {
   if (!evt) return null;
   if (evt.source === 'android' && Number.isFinite(Number(evt.keyCode))) return `android:${Number(evt.keyCode)}`;
@@ -348,6 +376,7 @@ export const PLUGIN_CHANNEL_ACTIONS = {
   prev: 'media.previous', next: 'media.next',
 };
 
+// The keyboard key an onKey-only plugin expects for each plugin channel action.
 const ACTION_KEYS = {
   'move.up': 'ArrowUp', 'move.down': 'ArrowDown', 'move.left': 'ArrowLeft', 'move.right': 'ArrowRight',
   select: 'Enter', back: 'Escape', info: 'i',
@@ -355,10 +384,20 @@ const ACTION_KEYS = {
   'media.previous': 'MediaTrackPrevious', 'media.next': 'MediaTrackNext',
 };
 
+/**
+ * Returns the plugin channel action for a RemoteKey.
+ * @param {string} remoteKey The RemoteKey.
+ * @returns {?string} The action (such as 'move.up' or 'select'), or null.
+ */
 export function pluginActionFor(remoteKey) {
   return PLUGIN_CHANNEL_ACTIONS[remoteKey] || null;
 }
 
+/**
+ * Returns the keyboard key an older onKey plugin understands for a plugin channel action.
+ * @param {string} action The plugin channel action.
+ * @returns {?string} The `KeyboardEvent.key` value, or null.
+ */
 export function keyForAction(action) {
   return ACTION_KEYS[action] || null;
 }

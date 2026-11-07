@@ -1,3 +1,6 @@
+// The performance overlay: a running FPS counter plus a once-a-second refresh of memory,
+// resolution, active channel, player state and media-file readouts. Also the opt-in switch
+// for per-stage tune-latency logging.
 import { player } from './dom.js';
 import { S } from './state.js';
 import { formatChannelNumber, getChannel, sortedChannels } from './channels.js';
@@ -7,6 +10,9 @@ let lastFpsTime = performance.now();
 let currentFps = 60;
 let perfTimer = null;
 
+/**
+ * Counts animation frames and updates `currentFps` once a second; reschedules itself every frame.
+ */
 function measureFps() {
   frameCount++;
   const now = performance.now();
@@ -20,6 +26,10 @@ function measureFps() {
 
 requestAnimationFrame(measureFps);
 
+/**
+ * Refreshes the performance overlay: FPS, memory, video resolution, active channel, player state
+ * and media-file count.
+ */
 export function updatePerfMetrics() {
   // FPS Readout
   const fpsValEl = document.getElementById('perf-fps-val');
@@ -120,12 +130,18 @@ export function updatePerfMetrics() {
   }
 }
 
+/**
+ * Starts refreshing the performance overlay once a second.
+ */
 export function startPerfMonitor() {
   if (perfTimer) clearInterval(perfTimer);
   updatePerfMetrics();
   perfTimer = setInterval(updatePerfMetrics, 1000);
 }
 
+/**
+ * Stops the performance overlay's refresh timer.
+ */
 export function stopPerfMonitor() {
   if (perfTimer) {
     clearInterval(perfTimer);
@@ -133,10 +149,13 @@ export function stopPerfMonitor() {
   }
 }
 
-// Per-stage channel-tune latency logging (playback.js's `[tune]` console
-// lines) — off by default so an ordinary user's DevTools console stays
-// quiet, opt in from the console with `window.__enableTuneTiming = true`
-// before a channel change when actually chasing tune-latency regressions.
+/**
+ * Per-stage channel-tune latency logging (playback.js's `[tune]` console
+ * lines) — off by default so an ordinary user's DevTools console stays
+ * quiet, opt in from the console with `window.__enableTuneTiming = true`
+ * before a channel change when actually chasing tune-latency regressions.
+ * @returns {boolean} True when `window.__enableTuneTiming` is set.
+ */
 export function tuneTimingEnabled() {
   return !!window.__enableTuneTiming;
 }

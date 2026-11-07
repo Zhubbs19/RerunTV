@@ -22,6 +22,7 @@ const { cacheTable } = require('../util/db');
 const os = require('os');
 const path = require('path');
 
+// Version of the pre-SQLite loudness-cache.json that is still imported.
 const CACHE_VERSION = 1;
 const MAX_CACHE_ENTRIES = 50000;
 const SAMPLE_SECONDS = 30;
@@ -30,14 +31,22 @@ const SWEEP_GAP_MS = 1500;
 // ebur128's floor for silence; a sample this quiet says nothing about the file.
 const SILENT_LUFS = -69;
 
-// "    I:         -23.4 LUFS" in ebur128's closing summary.
+/**
+ * "    I:         -23.4 LUFS" in ebur128's closing summary.
+ * @param {string} stderr ffmpeg's stderr from an `ebur128` run.
+ * @returns {?number} The integrated loudness in LUFS, or null when absent.
+ */
 function parseIntegratedLoudness(stderr) {
   const summary = String(stderr || '').split(/Summary:/).pop();
   const match = /I:\s*(-?\d+(?:\.\d+)?)\s*LUFS/.exec(summary);
   return match ? Number(match[1]) : null;
 }
 
-// Energy-domain mean of several integrated measurements, ignoring silent ones.
+/**
+ * Energy-domain mean of several integrated measurements, ignoring silent ones.
+ * @param {Array<?number>} values Integrated loudness readings in LUFS.
+ * @returns {?number} The combined loudness rounded to 0.1 LUFS, or null when none is usable.
+ */
 function combineLoudness(values) {
   const usable = values.filter((v) => typeof v === 'number' && Number.isFinite(v) && v > SILENT_LUFS);
   if (!usable.length) return null;
@@ -45,12 +54,24 @@ function combineLoudness(values) {
   return Math.round(10 * Math.log10(meanPower) * 10) / 10;
 }
 
-// Sample start times (seconds) for a file of `duration` seconds.
+/**
+ * Sample start times (seconds) for a file of `duration` seconds.
+ * @param {number} duration The file's length in seconds.
+ * @returns {number[]} Start times; a short or unknown-length file gets just `[0]`.
+ */
 function sampleStarts(duration) {
   if (!(duration > SAMPLE_SECONDS * 4)) return [0];
   return [0.1, 0.45, 0.8].map((f) => Math.floor(duration * f));
 }
 
+/**
+ * Measures the integrated loudness of one stretch of a file with ffmpeg at below-normal priority.
+ * @param {string} ffmpegPath The ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {number} start Where the sample starts, in seconds.
+ * @param {number} seconds How long the sample is.
+ * @returns {Promise<?number>} The sample's loudness in LUFS, or null on failure or timeout.
+ */
 function runSample(ffmpegPath, filePath, start, seconds) {
   return new Promise((resolve) => {
     const args = [
@@ -78,6 +99,13 @@ function runSample(ffmpegPath, filePath, start, seconds) {
   });
 }
 
+/**
+ * Measures a file's loudness from up to three samples, one after another.
+ * @param {string} ffmpegPath The ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {number} duration The file's length in seconds.
+ * @returns {Promise<?number>} The combined loudness in LUFS, or null when unmeasurable.
+ */
 async function measureLoudness(ffmpegPath, filePath, duration) {
   const starts = sampleStarts(duration);
   const values = [];
@@ -89,6 +117,13 @@ async function measureLoudness(ffmpegPath, filePath, duration) {
 
 // ---------- Service ----------
 
+/**
+ * Creates the loudness service: a cached, one-at-a-time measuring queue where player requests jump ahead of the background sweep.
+ * @param {object} opts Service options.
+ * @param {string} opts.userDataDir The userData folder holding `rerun.db`.
+ * @param {Function} opts.getFfmpegPath Returns the active ffmpeg path, or null when ffmpeg is unavailable.
+ * @returns {object} `{ get, prefetch, cancelBackground, status }`.
+ */
 function createLoudnessService({ userDataDir, getFfmpegPath }) {
   // One row per file in rerun.db (main/util/db.js), so a new measurement is
   // one write instead of a rewrite of every other file's entry.
@@ -221,6 +256,11 @@ function createLoudnessService({ userDataDir, getFfmpegPath }) {
   };
 }
 
+/**
+ * Registers the `loudness:*` IPC handlers on top of a loudness service.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} service The service from `createLoudnessService`.
+ */
 function registerLoudnessIpc(ipcMain, service) {
   ipcMain.handle('loudness:get', async (event, filePath, duration) => service.get(filePath, duration));
   ipcMain.handle('loudness:prefetch', async (event, items) => service.prefetch(items));

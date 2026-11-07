@@ -7,6 +7,10 @@
 const { dialog } = require('electron');
 const { getMainWindow } = require('../config/window-ref');
 
+/**
+ * Registers the `dialog:select*` IPC handlers, each opening a native picker over the main window.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ */
 function registerDialogIpc(ipcMain) {
   ipcMain.handle('dialog:selectFolder', async () => {
     const result = await dialog.showOpenDialog(getMainWindow(), {

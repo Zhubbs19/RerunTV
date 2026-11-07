@@ -369,6 +369,14 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
     real function, so an edge is only drawn when the reference resolves, and lays graphs out for reading
     (grouped by file, a second step only for short lists, long lists summarized). Graphviz is needed; without
     it the build skips the graphs.
+  - **Every top-level function, class and class method gets a JSDoc block** (`/** ... */`): a
+    one-sentence summary, then `@param {Type} name ...` for each parameter (`opts.key` for destructured
+    fields, `[name=default]` for optional ones) and `@returns {Type} ...` when it returns a value.
+    TypeDoc shows these as the parameter and return docs, and VS Code reads them for hover help.
+  - TypeScript's JSDoc tags work too: `@typedef` and `@callback` declare a named type other comments can
+    use, `{@link name}` links to another documented name.
+  - Section dividers (`// ---------- X ----------`) and one-line notes on constants stay `//`; the
+    plugin drops divider lines from the docs.
 
   The Pages workflow (`.github/workflows/pages.yml`)
   publishes it under `api/` of the project site, behind the website in `site/` (a Vite + React app: `npm run site` builds both

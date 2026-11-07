@@ -12,17 +12,29 @@ if (!tmdbS.config.tmdb) tmdbS.config.tmdb = { apiKey: null };
 const PLUGIN_ID = 'tmdb-metadata';
 const HOST_ONLY = 'TMDB lookups only run on the host device.';
 const NO_KEY = 'Add an API key first: PLUGINS › TMDB Metadata › SETTINGS.';
+/**
+ * Runs a TMDB search through the plugin bridge.
+ * @param {object} opts Search options passed to `tmdb:search` (API key, query, kind).
+ * @returns {Promise<object>} `{ results, error? }`; never rejects.
+ */
 async function tmdbSearch(opts) {
   if (!ipc.available()) return { results: [], error: HOST_ONLY };
   try { return await ipc.invoke(PLUGIN_ID, 'tmdb:search', opts); } catch (e) { return { results: [], error: e.message }; }
 }
-// Cast, the US rating and, given a season and episode, that episode (main.js).
+/**
+ * Cast, the US rating and, given a season and episode, that episode (main.js).
+ * @param {object} opts Lookup options passed to `tmdb:getCredits` (API key, id, media type, season, episode).
+ * @returns {Promise<object>} The details (`cast`, `rating`, `episode`); `{ cast: [] }` on failure.
+ */
 async function tmdbGetDetails(opts) {
   if (!ipc.available()) return { cast: [] };
   try { return await ipc.invoke(PLUGIN_ID, 'tmdb:getCredits', opts); } catch (e) { return { cast: [] }; }
 }
 
-// MATCHING (settings.js). Both default on; read fresh at each match.
+/**
+ * MATCHING (settings.js). Both default on; read fresh at each match.
+ * @returns {{episodeDetails: boolean, fillRatings: boolean}} The matching preferences.
+ */
 function matchPrefs() {
   const settings = window.RCBPlugins.ctx.settings;
   const saved = (settings && typeof settings.getPluginSettings === 'function' && settings.getPluginSettings(PLUGIN_ID)) || {};
@@ -38,6 +50,11 @@ function matchPrefs() {
 // How a file is read (its season and episode, what to search for, film or
 // show) is core's ctx.titleMatch (v11), shared with every metadata plugin.
 const { episodeOf, searchQueryFor, preferredKind } = window.RCBPlugins.ctx.titleMatch;
+/**
+ * Tells whether a value is a non-blank string.
+ * @param {*} value The value to test.
+ * @returns {boolean} True for a string with non-space text.
+ */
 const hasText = (value) => typeof value === 'string' && value.trim() !== '';
 
 /**
@@ -45,6 +62,13 @@ const hasText = (value) => typeof value === 'string' && value.trim() !== '';
  * description and air date when TMDB has that episode; otherwise the
  * title's overview. A title and a rating are only filled where the file has
  * none; the description only when `overwriteDescription` (or it is empty).
+ * @param {object} file The channel file entry being matched.
+ * @param {object} match The chosen search result (`id`, `mediaType`, `posterUrl`, `overview`).
+ * @param {?object} details The details lookup result (`cast`, `rating`, `episode`).
+ * @param {object} prefs The matching preferences from `matchPrefs()`.
+ * @param {object} [options] Write options.
+ * @param {boolean} [options.overwriteDescription=false] Replace an existing description.
+ * @returns {object} The fields to write on the file.
  */
 export function fieldsFromMatch(file, match, details, prefs, { overwriteDescription = false } = {}) {
   const tmdb = { id: match.id, mediaType: match.mediaType, posterUrl: match.posterUrl };
@@ -59,13 +83,26 @@ export function fieldsFromMatch(file, match, details, prefs, { overwriteDescript
   return fields;
 }
 
-// A file a bulk match should look up: no description yet, or a show-level
-// match from before episode details existed, which an episode can improve on.
+/**
+ * A file a bulk match should look up: no description yet, or a show-level
+ * match from before episode details existed, which an episode can improve on.
+ * @param {object} file The channel file entry.
+ * @param {object} prefs The matching preferences from `matchPrefs()`.
+ * @returns {boolean} True when the file should be looked up.
+ */
 export function needsMatch(file, prefs) {
   if (!hasText(file.description)) return true;
   return !!(prefs.episodeDetails && file.tmdb && file.tmdb.mediaType === 'tv' && !file.tmdb.episode && episodeOf(file));
 }
 
+/**
+ * Builds the options for a details lookup, adding the season and episode for a TV match.
+ * @param {string} apiKey The TMDB API key.
+ * @param {object} match The chosen search result.
+ * @param {object} file The channel file entry.
+ * @param {object} prefs The matching preferences from `matchPrefs()`.
+ * @returns {object} Options for `tmdbGetDetails()`.
+ */
 function detailsOpts(apiKey, match, file, prefs) {
   const opts = { apiKey, id: match.id, mediaType: match.mediaType };
   const episode = prefs.episodeDetails && match.mediaType === 'tv' ? episodeOf(file) : null;
@@ -73,10 +110,16 @@ function detailsOpts(apiKey, match, file, prefs) {
   return opts;
 }
 
-// A match describes the media, not one playlist entry. ctx.shareFileFields
-// (core's TITLES row ctx) writes it on every channel and schedule block that
-// plays the same file, and on its library item; an older app without it
-// keeps the match on this entry only.
+/**
+ * A match describes the media, not one playlist entry. ctx.shareFileFields
+ * (core's TITLES row ctx) writes it on every channel and schedule block that
+ * plays the same file, and on its library item; an older app without it
+ * keeps the match on this entry only.
+ * @param {object} ctx The TITLES row ctx.
+ * @param {object} file The channel file entry.
+ * @param {object} fields The fields to write.
+ * @param {object} [opts] Write options; `commit: false` skips the save.
+ */
 function saveMatch(ctx, file, fields, opts) {
   if (typeof ctx.shareFileFields === 'function') {
     ctx.shareFileFields(file, fields, opts);

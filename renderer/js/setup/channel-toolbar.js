@@ -26,6 +26,10 @@ import { applyLocalFolderRelink } from '../library/relink.js';
 import { renderChannelList } from './channels.js';
 import { rescanAllFolders } from './channel-sources.js';
 
+/**
+ * Asks how a new channel should start: empty, from a preset, or from a description.
+ * @returns {Promise<?string>} 'empty', 'template' or 'describe', or null when cancelled.
+ */
 async function chooseAddChannelSource() {
   return Dialog({
     title: 'ADD CHANNEL',
@@ -40,9 +44,12 @@ async function chooseAddChannelSource() {
   }).result;
 }
 
-// Built-in, plugin and saved presets (LIBRARY › PRESETS) in one labelled
-// select, grouped by where they came from, with a line about the chosen one —
-// the same shape as PRESET FROM A CHANNEL, not a button per preset.
+/**
+ * Built-in, plugin and saved presets (LIBRARY › PRESETS) in one labelled
+ * select, grouped by where they came from, with a line about the chosen one —
+ * the same shape as PRESET FROM A CHANNEL, not a button per preset.
+ * @returns {Promise<?object>} The chosen preset template, or null when cancelled.
+ */
 async function choosePreset() {
   const presets = await listAllPresets();
   const groupLabels = { builtin: 'Built in', plugin: 'Plugins', saved: 'Yours' };
@@ -73,7 +80,11 @@ async function choosePreset() {
   return entry ? entry.template : null;
 }
 
-// Resolve, preview and apply a preset — LIBRARY › PRESETS owns the flow.
+/**
+ * Resolve, preview and apply a preset — LIBRARY › PRESETS owns the flow.
+ * @param {object} template The preset template.
+ * @returns {Promise<*>} Whatever `applyPreset()` resolves to.
+ */
 const buildChannelFromPlan = (template) => applyPreset(template);
 
 addChannelBtn.addEventListener('click', async () => {

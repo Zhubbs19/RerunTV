@@ -21,11 +21,15 @@ import { renderChannelList } from './channels.js';
 // The provider list, its fetch and the folder picker live in media-sources.js.
 ensureMediaSourceProvidersLoaded(() => renderChannelList()); // re-render once so already-drawn rows pick up the real picker instead of just "CHOOSE FOLDER"
 
-// The per-channel folder/source picker — a plain "CHOOSE FOLDER" button
-// when no media-source provider plugin is active (true for the overwhelming
-// majority of setups, and exactly what every existing screenshot/muscle
-// memory already expects — zero visual change), or a small select offering
-// "Local Folder" plus each active provider once at least one exists.
+/**
+ * The per-channel folder/source picker — a plain "CHOOSE FOLDER" button
+ * when no media-source provider plugin is active (true for the overwhelming
+ * majority of setups, and exactly what every existing screenshot/muscle
+ * memory already expects — zero visual change), or a small select offering
+ * "Local Folder" plus each active provider once at least one exists.
+ * @param {object} ch The channel config the control adds sources to.
+ * @returns {HTMLElement} A button, or a provider select when a provider is active.
+ */
 export function buildChooseSourceControl(ch) {
   if (!getMediaSourceProviders().length) {
     const btn = document.createElement('button');
@@ -66,6 +70,13 @@ export function buildChooseSourceControl(ch) {
 // pure logic setup-interstitials.js needs too, and living there avoids that
 // module and this one importing from each other.
 
+/**
+ * Adds a plugin-provided folder to a channel: picks it, scans it, probes each file and merges the readable ones in.
+ * Unreadable files are skipped and counted; nothing is added when none can be read.
+ * @param {object} ch The channel config (mutated in place, then committed as one undo step).
+ * @param {string} providerId The media-source provider's id.
+ * @returns {Promise<void>}
+ */
 export async function addPluginSourceToChannel(ch, providerId) {
   const label = providerLabel(providerId);
 
@@ -135,12 +146,17 @@ export async function addPluginSourceToChannel(ch, providerId) {
   renderChannelList();
 }
 
-// Adds a folder to a channel's playlist, alongside whatever's already there
-// — CHOOSE/CHANGE FOLDER used to replace ch.files outright, but multi-folder
-// channels need the scan to merge in rather than clobber. Always local —
-// see addPluginSourceToChannel above for the plugin-provided-source
-// counterpart CHOOSE SOURCE offers once at least one provider is active.
-// `folderPath` skips the folder picker (a folder dropped onto the channel).
+/**
+ * Adds a folder to a channel's playlist, alongside whatever's already there
+ * — CHOOSE/CHANGE FOLDER used to replace ch.files outright, but multi-folder
+ * channels need the scan to merge in rather than clobber. Always local —
+ * see addPluginSourceToChannel above for the plugin-provided-source
+ * counterpart CHOOSE SOURCE offers once at least one provider is active.
+ * `folderPath` skips the folder picker (a folder dropped onto the channel).
+ * @param {object} ch The channel config (mutated in place, then committed as one undo step).
+ * @param {?string} [folderPath=null] A folder to add without showing the picker.
+ * @returns {Promise<void>}
+ */
 export async function addFolderToChannel(ch, folderPath = null) {
   const folder = folderPath || await safeApi('Opening the file picker', () => window.api.selectFolder());
   if (!folder) return;
@@ -192,10 +208,15 @@ export async function addFolderToChannel(ch, folderPath = null) {
   renderChannelList();
 }
 
-// Adds individual video files (not a whole folder) to a channel — the way to
-// pull a few films out of a big shared folder. They are kept with `folder: null`
-// (see addFilesToChannel), so a folder rescan never touches them. Appended and
-// re-anchored so what is airing now keeps airing. Returns how many were new.
+/**
+ * Adds individual video files (not a whole folder) to a channel — the way to
+ * pull a few films out of a big shared folder. They are kept with `folder: null`
+ * (see addFilesToChannel), so a folder rescan never touches them. Appended and
+ * re-anchored so what is airing now keeps airing. Returns how many were new.
+ * @param {object} ch The channel config.
+ * @param {string[]} paths Local file paths to add.
+ * @returns {Promise<number>} How many files were added.
+ */
 export async function addVideoFilesToChannel(ch, paths) {
   const known = new Set(ch.files.map((f) => f.path));
   const fresh = Array.from(new Set(paths.filter(Boolean))).filter((p) => !known.has(p));
@@ -225,8 +246,12 @@ export async function addVideoFilesToChannel(ch, paths) {
   return entries.length;
 }
 
-// ADD FILES…: a multi-select picker, then addVideoFilesToChannel. A LAN
-// control session's picker returns one path (or null); both shapes work.
+/**
+ * ADD FILES…: a multi-select picker, then addVideoFilesToChannel. A LAN
+ * control session's picker returns one path (or null); both shapes work.
+ * @param {object} ch The channel config.
+ * @returns {Promise<number>} How many files were added (0 when the picker was cancelled).
+ */
 export async function pickFilesForChannel(ch) {
   const picked = await safeApi('Opening the file picker', () => window.api.selectVideo({ multiple: true }));
   const paths = Array.isArray(picked) ? picked : (picked ? [picked] : []);
@@ -234,26 +259,24 @@ export async function pickFilesForChannel(ch) {
   return addVideoFilesToChannel(ch, paths);
 }
 
-// Removes one individually-added file. Appended-order and air position are
-// preserved the same way as an add.
+/**
+ * Removes one individually-added file. Appended-order and air position are
+ * preserved the same way as an add.
+ * @param {object} ch The channel config.
+ * @param {object} file The file entry to remove (matched by identity).
+ */
 export function removeFileFromChannel(ch, file) {
   applyPlaylistPreservingAir(ch, ch.files.filter((f) => f !== file), viewNow());
   commitOwnerFields(ch, ['files', 'anchor'], { label: `Remove file from CH ${ch.number}` });
   renderChannelList();
 }
 
-// Re-scans every folder already assigned to every channel, picking up files
-// added to disk (or, for a plugin source, added at the source) since the
-// last scan. Additive only — a file that vanished stays in the channel list
-// (and keeps any custom title) rather than being silently dropped, matching
-// the "no silent destructive action" rule the confirm-on-remove dialogs
-// follow. A non-'local' entry whose provider is currently unreachable/
-// disabled (a stale reference in a hand-edited config, or a plugin toggled
-// off) is skipped with its own error caught per-entry, not per-channel —
-// one broken source shouldn't abort rescanning every other channel's
-// folders in the same pass.
-// A folder dropped on the lineup (setup-dragdrop.js) becomes a new channel
-// named after it, with its videos, as one undo step.
+/**
+ * A folder dropped on the lineup (setup-dragdrop.js) becomes a new channel
+ * named after it, with its videos, as one undo step.
+ * @param {string} folderPath Local folder path.
+ * @returns {Promise<?number>} The new channel's number, or null when nothing could be added.
+ */
 export async function createChannelFromFolder(folderPath) {
   showScanStatus('SCANNING DROPPED FOLDER…');
   let paths;
@@ -299,6 +322,19 @@ export async function createChannelFromFolder(folderPath) {
   return channel.number;
 }
 
+/**
+ * Re-scans every folder already assigned to every channel, picking up files
+ * added to disk (or, for a plugin source, added at the source) since the
+ * last scan. Additive only — a file that vanished stays in the channel list
+ * (and keeps any custom title) rather than being silently dropped, matching
+ * the "no silent destructive action" rule the confirm-on-remove dialogs
+ * follow. A non-'local' entry whose provider is currently unreachable/
+ * disabled (a stale reference in a hand-edited config, or a plugin toggled
+ * off) is skipped with its own error caught per-entry, not per-channel —
+ * one broken source shouldn't abort rescanning every other channel's
+ * folders in the same pass.
+ * @returns {Promise<void>}
+ */
 export async function rescanAllFolders() {
   const targets = S.config.channels.filter((c) => c.folders && c.folders.length > 0);
   if (targets.length === 0) return;
@@ -356,6 +392,11 @@ export async function rescanAllFolders() {
   renderChannelList();
 }
 
+/**
+ * Removes a folder from a channel along with every file that came from it, as one undo step.
+ * @param {object} ch The channel config (mutated in place).
+ * @param {object} folderEntry The `ch.folders` entry to remove (matched by `id`).
+ */
 export function removeFolderFromChannel(ch, folderEntry) {
   ch.folders = ch.folders.filter((e) => e.id !== folderEntry.id);
   ch.files = ch.files.filter((f) => f.folder !== folderEntry.id);

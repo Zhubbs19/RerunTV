@@ -14,6 +14,10 @@
 // a plain dataURL string before replying), so there's nothing left for this
 // plugin to map itself. See PLUGIN_DEVELOPMENT.md's "Isolated plugins"
 // section for the full ctx surface this gets instead of the same-process one.
+/**
+ * Registers `desktop:listSources`, which lists capturable windows and screens with thumbnails.
+ * @param {object} ctx The isolated plugin's ctx (`ipcMain`, `desktopCapturer`).
+ */
 function activate(ctx) {
   const { ipcMain, desktopCapturer } = ctx;
 

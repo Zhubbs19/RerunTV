@@ -19,19 +19,33 @@ const summaryEl = document.getElementById('aircheck-summary');
 const poolEl = document.getElementById('aircheck-pool-entry');
 const forceBtn = document.getElementById('aircheck-force');
 
+/**
+ * Reads the chosen moment from the date-time field, falling back to the viewed time.
+ * @returns {number} The moment in epoch milliseconds.
+ */
 function chosenTime() {
   const value = new Date(datetimeEl.value).getTime();
   return Number.isFinite(value) ? value : viewNow();
 }
 
-// A flow/preset by its NAME where it has one — the resolver key only carries
-// the generated id (preset:preset-mtg…), which told nobody which one matched.
+/**
+ * A flow/preset by its NAME where it has one — the resolver key only carries
+ * the generated id (preset:preset-mtg…), which told nobody which one matched.
+ * @param {string} kind The interstitials collection: 'flows' or 'presets'.
+ * @param {string} id The flow or preset id.
+ * @returns {string} The quoted name, or the id when it has none.
+ */
 function interstitialName(kind, id) {
   const list = (S.config.interstitials && S.config.interstitials[kind]) || [];
   const found = list.find((item) => item.id === id);
   return found && found.name ? `"${found.name}"` : id;
 }
 
+/**
+ * Explains in a sentence why an ad policy is the active one.
+ * @param {object} active The `resolveActiveCommercials` result (its `key` names the match).
+ * @returns {string} The explanation shown on the AD POLICY row.
+ */
 export function reasonForCommercials(active) {
   if (active.key === 'disabled') return 'Channel ads are disabled.';
   if (typeof active.key === 'string' && active.key.startsWith('flow:')) return `Matched show/ad flow ${interstitialName('flows', active.key.slice(5))}.`;
@@ -40,8 +54,13 @@ export function reasonForCommercials(active) {
   return 'Using the channel/global fallback cadence.';
 }
 
-// explainAt (schedule-query.js) is the shared per-instant resolution; the
-// names below are this console's own, kept so its rows read as before.
+/**
+ * explainAt (schedule-query.js) is the shared per-instant resolution; the
+ * names below are this console's own, kept so its rows read as before.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant to inspect, in epoch milliseconds.
+ * @returns {object} `{ source, pos, activeCommercials, resolvedBreak, slot, onAir }`.
+ */
 function inspect(ch, atMs) {
   const info = explainAt(ch, atMs);
   return {
@@ -50,6 +69,12 @@ function inspect(ch, atMs) {
   };
 }
 
+/**
+ * Builds a string that changes whenever what airs at an instant changes (on air, source, file, ad policy, break).
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in epoch milliseconds.
+ * @returns {string} The pipe-joined signature.
+ */
 function signature(ch, atMs) {
   const info = inspect(ch, atMs);
   return [
@@ -69,6 +94,13 @@ function signature(ch, atMs) {
 const BOUNDARY_COARSE_MS = 30 * 1000;
 const BOUNDARY_SCAN_LIMIT_MS = 36 * 3600 * 1000;
 const BOUNDARY_BUDGET_MS = 1500;
+/**
+ * Finds the next moment, before or after `fromMs`, at which the signature changes.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to start scanning, in epoch milliseconds.
+ * @param {number} direction Negative to scan backward, otherwise forward.
+ * @returns {?number} The boundary in epoch milliseconds, or null if none was found in time.
+ */
 function adjacentBoundary(ch, fromMs, direction) {
   const initial = signature(ch, fromMs);
   const dir = direction < 0 ? -1 : 1;
@@ -90,12 +122,23 @@ function adjacentBoundary(ch, fromMs, direction) {
   return null;
 }
 
+/**
+ * Lists the ad-pool entries whose channel and block affinity allow them here.
+ * @param {object} ch The channel config.
+ * @param {?object} block The active block, or null for the default lineup.
+ * @returns {Array<object>} Eligible pool entries.
+ */
 function eligiblePool(ch, block) {
   return ((S.config.interstitials && S.config.interstitials.pool) || []).filter((entry) =>
     (entry.channelAffinity === 'any' || entry.channelAffinity === ch.number) &&
     (entry.blockAffinity == null || (block && entry.blockAffinity === block.id)));
 }
 
+/**
+ * Refills the force-preview entry picker, keeping the previous choice when it is still eligible.
+ * @param {object} ch The channel config.
+ * @param {?object} block The active block, or null.
+ */
 function renderPool(ch, block) {
   const previous = poolEl.value;
   poolEl.innerHTML = '<option value="">— choose an eligible entry —</option>';
@@ -110,6 +153,9 @@ function renderPool(ch, block) {
   forceBtn.disabled = !poolEl.value;
 }
 
+/**
+ * Resolves the chosen channel at the chosen moment and shows one row per resolver stage.
+ */
 function render() {
   const ch = getChannel(Number(channelEl.value));
   if (!ch) { summaryEl.textContent = 'Choose a channel.'; return; }
@@ -136,6 +182,9 @@ function render() {
   renderPool(ch, info.source.block);
 }
 
+/**
+ * Refills the channel picker, keeping the previous selection when that channel still exists.
+ */
 function populateChannels() {
   const previous = channelEl.value;
   channelEl.innerHTML = '';

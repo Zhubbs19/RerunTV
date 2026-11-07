@@ -2,10 +2,22 @@
 // of the DOM module so root replacement and reference migration can be
 // tested without launching Electron.
 
+/**
+ * Removes trailing path separators.
+ * @param {*} value A path.
+ * @returns {string} The path without trailing slashes or backslashes.
+ */
 function trimTrailingSeparators(value) {
   return String(value || '').replace(/[\\/]+$/, '');
 }
 
+/**
+ * Moves a path from one root folder to another, case-insensitively.
+ * @param {string} filePath The path to move.
+ * @param {string} oldRoot The root it should sit under.
+ * @param {string} newRoot The root to move it to.
+ * @returns {?string} The new path, or `null` when it is not under `oldRoot`.
+ */
 export function replaceLocalRoot(filePath, oldRoot, newRoot) {
   const path = String(filePath || '');
   const oldBase = trimTrailingSeparators(oldRoot);
@@ -19,6 +31,17 @@ export function replaceLocalRoot(filePath, oldRoot, newRoot) {
   return suffix ? `${newBase}${separator}${suffix.replace(/[\\/]+/g, separator)}` : newBase;
 }
 
+/**
+ * Points every reference to a local folder at a new root, in place.
+ * Walks the whole config: folder entries with the old id and root, and file entries in that folder.
+ * @param {object} config The box config, changed in place.
+ * @param {object} relink The relink.
+ * @param {string} relink.oldId The folder entry's current id.
+ * @param {string} relink.oldRoot The folder's current path.
+ * @param {string} relink.newId The folder entry's new id.
+ * @param {string} relink.newRoot The folder's new path.
+ * @returns {object} `{ folderEntries, fileReferences }` counts.
+ */
 export function applyLocalFolderRelink(config, { oldId, oldRoot, newId, newRoot }) {
   let folderEntries = 0;
   let fileReferences = 0;

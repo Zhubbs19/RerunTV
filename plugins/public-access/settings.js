@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the public access channel (CH 2): on/off toggle,
+// background audio, slide interval and the announcement slide list.
 window.RCBPlugins.registerPluginSettings('public-access', {
   sections: [{
     id: 'general',

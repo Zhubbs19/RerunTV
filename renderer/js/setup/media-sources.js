@@ -10,22 +10,36 @@ import { promptDialog } from './dialogs.js';
 // plugins:listMediaSourceProviders). Fetched once per session: activation can't
 // change without an app restart, so re-fetching per render would only add IPC.
 let providers = [];
+// Set once the one provider fetch has been started.
 let fetchStarted = false;
+// Callbacks to run when the provider list arrives.
 const loadedListeners = new Set();
 
+/**
+ * The active media-source providers, as last fetched from the host.
+ * @returns {Array<object>} Provider records (`providerId`, `displayName`, ...); empty until loaded.
+ */
 export function getMediaSourceProviders() {
   return providers;
 }
 
+/**
+ * The display name for a media-source provider.
+ * @param {string} providerId The provider id.
+ * @returns {string} Its display name, or the id itself when the provider is unknown.
+ */
 export function providerLabel(providerId) {
   const info = providers.find((p) => p.providerId === providerId);
   return info ? info.displayName : providerId;
 }
 
-// Starts the one fetch and, when it finds providers, calls each registered
-// listener so already-drawn rows can pick up the real picker. Register at module
-// load, before the reply can arrive. No providers active means nothing is called
-// and every control stays local-only.
+/**
+ * Starts the one fetch and, when it finds providers, calls each registered
+ * listener so already-drawn rows can pick up the real picker. Register at module
+ * load, before the reply can arrive. No providers active means nothing is called
+ * and every control stays local-only.
+ * @param {Function} [onLoaded] Called once providers arrive.
+ */
 export function ensureMediaSourceProvidersLoaded(onLoaded) {
   if (onLoaded) loadedListeners.add(onLoaded);
   if (fetchStarted) return;
@@ -39,11 +53,15 @@ export function ensureMediaSourceProvidersLoaded(onLoaded) {
   }).catch(() => {});
 }
 
-// Three-tier folder picker, richest first:
-//   1. a renderer-registered picker (registerMediaSourcePicker): the plugin's own modal;
-//   2. the provider's main-process pickFolder verb;
-//   3. a plain text prompt, so choosing a source never dead-ends.
-// Resolves to the raw folder ref, or a falsy value when cancelled.
+/**
+ * Three-tier folder picker, richest first:
+ *   1. a renderer-registered picker (registerMediaSourcePicker): the plugin's own modal;
+ *   2. the provider's main-process pickFolder verb;
+ *   3. a plain text prompt, so choosing a source never dead-ends.
+ * Resolves to the raw folder ref, or a falsy value when cancelled.
+ * @param {string} providerId The provider to pick a folder from.
+ * @returns {Promise<?string>} The folder ref, or a falsy value when cancelled.
+ */
 export async function pickFolderRefForProvider(providerId) {
   const label = providerLabel(providerId);
   const renderedPicker = getMediaSourcePicker(providerId);
@@ -59,9 +77,17 @@ export async function pickFolderRefForProvider(providerId) {
   }
 }
 
-// A <select> listing the active providers after `leadingOptions`
-// ([{ value, text }], e.g. a placeholder and "LOCAL FOLDER"). Choosing an option
-// resets the select and calls onPick(value) for any non-empty value.
+/**
+ * A <select> listing the active providers after `leadingOptions`
+ * ([{ value, text }], e.g. a placeholder and "LOCAL FOLDER"). Choosing an option
+ * resets the select and calls onPick(value) for any non-empty value.
+ * @param {object} opts Options.
+ * @param {string} opts.title Tooltip for the select.
+ * @param {Array<object>} opts.leadingOptions `{ value, text }` options listed before the providers.
+ * @param {(value: string) => void} opts.onPick Called with the chosen value.
+ * @param {string} [opts.id] Element id for the select.
+ * @returns {HTMLSelectElement} The select element.
+ */
 export function buildProviderSelect({ title, leadingOptions, onPick, id }) {
   const select = document.createElement('select');
   if (id) select.id = id;

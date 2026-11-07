@@ -19,24 +19,42 @@ import { renderInterstitialsList } from './interstitials.js';
 // add flows use).
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mpg', '.mpeg']);
 
+/**
+ * Returns a path's lower-case extension, including the dot.
+ * @param {string} filePath A file path.
+ * @returns {string} The extension, or '' when there is none.
+ */
 function extOf(filePath) {
   const dot = filePath.lastIndexOf('.');
   return dot === -1 ? '' : filePath.slice(dot).toLowerCase();
 }
 
+/**
+ * Shows a short status message in the setup status bar.
+ * @param {string} text The message.
+ * @param {number} [ms=2500] How long to show it.
+ */
 function flashStatus(text, ms) {
   showScanStatus(text, ms || 2500);
 }
 
-// Resolves every dropped File to a real filesystem path via the preload
-// bridge (sandboxed renderers can't read File.path directly — see
-// preload.js) and filters down to ones that look like video files.
+/**
+ * Resolves every dropped File to a real filesystem path via the preload
+ * bridge (sandboxed renderers can't read File.path directly — see
+ * preload.js) and filters down to ones that look like video files.
+ * @param {DataTransfer} dataTransfer The drop event's data.
+ * @returns {Promise<string[]>} Paths of the dropped video files.
+ */
 async function resolveDroppedVideoPaths(dataTransfer) {
   return splitDroppedPaths(dataTransfer).videos;
 }
 
-// Videos by extension; everything else is treated as a possible folder (a
-// scan of a plain file just finds nothing).
+/**
+ * Videos by extension; everything else is treated as a possible folder (a
+ * scan of a plain file just finds nothing).
+ * @param {DataTransfer} dataTransfer The drop event's data.
+ * @returns {{videos: string[], others: string[]}} Dropped paths split into videos and everything else.
+ */
 function splitDroppedPaths(dataTransfer) {
   const paths = Array.from(dataTransfer.files || []).map((f) => window.api.getPathForFile(f)).filter(Boolean);
   return {
@@ -45,6 +63,11 @@ function splitDroppedPaths(dataTransfer) {
   };
 }
 
+/**
+ * Whether a drag carries files from the OS (as opposed to an in-page row drag).
+ * @param {DragEvent} e The drag event.
+ * @returns {boolean} True for a file drag.
+ */
 function isFileDrag(e) {
   return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
 }

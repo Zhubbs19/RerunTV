@@ -26,6 +26,16 @@
 import { Dialog } from '../ui/dialog.js';
 import { h } from '../ui/kit-core.js';
 
+/**
+ * Asks the user to confirm an action. Destructive dialogs (the default) focus CANCEL.
+ * @param {string|object} opts The message, or an options object.
+ * @param {string} opts.message The question to ask.
+ * @param {?string} [opts.title=null] Dialog title.
+ * @param {boolean} [opts.danger=true] Styles the dialog as destructive and makes CANCEL the default.
+ * @param {string} [opts.confirmText] Confirm button label; 'REMOVE' when dangerous, otherwise 'OK'.
+ * @param {string} [opts.cancelText='CANCEL'] Cancel button label.
+ * @returns {Promise<boolean>} True only on an explicit confirm.
+ */
 export function confirmDialog(opts) {
   const {
     message, title = null, danger = true, confirmText = danger ? 'REMOVE' : 'OK', cancelText = 'CANCEL',
@@ -46,6 +56,14 @@ export function confirmDialog(opts) {
   }).result;
 }
 
+/**
+ * Shows a message with a single OK button.
+ * @param {string} message The message text.
+ * @param {object} [opts] Options.
+ * @param {?string} [opts.title=null] Dialog title; errors default to 'ERROR'.
+ * @param {string} [opts.variant='info'] 'info' or 'error'.
+ * @returns {Promise<void>} Resolves when dismissed.
+ */
 export function alertDialog(message, opts = {}) {
   const { title = null, variant = 'info' } = opts;
   return Dialog({
@@ -60,6 +78,16 @@ export function alertDialog(message, opts = {}) {
   }).result;
 }
 
+/**
+ * Asks for one line of text.
+ * @param {string|object} [opts] The message, or an options object.
+ * @param {string} opts.message The prompt text.
+ * @param {?string} [opts.title=null] Dialog title.
+ * @param {string} [opts.placeholder=''] Input placeholder.
+ * @param {string} [opts.defaultValue=''] Initial input value.
+ * @param {string} [opts.inputType='text'] The input's `type` attribute.
+ * @returns {Promise<?string>} The trimmed text (empty if left blank), or null when cancelled.
+ */
 export function promptDialog(opts = {}) {
   const {
     message, title = null, placeholder = '', defaultValue = '', inputType = 'text',

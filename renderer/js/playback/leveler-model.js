@@ -18,8 +18,14 @@ const MODE_SETTINGS = {
   consistent: { target: -30, minGain: 0.08, pendingGain: 0.5 },
 };
 
-// Gain that moves a file measured at `lufs` to the target, clamped so one bad
-// measurement can't blast or bury a file.
+/**
+ * Gain that moves a file measured at `lufs` to the target, clamped so one bad
+ * measurement can't blast or bury a file.
+ * @param {?number} lufs Measured integrated loudness.
+ * @param {number} [target=TARGET_LUFS] Loudness to aim for.
+ * @param {number} [minGain=MIN_GAIN] Lowest gain allowed.
+ * @returns {number} Gain multiplier, 1 when `lufs` is not a finite number.
+ */
 export function gainForLoudness(lufs, target = TARGET_LUFS, minGain = MIN_GAIN) {
   if (typeof lufs !== 'number' || !Number.isFinite(lufs)) return 1;
   const gain = 10 ** ((target - lufs) / 20);
@@ -52,20 +58,30 @@ export function levelerGainFor(mode, measured, lufs, target = null) {
   return gainForLoudness(lufs, target == null ? settings.target : target, settings.minGain);
 }
 
-// The duration (seconds) to measure the loaded file with, or null to wait
-// for the next event. At loadstart the element doesn't know its duration yet
-// (player.duration is NaN), so the lineup's own figure for the file is used;
-// a file the lineup doesn't list waits for loadedmetadata, because a
-// measurement with no duration samples only the file's start and is cached
-// that way.
+/**
+ * The duration (seconds) to measure the loaded file with, or null to wait
+ * for the next event. At loadstart the element doesn't know its duration yet
+ * (player.duration is NaN), so the lineup's own figure for the file is used;
+ * a file the lineup doesn't list waits for loadedmetadata, because a
+ * measurement with no duration samples only the file's start and is cached
+ * that way.
+ * @param {string} eventType The media event that fired (`loadstart`, `loadedmetadata`, ...).
+ * @param {number} playerDuration The element's `duration` (NaN until metadata loads).
+ * @param {number} lineupDuration The lineup's recorded duration for the file, or 0.
+ * @returns {?number} Seconds to measure with, 0 for unknown, or null to wait.
+ */
 export function measureDurationAt(eventType, playerDuration, lineupDuration) {
   if (Number.isFinite(playerDuration) && playerDuration > 0) return playerDuration;
   if (lineupDuration > 0) return lineupDuration;
   return eventType === 'loadstart' ? null : 0;
 }
 
-// The local path inside an app://media?p=… URL; null for anything else
-// (a plugin-served stream on loopback http, a data: URL, nothing loaded).
+/**
+ * The local path inside an app://media?p=… URL; null for anything else
+ * (a plugin-served stream on loopback http, a data: URL, nothing loaded).
+ * @param {string} url The player's current source URL.
+ * @returns {?string} The decoded local path, or null.
+ */
 export function mediaPathFromUrl(url) {
   if (typeof url !== 'string' || !url.startsWith('app://media')) return null;
   try {
@@ -76,8 +92,12 @@ export function mediaPathFromUrl(url) {
   }
 }
 
-// Every local file the lineup can play: channel and block files plus the
-// bumper/commercial pool (the same set the channel health check walks).
+/**
+ * Every local file the lineup can play: channel and block files plus the
+ * bumper/commercial pool (the same set the channel health check walks).
+ * @param {object} config The whole config (`S.config`).
+ * @returns {Array<object>} Unique `{ path, duration }` entries, duration in seconds.
+ */
 export function lineupMediaItems(config) {
   const items = new Map();
   const add = (f) => {

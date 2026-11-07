@@ -16,6 +16,11 @@ const MATCH_FIELDS = new Set(['tmdb', 'tvmaze', 'breakMarks', 'creditsFound']);
 
 export const SHARED_FILE_FIELDS = ['title', 'description', 'rating', 'tmdb', 'tvmaze', 'series', 'poster', 'breakMarks', 'creditsFound'];
 
+/**
+ * Tells whether a field holds something: not null, not blank, not an empty array or object.
+ * @param {*} value The field value.
+ * @returns {boolean} True when it has a value.
+ */
 function hasValue(value) {
   if (value == null) return false;
   if (typeof value === 'string') return value.trim() !== '';
@@ -24,11 +29,21 @@ function hasValue(value) {
   return true;
 }
 
+/**
+ * Deep-copies a JSON value, passing `undefined` through.
+ * @param {*} value The value.
+ * @returns {*} The copy.
+ */
 function clone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-/** Every playlist entry for one path: channel files and schedule-block files. */
+/**
+ * Every playlist entry for one path: channel files and schedule-block files.
+ * @param {object} config The box config.
+ * @param {string} path The media path.
+ * @returns {Array<object>} The live file entries.
+ */
 export function fileCopies(config, path) {
   const out = [];
   if (!config || !path) return out;
@@ -46,6 +61,10 @@ export function fileCopies(config, path) {
  * replaced only when it is empty or still the same value `source` had before
  * this change. A match itself (`tmdb`, `tvmaze`) always follows. Returns the
  * entries that changed.
+ * @param {object} config The box config.
+ * @param {object} source The entry the change was made on.
+ * @param {object} fields Field values to write; `undefined` deletes a field.
+ * @returns {Array<object>} The entries that changed.
  */
 export function shareFileFields(config, source, fields) {
   const before = clone({ ...source });
@@ -66,7 +85,12 @@ export function shareFileFields(config, source, fields) {
   return changed;
 }
 
-// Fills `file`'s empty shared fields from the first donor that has each one.
+/**
+ * Fills `file`'s empty shared fields from the first donor that has each one.
+ * @param {object} file The entry to fill, changed in place.
+ * @param {Array<object>} donors Entries to take values from.
+ * @returns {boolean} True when anything was filled.
+ */
 function fillFrom(file, donors) {
   let touched = false;
   SHARED_FILE_FIELDS.forEach((key) => {
@@ -83,6 +107,9 @@ function fillFrom(file, donors) {
  * Gives each new entry the details another entry for the same path already
  * has, filling empty fields only. `fresh` entries never count as a source.
  * Returns how many entries gained something.
+ * @param {object} config The box config.
+ * @param {Array<object>} fresh The new entries, filled in place.
+ * @returns {number} How many entries gained something.
  */
 export function inheritFromCopies(config, fresh) {
   const skip = new Set(fresh);
@@ -98,6 +125,8 @@ export function inheritFromCopies(config, fresh) {
  * The whole lineup at once: every entry gets the details its other copies
  * have, empty fields only (matches made before they were shared). Returns how
  * many entries gained something.
+ * @param {object} config The box config, filled in place.
+ * @returns {number} How many entries gained something.
  */
 export function shareAcrossCopies(config) {
   const byPath = new Map();

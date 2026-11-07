@@ -15,6 +15,11 @@ import { virtualChannelInfo, isVirtualChannel } from '../playback/virtual.js';
 import { guideClock, guideRange } from './model.js';
 import { setChannelLogo } from './header.js';
 
+/**
+ * Looks up an element by id.
+ * @param {string} id The element id.
+ * @returns {?HTMLElement} The element, or null.
+ */
 const el = (id) => document.getElementById(id);
 const parts = {
   title: el('flip-title'), chan: el('flip-chan'), logo: el('flip-logo'), clock: el('flip-clock'),
@@ -24,12 +29,21 @@ const parts = {
 
 let shown = null; // { number, ch, entry } on the bar right now
 
+/**
+ * Returns what the bar is showing right now.
+ * @returns {?object} `{ number, ch, entry }`, or null before the bar has been filled.
+ */
 export function flipBarProgram() {
   return shown;
 }
 
-// Wires the two buttons once; the actions come from guide.js so this module
-// never imports the guide back.
+/**
+ * Wires the two buttons once; the actions come from guide.js so this module
+ * never imports the guide back.
+ * @param {object} actions The button actions.
+ * @param {Function} actions.onInfo Called with the shown `{ number, ch, entry }` when INFO is pressed.
+ * @param {Function} actions.onGuide Called when GUIDE is pressed.
+ */
 export function installFlipBar({ onInfo, onGuide }) {
   if (!parts.info || parts.info.dataset.wired) return;
   parts.info.dataset.wired = 'true';
@@ -37,6 +51,11 @@ export function installFlipBar({ onInfo, onGuide }) {
   parts.guide.addEventListener('click', () => onGuide());
 }
 
+/**
+ * Fills the bar for a channel: what is on now, its time range, rating and description.
+ * @param {number} number The channel number.
+ * @param {?object} ch The channel config, or null for a virtual or empty channel.
+ */
 export function fillFlipBar(number, ch) {
   if (!parts.title) return;
   const clock24 = !!(S.config.display && S.config.display.clock24);

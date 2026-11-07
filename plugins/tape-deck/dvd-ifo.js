@@ -21,31 +21,62 @@
 
 const SECTOR = 2048;
 
-// Every read goes through these. An IFO from a scratched disc, a truncated
-// rip, or something that simply is not an IFO must produce a clear refusal
-// rather than plausible-looking nonsense derived from whatever bytes are
-// there — a wrong chapter table is worse than no chapter table.
+/**
+ * Every read goes through these. An IFO from a scratched disc, a truncated
+ * rip, or something that simply is not an IFO must produce a clear refusal
+ * rather than plausible-looking nonsense derived from whatever bytes are
+ * there — a wrong chapter table is worse than no chapter table.
+ * @param {Buffer} buf The IFO contents.
+ * @param {number} at Byte offset.
+ * @returns {number} The unsigned byte at `at`.
+ * @throws {RangeError} When `at` is outside the buffer.
+ */
 function u8(buf, at) {
   if (at < 0 || at + 1 > buf.length) throw new RangeError(`byte ${at} past end of ${buf.length}`);
   return buf.readUInt8(at);
 }
 
+/**
+ * Reads a big-endian unsigned 16-bit value, refusing reads past the end.
+ * @param {Buffer} buf The IFO contents.
+ * @param {number} at Byte offset.
+ * @returns {number} The value.
+ * @throws {RangeError} When the read runs past the buffer.
+ */
 function u16(buf, at) {
   if (at < 0 || at + 2 > buf.length) throw new RangeError(`uint16 at ${at} past end of ${buf.length}`);
   return buf.readUInt16BE(at);
 }
 
+/**
+ * Reads a big-endian unsigned 32-bit value, refusing reads past the end.
+ * @param {Buffer} buf The IFO contents.
+ * @param {number} at Byte offset.
+ * @returns {number} The value.
+ * @throws {RangeError} When the read runs past the buffer.
+ */
 function u32(buf, at) {
   if (at < 0 || at + 4 > buf.length) throw new RangeError(`uint32 at ${at} past end of ${buf.length}`);
   return buf.readUInt32BE(at);
 }
 
-// DVD times are BCD — 0x23 means 23, not 35 — with the frame rate packed
-// into the top two bits of the frames byte.
+/**
+ * DVD times are BCD — 0x23 means 23, not 35 — with the frame rate packed
+ * into the top two bits of the frames byte.
+ * @param {number} value One BCD byte (the caller masks off any packed bits).
+ * @returns {number} The decimal value.
+ */
 function bcd(value) {
   return ((value >> 4) & 0x0f) * 10 + (value & 0x0f);
 }
 
+/**
+ * Decodes a four-byte DVD playback time (BCD hours, minutes, seconds and frames) to seconds.
+ * @param {Buffer} buf The IFO contents.
+ * @param {number} at Byte offset of the time field.
+ * @returns {number} The time in seconds, frames included as a fraction.
+ * @throws {RangeError} When the field runs past the buffer.
+ */
 function readPlaybackSeconds(buf, at) {
   const hours = bcd(u8(buf, at));
   const minutes = bcd(u8(buf, at + 1));
@@ -63,8 +94,13 @@ function readPlaybackSeconds(buf, at) {
 const AUDIO_CODINGS = { 0: 'ac3', 2: 'mpeg1', 3: 'mpeg2', 4: 'lpcm', 6: 'dts' };
 const SUBPICTURE_CODINGS = { 0: 'rle', 1: 'extended' };
 
-// A two-letter ISO 639-1 code, stored as raw ASCII. Zeroes mean the disc
-// did not say, which is common and not an error.
+/**
+ * A two-letter ISO 639-1 code, stored as raw ASCII. Zeroes mean the disc
+ * did not say, which is common and not an error.
+ * @param {Buffer} buf The IFO contents.
+ * @param {number} at Byte offset of the two-letter code.
+ * @returns {?string} Lowercase language code, or null when unset or unreadable.
+ */
 function languageCode(buf, at) {
   try {
     const a = u8(buf, at);
@@ -76,6 +112,14 @@ function languageCode(buf, at) {
   }
 }
 
+/**
+ * Reads a title set's audio stream attribute table (up to 8 entries of 8 bytes).
+ * Stops at the first truncated entry.
+ * @param {Buffer} buf The VTS IFO contents.
+ * @param {number} at Byte offset of the table.
+ * @param {number} count Number of streams the IFO declares.
+ * @returns {Array<object>} Streams as `{ index, coding, channels, language }`.
+ */
 function readAudioAttributes(buf, at, count) {
   const streams = [];
   for (let i = 0; i < count && i < 8; i++) {
@@ -98,6 +142,14 @@ function readAudioAttributes(buf, at, count) {
   return streams;
 }
 
+/**
+ * Reads a title set's subpicture (subtitle) stream attribute table (up to 32 entries of 6 bytes).
+ * Stops at the first truncated entry.
+ * @param {Buffer} buf The VTS IFO contents.
+ * @param {number} at Byte offset of the table.
+ * @param {number} count Number of streams the IFO declares.
+ * @returns {Array<object>} Streams as `{ index, coding, language }`.
+ */
 function readSubpictureAttributes(buf, at, count) {
   const streams = [];
   for (let i = 0; i < count && i < 32; i++) {
@@ -118,8 +170,14 @@ function readSubpictureAttributes(buf, at, count) {
 
 // ---------- VIDEO_TS.IFO (the disc's own index) ----------
 
-// TT_SRPT is the disc-wide title list: for each title, which title set holds
-// it, which title it is within that set, and how many chapters it has.
+/**
+ * TT_SRPT is the disc-wide title list: for each title, which title set holds
+ * it, which title it is within that set, and how many chapters it has.
+ * @param {Buffer} buf The VIDEO_TS.IFO contents.
+ * @param {number} at Byte offset of the TT_SRPT table.
+ * @returns {Array<object>} Titles as `{ title, playbackType, angles, chapters, vts, vtsTitle, startSector }`.
+ * @throws {RangeError} When the table header runs past the buffer.
+ */
 function readTitleSearchPointers(buf, at) {
   const count = u16(buf, at);
   const titles = [];
@@ -142,7 +200,11 @@ function readTitleSearchPointers(buf, at) {
   return titles;
 }
 
-// Parses VIDEO_TS.IFO. Returns { titleSets, titles } or { error }.
+/**
+ * Parses VIDEO_TS.IFO. Returns { titleSets, titles } or { error }.
+ * @param {Buffer} buffer The VIDEO_TS.IFO contents.
+ * @returns {object} `{ titleSets, titles }`, or `{ error }` with a readable message.
+ */
 function parseVideoTsIfo(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < SECTOR) {
     return { error: 'VIDEO_TS.IFO is too short to be a DVD index.' };
@@ -164,9 +226,15 @@ function parseVideoTsIfo(buffer) {
 
 // ---------- VTS_xx_0.IFO (one title set) ----------
 
-// The program chain: how many programs (chapters) and cells it has, how long
-// it runs, and where each cell sits. Chapter start times come from summing
-// cell durations, because a cell is the smallest unit the disc times.
+/**
+ * The program chain: how many programs (chapters) and cells it has, how long
+ * it runs, and where each cell sits. Chapter start times come from summing
+ * cell durations, because a cell is the smallest unit the disc times.
+ * @param {Buffer} buf The VTS IFO contents.
+ * @param {number} at Byte offset of the program chain.
+ * @returns {object} `{ programs, cells, totalSeconds, cellSeconds, cellSectors, chapterStarts, commandTableOffset }`.
+ * @throws {RangeError} When the chain runs past the buffer.
+ */
 function readProgramChain(buf, at) {
   const programs = u8(buf, at + 2);
   const cells = u8(buf, at + 3);
@@ -205,9 +273,13 @@ function readProgramChain(buf, at) {
   };
 }
 
-// Parses a VTS_xx_0.IFO. Returns { audio, subtitles, programChains, pttByTitle }
-// or { error }. `pttByTitle` maps a title's number WITHIN this set to the
-// chapters it is made of.
+/**
+ * Parses a VTS_xx_0.IFO. Returns { audio, subtitles, programChains, pttByTitle }
+ * or { error }. `pttByTitle` maps a title's number WITHIN this set to the
+ * chapters it is made of.
+ * @param {Buffer} buffer The VTS_xx_0.IFO contents.
+ * @returns {object} The parsed title set, or `{ error }` with a readable message.
+ */
 function parseVtsIfo(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < SECTOR) {
     return { error: 'A title-set index (VTS_xx_0.IFO) is too short.' };
@@ -271,13 +343,18 @@ function parseVtsIfo(buffer) {
 
 // ---------- putting a disc together ----------
 
-// Combines the disc index with each title set's own index into the list the
-// deck's menu is built from. `vtsBuffers` maps a title-set number to that
-// set's VTS_xx_0.IFO contents.
-//
-// A title whose set is missing or unreadable is still listed, with whatever
-// the disc index alone knows (its chapter count), because a disc with one bad
-// title set is still worth playing the rest of.
+/**
+ * Combines the disc index with each title set's own index into the list the
+ * deck's menu is built from. `vtsBuffers` maps a title-set number to that
+ * set's VTS_xx_0.IFO contents.
+ *
+ * A title whose set is missing or unreadable is still listed, with whatever
+ * the disc index alone knows (its chapter count), because a disc with one bad
+ * title set is still worth playing the rest of.
+ * @param {Buffer} videoTsBuffer The VIDEO_TS.IFO contents.
+ * @param {object} vtsBuffers Title-set number to that set's VTS_xx_0.IFO Buffer.
+ * @returns {object} `{ titleSets, titles, warnings }`, or `{ error }` when the disc index is unreadable.
+ */
 function readDiscStructure(videoTsBuffer, vtsBuffers) {
   const index = parseVideoTsIfo(videoTsBuffer);
   if (index.error) return index;
@@ -328,8 +405,12 @@ function readDiscStructure(videoTsBuffer, vtsBuffers) {
   return { titleSets: index.titleSets, titles, warnings: setErrors };
 }
 
-// The IFO files a disc needs read, given its title-set count. Named the way
-// they appear in a VIDEO_TS folder.
+/**
+ * The IFO files a disc needs read, given its title-set count. Named the way
+ * they appear in a VIDEO_TS folder.
+ * @param {number} titleSets The disc's title-set count (capped at 99).
+ * @returns {string[]} File names such as `VIDEO_TS.IFO` and `VTS_01_0.IFO`.
+ */
 function ifoFileNames(titleSets) {
   const names = ['VIDEO_TS.IFO'];
   for (let i = 1; i <= titleSets && i <= 99; i++) {

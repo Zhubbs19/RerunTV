@@ -25,7 +25,11 @@ const path = require('path');
 const crypto = require('crypto');
 const { runFfmpeg } = require('./ffmpeg-runner');
 
-// What a file is, from `ffmpeg -i`'s banner.
+/**
+ * What a file is, from `ffmpeg -i`'s banner.
+ * @param {string} file The media file.
+ * @returns {Promise<object>} `{ duration, videoCodec, pixFmt, fps, audioCodec, stderr }`, with null for anything not found.
+ */
 async function probe(file) {
   const { stderr } = await runFfmpeg(['-hide_banner', '-i', file]);
   const dur = /Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(stderr);
@@ -44,7 +48,11 @@ async function probe(file) {
 }
 
 const keyframeCache = new Map();
-// Keyframe times, seconds from the start of the file. Decodes keyframes only.
+/**
+ * Keyframe times, seconds from the start of the file. Decodes keyframes only.
+ * @param {string} input The media file.
+ * @returns {Promise<number[]>} Sorted keyframe times; the promise is kept per file.
+ */
 function keyframes(input) {
   if (!keyframeCache.has(input)) {
     keyframeCache.set(input, runFfmpeg(['-hide_banner', '-skip_frame', 'nokey', '-i', input, '-map', '0:v:0', '-an', '-sn', '-vf', 'showinfo', '-f', 'null', '-'])
@@ -53,20 +61,43 @@ function keyframes(input) {
   return keyframeCache.get(input);
 }
 
+/**
+ * Runs ffmpeg and fails loudly on a non-zero exit.
+ * @param {string[]} args ffmpeg arguments (after `-hide_banner -y`).
+ * @param {string} what The step's name for the error message.
+ * @returns {Promise<void>} Resolves on success.
+ * @throws {Error} When ffmpeg fails.
+ */
 async function ok(args, what) {
   const { code, stderr } = await runFfmpeg(['-hide_banner', '-y', ...args]);
   if (code !== 0) throw new Error(`${what} failed (exit ${code}): ${stderr.slice(-300)}`);
 }
 
-// Decodes a few seconds around the join; any decoder error means the join
-// isn't clean.
+/**
+ * Decodes a few seconds around the join; any decoder error means the join
+ * isn't clean.
+ * @param {string} file The joined clip.
+ * @param {number} from Where to start decoding, in seconds.
+ * @param {number} seconds How long to decode.
+ * @returns {Promise<boolean>} True when ffmpeg decoded it without errors.
+ */
 async function decodesCleanly(file, from, seconds) {
   const { code, stderr } = await runFfmpeg(['-hide_banner', '-v', 'error', '-ss', Math.max(0, from).toFixed(3), '-i', file, '-t', String(seconds), '-map', '0:v:0', '-f', 'null', '-']);
   return code === 0 && !stderr.trim();
 }
 
-// Writes [start, end) of input to outFile. Returns 'smart' | 'copy', or
-// throws when only a re-encode will do (the caller's fallback).
+/**
+ * Writes [start, end) of input to outFile. Returns 'smart' | 'copy', or
+ * throws when only a re-encode will do (the caller's fallback).
+ * @param {string} input The source recording.
+ * @param {number} start Clip start, in seconds.
+ * @param {number} end Clip end, in seconds.
+ * @param {string} outFile Where to write the clip.
+ * @param {object} [opts] Options.
+ * @param {object} [opts.source] A `probe` result for `input`, to skip probing again.
+ * @returns {Promise<string>} `smart` when the head was re-encoded, `copy` when the clip starts on a keyframe.
+ * @throws {Error} When the source isn't H.264 or the joined clip fails its checks.
+ */
 async function smartCut(input, start, end, outFile, { source } = {}) {
   const info = source || await probe(input);
   if (info.videoCodec !== 'h264') throw new Error('not an H.264 source');

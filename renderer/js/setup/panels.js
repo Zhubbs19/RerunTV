@@ -13,6 +13,11 @@ export { buildTitlesPanel } from './titles-panel.js';
 export { buildChannelAdsPanel, buildCommercialsPanel } from './ad-panels.js';
 export { buildLogoBugPanel, buildCreditsSpeedupPanel, buildDynamicOverlaysPanel, buildTickerLayoutPanel } from './overlay-panels.js';
 
+/**
+ * Builds a channel's FOLDERS panel: the folders and single files it airs, with add and remove controls.
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ */
 export function buildFoldersPanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -95,6 +100,11 @@ export function buildFoldersPanel(ch, panelEl) {
   panelEl.appendChild(addFilesBtn);
 }
 
+/**
+ * Builds a channel's identity panel: per-channel overrides of the box's broadcast identity settings.
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ */
 export function buildChannelIdentityPanel(ch, panelEl) {
   panelEl.innerHTML = '';
   const identity = ch.broadcastIdentity ? { ...ch.broadcastIdentity } : {};

@@ -4,6 +4,11 @@
 import { syncSettingDependencies } from '../ui/field.js';
 import { crtEnabledEl, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider, crtVignetteSlider, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider, setupScreen, staticDurationSlider, staticEnabledEl, staticIntensitySlider } from '../core/dom.js';
 
+/**
+ * Enables or disables a control and greys out its setting row (or label) to match.
+ * @param {?HTMLElement} control The input to update; ignored when missing.
+ * @param {boolean} enabled Whether the control should be usable.
+ */
 function setDependentControlState(control, enabled) {
   if (!control) return;
   control.disabled = !enabled;
@@ -12,6 +17,9 @@ function setDependentControlState(control, enabled) {
   else control.closest('label, .panel-interval')?.classList.toggle('control-disabled', !enabled);
 }
 
+/**
+ * Updates every dependent control's enabled state from the switches it depends on.
+ */
 export function refreshDependentControls() {
   setDependentControlState(guideAnimSpeedSlider, guideOpenCloseAnimEnabledEl.checked);
   setDependentControlState(staticIntensitySlider, staticEnabledEl.checked);

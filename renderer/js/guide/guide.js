@@ -1,3 +1,7 @@
+// The on-screen program guide: the channel surf card, the guide grid (docked
+// and full-page) with its popovers and key handling, program search and
+// program reminders. The DOM-free row and cell model is model.js.
+
 import { showSetupScreen } from '../app.js';
 import { refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { playConfiguredSound, sfxGuideToggle } from '../core/audio.js';
@@ -46,12 +50,24 @@ import { addDays } from '../core/schedule-query.js';
 // created `config.reminders` here, mutating config without a generation bump), so a missing
 // list is a shared empty array and replaceReminders() is the only writer.
 const NO_REMINDERS = Object.freeze([]);
+/**
+ * Returns the reminders list of the active profile, or the box's.
+ * Read-only: a missing list comes back as a shared frozen empty array.
+ * @returns {Array<object>} Reminder records.
+ */
 function reminderList() {
   const profile = currentProfile();
   if (profile) return profile.state.reminders;
   return Array.isArray(S.config.reminders) ? S.config.reminders : NO_REMINDERS;
 }
 
+/**
+ * Replaces the reminders list of the active profile, or the box's.
+ * The only writer of the list: a profile write goes through `personalCommand`, a box write
+ * through `commitInPlace`.
+ * @param {Array<object>} next The new reminders list.
+ * @param {object} [opts] Command options (`label`, `skipUndo`).
+ */
 function replaceReminders(next, opts = {}) {
   const profile = currentProfile();
   if (profile) {
@@ -63,8 +79,11 @@ function replaceReminders(next, opts = {}) {
   }
 }
 
-// The channel's icon (or a colored number badge, matching the logo bug's own
-// fallback) shown next to the name on the "now watching" surf card.
+/**
+ * The channel's icon (or a colored number badge, matching the logo bug's own
+ * fallback) shown next to the name on the "now watching" surf card.
+ * @param {?object} ch The channel config, or `null` for no signal.
+ */
 function updateGuideLogo(ch) {
   guideLogoEl.innerHTML = '';
   guideLogoEl.style.background = '';
@@ -133,6 +152,10 @@ export function showGuideOverlay(number, ch) {
   S.guideHideTimer = autoHideAfter(S.guideHideTimer, cardDuration, () => guideOverlay.classList.add('hidden'));
 }
 
+/**
+ * Updates the surf card's "NOW" title and progress bar from the live schedule.
+ * @param {object} ch The channel config.
+ */
 export function updateGuideNowPlaying(ch) {
   const pos = computeLivePosition(ch);
   if (!pos) return;
@@ -146,6 +169,9 @@ export function updateGuideNowPlaying(ch) {
 // started by showGuideOverlay and stops itself the first tick it finds the card hidden (the card
 // is hidden from several places, so polling its class is simpler than hooking each).
 let guideNowTimer = null;
+/**
+ * Starts the surf card's once-a-second progress tick if it is not already running.
+ */
 function startGuideNowTick() {
   if (guideNowTimer) return;
   guideNowTimer = setInterval(() => {
@@ -191,17 +217,26 @@ if (programResultsEl) {
   });
 }
 
+/**
+ * Hides and empties the program-search results list.
+ */
 function hideProgramResults() {
   programResultsEl?.classList.add('hidden');
   if (programResultsEl) programResultsEl.innerHTML = '';
 }
 
-// The pending reminders, for the cable-guide Messages page.
+/**
+ * The pending reminders, for the cable-guide Messages page.
+ * @returns {Array<object>} A copy of the reminders list.
+ */
 export function listReminders() {
   return reminderList().slice();
 }
 
-// A search result in the full-page guide, opening it if it isn't up.
+/**
+ * A search result in the full-page guide, opening it if it isn't up.
+ * @param {object} result A program search result `{ channel, entry, title }`.
+ */
 export function showProgramInGuide(result) {
   if (guideGrid.classList.contains('hidden')) {
     S.guideDocked = false;
@@ -210,6 +245,10 @@ export function showProgramInGuide(result) {
   jumpToProgramResult(result);
 }
 
+/**
+ * Clears the filter and moves the guide selection and window to a search result.
+ * @param {object} result A program search result `{ channel, entry, title }`.
+ */
 function jumpToProgramResult(result) {
   S.guideFilterQuery = '';
   guideSearchEl.value = '';
@@ -220,10 +259,14 @@ function jumpToProgramResult(result) {
   renderGuideGrid();
 }
 
-// Clock for reminders: entry.start/end are absolute schedule instants (the schedule is a pure
-// function of time, so a program airs at the same instant whatever offset a viewer is watching
-// at), so they are compared against the REAL clock (Date.now()), not viewNow(): a reminder is an
-// appointment in the world, and scrubbing the time machine must neither fire nor prune it.
+/**
+ * Clock for reminders: entry.start/end are absolute schedule instants (the schedule is a pure
+ * function of time, so a program airs at the same instant whatever offset a viewer is watching
+ * at), so they are compared against the REAL clock (Date.now()), not viewNow(): a reminder is an
+ * appointment in the world, and scrubbing the time machine must neither fire nor prune it.
+ * Adds a reminder for a search result, unless one already exists for that airing.
+ * @param {object} result A program search result `{ channel, entry, title }`.
+ */
 export function addProgramReminder(result) {
   const reminders = reminderList();
   const duplicate = reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
@@ -237,6 +280,11 @@ export function addProgramReminder(result) {
   replaceReminders(next, { label: 'Add reminder' });
 }
 
+/**
+ * Runs a program search and draws the results list beside the search box.
+ * Hidden channels are left out; fewer than 2 characters hides the list.
+ * @param {string} query The search text.
+ */
 function renderProgramResults(query) {
   if (!programResultsEl || query.trim().length < 2) { hideProgramResults(); return; }
   // Excludes ch.hidden directly rather than reusing filteredChannels() (that
@@ -275,6 +323,10 @@ guideSearchEl.addEventListener('input', () => {
   programSearchTimer = setTimeout(() => renderProgramResults(guideSearchEl.value), 160);
 });
 
+/**
+ * Removes a reminder by id.
+ * @param {string} id The reminder id.
+ */
 export function removeReminder(id) {
   const next = reminderList().filter((reminder) => reminder.id !== id);
   notifiedReminders.delete(id);
@@ -297,6 +349,9 @@ if (reminderToastEl) {
   });
 }
 
+/**
+ * Closes the reminder toast and removes the reminder it showed.
+ */
 function dismissActiveReminder() {
   clearTimeout(reminderToastTimer);
   reminderToastTimer = null;
@@ -305,6 +360,10 @@ function dismissActiveReminder() {
   reminderToastEl?.classList.add('hidden');
 }
 
+/**
+ * Prunes ended reminders and shows the toast for the next one due.
+ * Runs on a 15 s real-clock interval; may auto-tune and send a system notification.
+ */
 function checkProgramReminders() {
   // A reminder is a real-clock appointment: scrubbing the time machine forward
   // must not prune it (background-tick exception to viewNow()).
@@ -357,7 +416,10 @@ reminderTuneBtn?.addEventListener('click', () => {
 reminderDismissBtn?.addEventListener('click', dismissActiveReminder);
 setInterval(checkProgramReminders, 15000);
 
-// The cable-guide layout never animates its pages (cable-guide.css).
+/**
+ * The cable-guide layout never animates its pages (cable-guide.css).
+ * @returns {boolean} True when the cable-guide layout is active.
+ */
 function cableGuide() {
   return currentUiMode() === CABLE_GUIDE_UI;
 }
@@ -375,20 +437,27 @@ installFlipBar({
   },
 });
 
+/**
+ * Tells whether the guide's open/close animation should run.
+ * @returns {boolean} True when the setting is on, motion isn't reduced and the layout is legacy.
+ */
 function guideAnimEnabled() {
   return !!(S.config.display && S.config.display.guideOpenCloseAnim)
     && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     && !cableGuide();
 }
 
-// Full-page guide mode (see guide.css's .guide-full rules) shrinks the live
-// #player into a top-right preview box by default — an anachronistic look
-// for a theme predating picture-in-picture. Once the user explicitly sets
-// DISPLAY > GUIDE LIVE PREVIEW themselves, that choice always wins over
-// whatever the active theme pack prefers (same "explicit user choice beats
-// theme default" pattern as getPluginChannelDisplaySettings's INHERIT
-// semantics, plugins.js) — hasOwnProperty, not a truthiness check, is what
-// lets an explicit `false` be distinguished from "never set".
+/**
+ * Full-page guide mode (see guide.css's .guide-full rules) shrinks the live
+ * #player into a top-right preview box by default — an anachronistic look
+ * for a theme predating picture-in-picture. Once the user explicitly sets
+ * DISPLAY > GUIDE LIVE PREVIEW themselves, that choice always wins over
+ * whatever the active theme pack prefers (same "explicit user choice beats
+ * theme default" pattern as getPluginChannelDisplaySettings's INHERIT
+ * semantics, plugins.js) — hasOwnProperty, not a truthiness check, is what
+ * lets an explicit `false` be distinguished from "never set".
+ * @returns {boolean} True when the full-page guide shows the live picture preview.
+ */
 function guideLivePreviewEnabled() {
   const display = S.config.display || {};
   if (Object.prototype.hasOwnProperty.call(display, 'guideLivePreview')) return !!display.guideLivePreview;
@@ -396,6 +465,9 @@ function guideLivePreviewEnabled() {
   return !(pack && pack.guidePreviewDefault === false);
 }
 
+/**
+ * Updates the guide's channel-view button label and active state.
+ */
 export function syncGuideViewButton() {
   if (guideViewBtnEl) {
     const viewLabel = GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all;
@@ -404,8 +476,11 @@ export function syncGuideViewButton() {
   }
 }
 
-// The guide's channel-view button: ALL -> FAVORITES -> NOT WATCHED LATELY.
-// "Not watched" reads the viewing log once per switch into it.
+/**
+ * The guide's channel-view button: ALL -> FAVORITES -> NOT WATCHED LATELY.
+ * "Not watched" reads the viewing log once per switch into it.
+ * @returns {Promise<void>}
+ */
 export async function cycleGuideView() {
   let rows = null;
   // A view with no channels in it is skipped, so the grid is never left empty.
@@ -426,6 +501,10 @@ export async function cycleGuideView() {
 
 if (guideViewBtnEl) guideViewBtnEl.addEventListener('click', () => { cycleGuideView(); });
 
+/**
+ * Opens the guide grid at the current time and channel.
+ * Does nothing when there are no channels; the grid itself renders a task later.
+ */
 export function openGuideGrid() {
   if (sortedChannels().length === 0) return;
   if (guideGrid.classList.contains('hidden')) guidePreviouslyFocused = document.activeElement;
@@ -496,6 +575,9 @@ export function openGuideGrid() {
   requestAnimationFrame(() => guideGrid.focus({ preventScroll: true }));
 }
 
+/**
+ * Closes the guide grid, restoring focus and the picture area.
+ */
 export function closeGuideGrid() {
   closeGuidePopover();
   if (guideGrid.classList.contains('hidden')) return;
@@ -526,9 +608,11 @@ export function closeGuideGrid() {
   }
 }
 
-// Docked (default): the grid hugs the bottom of the screen and the live
-// picture keeps playing full-size above it. Full: the grid covers the whole
-// screen and the picture shrinks into a preview box — see guide.css.
+/**
+ * Docked (default): the grid hugs the bottom of the screen and the live
+ * picture keeps playing full-size above it. Full: the grid covers the whole
+ * screen and the picture shrinks into a preview box — see guide.css.
+ */
 export function applyGuideDockMode() {
   const dockedClass = S.guideDocked ? 'docked' : 'full';
   const undockedClass = S.guideDocked ? 'full' : 'docked';
@@ -544,14 +628,20 @@ export function applyGuideDockMode() {
   syncListingsPicture(guideGrid, crtContainer);
 }
 
+/**
+ * Switches the guide between docked and full-page.
+ */
 export function toggleGuideDockMode() {
   S.guideDocked = !S.guideDocked;
   applyGuideDockMode();
   positionNowLine(S.guideWindowStart + guideSlotMs() * guideSlots());
 }
 
-// TV menu › SEARCH while the guide is open (doc 11 §2.3): the same filter
-// box / opens. On Google TV focusing it brings up the on-screen keyboard.
+/**
+ * TV menu › SEARCH while the guide is open (doc 11 §2.3): the same filter
+ * box / opens. On Google TV focusing it brings up the on-screen keyboard.
+ * @returns {Promise<void>}
+ */
 export async function focusGuideSearch() {
   closeGuidePopover();
   // The cable-guide layout searches on its own page (keyboard + results).
@@ -578,6 +668,9 @@ export async function focusGuideSearch() {
   guideSearchEl.focus();
 }
 
+/**
+ * Toggles the break-pod band on the guide rows.
+ */
 export function toggleGuideShowBreaks() {
   S.guideShowBreaks = !S.guideShowBreaks;
   renderGuideGrid();
@@ -600,11 +693,15 @@ const GUIDE_ROW_CHUNK_SIZE = 12;
 // animation's row count is stable the whole time it's playing.
 const GUIDE_LAZY_FILL_THRESHOLD = 30;
 
-// .guide-entry is a flex container, and text-overflow only applies to a block
-// container's own inline content — so a title too wide for its slot was hard-
-// clipped mid-word ("Bosko the Doughbo") instead of ellipsized. Putting the
-// text in its own block child gives the ellipsis something to act on, and
-// block.textContent still reads back the same string for anything that wants it.
+/**
+ * .guide-entry is a flex container, and text-overflow only applies to a block
+ * container's own inline content — so a title too wide for its slot was hard-
+ * clipped mid-word ("Bosko the Doughbo") instead of ellipsized. Putting the
+ * text in its own block child gives the ellipsis something to act on, and
+ * block.textContent still reads back the same string for anything that wants it.
+ * @param {HTMLElement} block The guide cell element.
+ * @param {string} text The label text, also used as its tooltip.
+ */
 function setEntryLabel(block, text) {
   const label = document.createElement('span');
   label.className = 'guide-entry-label';
@@ -613,12 +710,20 @@ function setEntryLabel(block, text) {
   block.title = text;
 }
 
-// DISPLAY > Guide > Channel names: the full name (wrapping to two lines) or
-// abbreviated call letters, like a period box's channel rail.
+/**
+ * DISPLAY > Guide > Channel names: the full name (wrapping to two lines) or
+ * abbreviated call letters, like a period box's channel rail.
+ * @returns {boolean} True when the rail shows call letters.
+ */
 function abbreviatedNames() {
   return !!(S.config.display && S.config.display.guideChannelNames === 'short');
 }
 
+/**
+ * Returns the name shown in a channel's rail cell.
+ * @param {object} ch The channel config.
+ * @returns {string} Call letters or the full name, per layout and setting.
+ */
 function railName(ch) {
   // The cable-guide rail is number + call letters, like the boxes it copies.
   if (cableGuide()) return channelCallLetters(ch) || ch.name || 'UNTITLED';
@@ -629,6 +734,9 @@ function railName(ch) {
 const LEGACY_SEARCH_HINT = guideSearchEl.placeholder;
 const CABLE_GUIDE_SEARCH_HINT = '/ Search channels and programs';
 
+/**
+ * @returns {boolean} True unless merging short programs is turned off.
+ */
 function mergeShortsEnabled() {
   return !(S.config.display && S.config.display.guideMergeShorts === false);
 }
@@ -641,11 +749,19 @@ function mergeShortsEnabled() {
 // minimum is in grid units of the rows' own type size.
 const LABEL_MIN_PX = 52;
 const CABLE_GUIDE_LABEL_MIN_EM = 7.5;
+/**
+ * Returns the cell width below which a label is hidden.
+ * @returns {number} Pixels.
+ */
 function labelMinPx() {
   if (!cableGuide()) return LABEL_MIN_PX;
   const unit = parseFloat(getComputedStyle(guideRowsEl).fontSize) || 0;
   return Math.max(LABEL_MIN_PX, unit * CABLE_GUIDE_LABEL_MIN_EM);
 }
+/**
+ * Returns the shortest program that keeps its own cell in the current window.
+ * @returns {number} Milliseconds, rounded to 10 s; 0 when merging is off.
+ */
 function microProgramMs() {
   if (!mergeShortsEnabled()) return 0;
   const windowMs = guideSlotMs() * guideSlots();
@@ -660,12 +776,23 @@ function microProgramMs() {
   return Math.round(ms / 10000) * 10000;
 }
 
-// A channel's cells for a range: programs, with runs of shorts merged.
+/**
+ * A channel's cells for a range: programs, with runs of shorts merged.
+ * @param {object} ch The channel config.
+ * @param {number} from Range start, epoch ms.
+ * @param {number} to Range end, epoch ms.
+ * @param {number} [minMs] The micro-program threshold; defaults to `microProgramMs()`.
+ * @returns {Array<object>} Program and run cells.
+ */
 function guideCells(ch, from, to, minMs = microProgramMs()) {
   return mergeMicroPrograms(getChannelSchedule(ch, from, to), minMs);
 }
 
-// A run of one series' episodes is named for the series; a mix is shorts.
+/**
+ * A run of one series' episodes is named for the series; a mix is shorts.
+ * @param {object} cell A run cell.
+ * @returns {string} The cell label with its entry count.
+ */
 function runLabel(cell) {
   const n = cell.items.length;
   const series = runSeriesName(cell.items, guessSeriesName);
@@ -682,6 +809,9 @@ function runLabel(cell) {
 const GUIDE_MENU_CLASSES = { root: 'guide-run-list', item: 'guide-run-item', heading: 'guide-run-heading', rule: 'guide-run-rule' };
 let popover = null; // the open Menu
 
+/**
+ * Closes the open guide popover, if any.
+ */
 function closeGuidePopover() {
   if (!popover) return;
   const menu = popover;
@@ -689,11 +819,24 @@ function closeGuidePopover() {
   menu.close();
 }
 
+/**
+ * @returns {boolean} True while a guide popover is open.
+ */
 export function guidePopoverOpen() {
   return !!popover;
 }
 
-// items: [{ label, time?, className?, run }]
+/**
+ * items: [{ label, time?, className?, run }]
+ * Opens a kit menu beside a guide cell, replacing any open popover.
+ * @param {object} opts Popover options.
+ * @param {string} opts.heading The menu heading.
+ * @param {string} [opts.ariaLabel] The accessible label; defaults to the heading.
+ * @param {Array<object>} opts.items Menu items.
+ * @param {?HTMLElement} opts.anchorEl The element to place it beside.
+ * @param {number} [opts.initialIdx=0] The item highlighted first.
+ * @param {string} [opts.className=''] An extra class for the menu.
+ */
 function openGuidePopover({ heading, ariaLabel, items, anchorEl, initialIdx = 0, className = '' }) {
   closeGuidePopover();
   if (!items.length) return;
@@ -711,20 +854,29 @@ function openGuidePopover({ heading, ariaLabel, items, anchorEl, initialIdx = 0,
   menu.open({ anchor: anchorEl, container: guideGrid, prefer: 'above', initialIndex: Math.max(0, Math.min(items.length - 1, initialIdx)) });
 }
 
+/**
+ * Routes a key to the open popover; keys other than up, down and OK close it.
+ * @param {KeyboardEvent} e The key event.
+ */
 function handleGuidePopoverKey(e) {
   if (popover.handleKey) { popover.handleKey(e); return; }
   const action = { ArrowUp: 'up', ArrowDown: 'down', Enter: 'ok' }[e.key] || 'close';
   popover.key(action);
 }
 
+/**
+ * @returns {?HTMLElement} The highlighted cell on the selected row.
+ */
 function selectedCellEl() {
   return guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel');
 }
 
-// Keeps the assistive-tech view of the highlighted cell in step with the visual one. Focus never
-// leaves #guide-grid, so the selection is announced via aria-activedescendant on it; cells carry
-// aria-selected from the moment they are built, this only repairs the ones left stale by the
-// fast-path tick and points the descendant at the current one.
+/**
+ * Keeps the assistive-tech view of the highlighted cell in step with the visual one. Focus never
+ * leaves #guide-grid, so the selection is announced via aria-activedescendant on it; cells carry
+ * aria-selected from the moment they are built, this only repairs the ones left stale by the
+ * fast-path tick and points the descendant at the current one.
+ */
 function syncGuideAria() {
   guideRowsEl.setAttribute('role', 'grid');
   if (!guideRowsEl.hasAttribute('aria-label')) guideRowsEl.setAttribute('aria-label', 'Channel guide');
@@ -740,8 +892,13 @@ function syncGuideAria() {
   }
 }
 
-// OK/click on a merged cell: its entries, OK tunes one (from its start with
-// the time machine on).
+/**
+ * OK/click on a merged cell: its entries, OK tunes one (from its start with
+ * the time machine on).
+ * @param {object} ch The channel config.
+ * @param {object} cell The run cell.
+ * @param {?HTMLElement} anchorEl The element to place the list beside.
+ */
 function openRunList(ch, cell, anchorEl) {
   const now = viewNow();
   const at = cellIndexAt(cell.items, Math.max(now, cell.start));
@@ -764,8 +921,10 @@ function openRunList(ch, cell, anchorEl) {
   });
 }
 
-// Reminders already set (blue on a remote that has colour keys, doc 01 §6.2):
-// pick one to jump the guide to that programme.
+/**
+ * Reminders already set (blue on a remote that has colour keys, doc 01 §6.2):
+ * pick one to jump the guide to that programme.
+ */
 export function openGuideReminders() {
   const reminders = reminderList().slice().sort((a, b) => a.start - b.start);
   const items = reminders.map((reminder) => ({
@@ -787,9 +946,12 @@ export function openGuideReminders() {
   });
 }
 
-// ±24 h (colour keys when a remote has them, otherwise the actions menu).
-// Without the time machine the guide can't go back past the current slot,
-// same rule as ◀ (moveGuideSelectionTime).
+/**
+ * ±24 h (colour keys when a remote has them, otherwise the actions menu).
+ * Without the time machine the guide can't go back past the current slot,
+ * same rule as ◀ (moveGuideSelectionTime).
+ * @param {number} direction -1 for a day back, 1 for a day forward.
+ */
 export function shiftGuideDay(direction) {
   // Calendar-day steps (addDays), not +/-86400000: a DST day is 23 or 25 hours, and ms arithmetic
   // left the window an hour off its slot grid for the rest of the session.
@@ -805,10 +967,12 @@ export function shiftGuideDay(direction) {
   renderGuideGrid();
 }
 
-// Long-press OK in the guide (doc 01 §5.3, doc 11 §2.3): what you can do with
-// the highlighted program. Plugins add items through the
-// 'guide-program-actions' core hook ({ channel, entry, actions }) — the tape
-// deck's RECORD is one.
+/**
+ * Long-press OK in the guide (doc 01 §5.3, doc 11 §2.3): what you can do with
+ * the highlighted program. Plugins add items through the
+ * 'guide-program-actions' core hook ({ channel, entry, actions }) — the tape
+ * deck's RECORD is one.
+ */
 export function openGuideProgramActions() {
   const row = selectedRow();
   if (!row) return;
@@ -891,6 +1055,15 @@ export function openGuideProgramActions() {
   openGuidePopover({ heading, items, anchorEl: selectedCellEl() || guideRowsEl.querySelector('.guide-row.active-row'), className: 'guide-actions' });
 }
 
+/**
+ * Builds one channel's guide row for the current window.
+ * Records the selected cell on `selRef.info` when it is on this row.
+ * @param {object} ch The channel config.
+ * @param {number} windowEnd End of the guide window, epoch ms.
+ * @param {object} selRef Receives `{ ch, entry, cell }` for the selected cell.
+ * @param {number} [minMs] The micro-program threshold; defaults to `microProgramMs()`.
+ * @returns {HTMLElement} The row element.
+ */
 function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
   const cells = guideCells(ch, S.guideWindowStart, windowEnd, minMs);
   const row = document.createElement('div');
@@ -1024,9 +1197,13 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
   return row;
 }
 
-// A special (plugin/virtual) channel: one full-width cell with the plugin's
-// own "what's on" line, since it has no schedule to lay out. A normal row
-// otherwise — selectable, tuned with Enter/OK (docs/design/11 §2.1).
+/**
+ * A special (plugin/virtual) channel: one full-width cell with the plugin's
+ * own "what's on" line, since it has no schedule to lay out. A normal row
+ * otherwise — selectable, tuned with Enter/OK (docs/design/11 §2.1).
+ * @param {object} row A special guide row `{ number, info }`.
+ * @returns {HTMLElement} The row element.
+ */
 function buildSpecialRow(row) {
   const { number, info } = row;
   const rowEl = document.createElement('div');
@@ -1073,6 +1250,15 @@ function buildSpecialRow(row) {
   return rowEl;
 }
 
+/**
+ * Appends rows `[startIdx, endIdx)` to the rows container.
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} windowEnd End of the guide window, epoch ms.
+ * @param {number} startIdx First row index.
+ * @param {number} endIdx Index after the last row.
+ * @param {object} selRef Receives the selected cell's info.
+ * @param {number} minMs The micro-program threshold.
+ */
 function renderRowRange(rows, windowEnd, startIdx, endIdx, selRef, minMs) {
   for (let rowIdx = startIdx; rowIdx < endIdx; rowIdx++) {
     const row = rows[rowIdx];
@@ -1080,29 +1266,48 @@ function renderRowRange(rows, windowEnd, startIdx, endIdx, selRef, minMs) {
   }
 }
 
+/**
+ * @returns {boolean} True when special channels are listed above the lineup.
+ */
 function specialsAtTop() {
   return !!(S.config.display && S.config.display.guideSpecialsAtTop);
 }
 
-// Every row the grid shows right now, specials included, in display order.
+/**
+ * Every row the grid shows right now, specials included, in display order.
+ * @returns {Array<object>} Guide rows.
+ */
 export function currentGuideRows() {
   const specials = virtualChannelNumbers().map((number) => virtualChannelInfo(number));
   return guideRows(filteredChannels(), specials, { specialsAtTop: specialsAtTop(), query: S.guideFilterQuery });
 }
 
+/**
+ * Returns the selected guide row.
+ * @param {Array<object>} [rows] Guide rows; defaults to the current ones.
+ * @returns {?object} The selected row, or `null` when there are none.
+ */
 function selectedRow(rows = currentGuideRows()) {
   const idx = selectedIndex(rows, S.guideSelNumber);
   return idx === -1 ? null : rows[idx];
 }
 
-// Renders channels [nextIdx, list.length) a chunk at a time via setTimeout(0)
-// passes instead of all at once — each channel's getChannelSchedule() call
-// is real work (recomputes that channel's schedule for the visible window),
-// and with 70+ channels doing it all synchronously on open is what caused
-// the guide-open freeze. renderGen guards against a
-// stale chunked pass (from a render that's since been superseded by a newer
-// renderGuideGrid() call — filter change, tick refresh, dock toggle)
-// continuing to append rows into a grid that's moved on.
+/**
+ * Renders channels [nextIdx, list.length) a chunk at a time via setTimeout(0)
+ * passes instead of all at once — each channel's getChannelSchedule() call
+ * is real work (recomputes that channel's schedule for the visible window),
+ * and with 70+ channels doing it all synchronously on open is what caused
+ * the guide-open freeze. renderGen guards against a
+ * stale chunked pass (from a render that's since been superseded by a newer
+ * renderGuideGrid() call — filter change, tick refresh, dock toggle)
+ * continuing to append rows into a grid that's moved on.
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} windowEnd End of the guide window, epoch ms.
+ * @param {number} nextIdx First row still to render.
+ * @param {object} selRef Receives the selected cell's info.
+ * @param {number} renderGen The render generation this pass belongs to.
+ * @param {number} minMs The micro-program threshold.
+ */
 function scheduleRemainingRows(rows, windowEnd, nextIdx, selRef, renderGen, minMs) {
   if (renderGen !== S.guideRenderGen) return;
   const endIdx = Math.min(rows.length, nextIdx + GUIDE_ROW_CHUNK_SIZE);
@@ -1124,8 +1329,14 @@ function scheduleRemainingRows(rows, windowEnd, nextIdx, selRef, renderGen, minM
 // updated past-dimming (see refreshPastClasses/positionNowLine below).
 let lastGuideRenderSig = null;
 
-// The row numbers are part of it: a plugin channel appearing or the specials
-// switching sides changes which rows exist without touching configGeneration.
+/**
+ * The row numbers are part of it: a plugin channel appearing or the specials
+ * switching sides changes which rows exist without touching configGeneration.
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} windowEnd End of the guide window, epoch ms.
+ * @param {number} minMs The micro-program threshold.
+ * @returns {string} The signature.
+ */
 function guideRenderSignature(rows, windowEnd, minMs) {
   return [
     S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery, S.guideView,
@@ -1134,6 +1345,10 @@ function guideRenderSignature(rows, windowEnd, minMs) {
   ].join('|');
 }
 
+/**
+ * Refreshes the "what's on" text of special-channel cells without a rebuild.
+ * @param {Array<object>} rows Guide rows.
+ */
 function refreshSpecialCells(rows) {
   guideRowsEl.querySelectorAll('.guide-entry[data-special-number]').forEach((el) => {
     const row = rows.find((r) => r.kind === 'special' && String(r.number) === el.dataset.specialNumber);
@@ -1144,12 +1359,14 @@ function refreshSpecialCells(rows) {
   });
 }
 
-// Docked height (docs/design/11 §2.2): the strip holds its chrome (info line,
-// time header, hints) plus --guide-docked-rows whole rows. .guide-grid is a
-// CSS size container, so it can't size itself to content — this measures the
-// chrome and hands guide.css a height (--guide-docked-h), which CSS still
-// keeps between 46% and 75% of the screen. The chrome doesn't depend on the
-// strip's height, so one pass settles.
+/**
+ * Docked height (docs/design/11 §2.2): the strip holds its chrome (info line,
+ * time header, hints) plus --guide-docked-rows whole rows. .guide-grid is a
+ * CSS size container, so it can't size itself to content — this measures the
+ * chrome and hands guide.css a height (--guide-docked-h), which CSS still
+ * keeps between 46% and 75% of the screen. The chrome doesn't depend on the
+ * strip's height, so one pass settles.
+ */
 function fitDockedGuideHeight() {
   if (!S.guideDocked || guideGrid.classList.contains('hidden')) return;
   const rowEls = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
@@ -1168,15 +1385,17 @@ function fitDockedGuideHeight() {
   publishPictureArea();
 }
 
-// docs/design/11 §2.2: in TV mode the docked strip takes the bottom of the
-// screen and the picture shrinks into what is left, rather than playing
-// full-size behind it. Desktop keeps the picture full-size, which is the look
-// that mode has always had.
-//
-// The height published here is the strip's RESOLVED height — offsetHeight,
-// after guide.css has clamped --guide-docked-h between its floor and ceiling —
-// not the target fitDockedGuideHeight asked for, so the picture never overlaps
-// a strip that came out taller or shorter than requested.
+/**
+ * docs/design/11 §2.2: in TV mode the docked strip takes the bottom of the
+ * screen and the picture shrinks into what is left, rather than playing
+ * full-size behind it. Desktop keeps the picture full-size, which is the look
+ * that mode has always had.
+ *
+ * The height published here is the strip's RESOLVED height — offsetHeight,
+ * after guide.css has clamped --guide-docked-h between its floor and ceiling —
+ * not the target fitDockedGuideHeight asked for, so the picture never overlaps
+ * a strip that came out taller or shorter than requested.
+ */
 function publishPictureArea() {
   // The cable-guide Mini Guide sits over the full picture instead.
   const docked = isTvMode() && S.guideDocked && !guideGrid.classList.contains('hidden') && !cableGuide();
@@ -1227,8 +1446,11 @@ window.addEventListener('resize', () => {
   });
 });
 
-// Scroll the rows container so the selected row is whole on screen, with a
-// row of margin docked and centred on the full page (guide-model.js).
+/**
+ * Scroll the rows container so the selected row is whole on screen, with a
+ * row of margin docked and centred on the full page (guide-model.js).
+ * @param {number} selIdx The selected row index.
+ */
 function scrollSelectedRowIntoView(selIdx) {
   const rowEls = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
   if (!rowEls[selIdx]) return;
@@ -1244,9 +1466,11 @@ function scrollSelectedRowIntoView(selIdx) {
   if (top !== guideRowsEl.scrollTop) guideRowsEl.scrollTop = top;
 }
 
-// Companion to the block.dataset.end stamped in buildChannelRow — moves the
-// "already aired" dimming forward on the fast-path re-render without
-// touching anything else in the (unchanged) grid.
+/**
+ * Companion to the block.dataset.end stamped in buildChannelRow — moves the
+ * "already aired" dimming forward on the fast-path re-render without
+ * touching anything else in the (unchanged) grid.
+ */
 function refreshPastClasses() {
   const now = viewNow();
   guideRowsEl.querySelectorAll('.guide-entry[data-end]').forEach((el) => {
@@ -1254,6 +1478,11 @@ function refreshPastClasses() {
   });
 }
 
+/**
+ * Renders the guide grid for the current window, filter and selection.
+ * Takes a fast path that only moves the live line and dimming when the render signature
+ * is unchanged; large lineups fill in a chunk at a time.
+ */
 export function renderGuideGrid() {
   if (sortedChannels().length === 0) { closeGuideGrid(); return; }
   guideBrandClockEl.textContent = guideClock(new Date(viewNow()), !!(S.config.display && S.config.display.clock24));
@@ -1349,9 +1578,13 @@ export function renderGuideGrid() {
   }
 }
 
-// With the time machine on, picking a program in the guide shifts the
-// viewing clock so that program starts from its beginning — the whole
-// point of the mode. Without it, this is a plain tune-in as before.
+/**
+ * With the time machine on, picking a program in the guide shifts the
+ * viewing clock so that program starts from its beginning — the whole
+ * point of the mode. Without it, this is a plain tune-in as before.
+ * @param {object} ch The channel config.
+ * @param {?object} entry The schedule entry picked, or nothing for a plain tune.
+ */
 export function jumpToGuideEntry(ch, entry) {
   if (S.config.timeMachine && S.config.timeMachine.enabled && entry) {
     setViewedTime(entry.start);
@@ -1360,6 +1593,10 @@ export function jumpToGuideEntry(ch, entry) {
   tuneToChannel(ch.number);
 }
 
+/**
+ * Positions the guide's live line, hiding it when now is outside the window.
+ * @param {number} windowEnd End of the guide window, epoch ms.
+ */
 export function positionNowLine(windowEnd) {
   const trackEl = guideRowsEl.querySelector('.guide-row-track');
   const now = viewNow();
@@ -1377,7 +1614,12 @@ export function positionNowLine(windowEnd) {
   guideNowLineEl.classList.remove('hidden');
 }
 
-// row: a guideRows() entry (guide-model.js).
+/**
+ * row: a guideRows() entry (guide-model.js).
+ * Fills the guide's info panel for the selected row.
+ * @param {?object} row The selected guide row.
+ * @param {?object} selectedInfo The selected cell's `{ ch, entry, cell }`, if any.
+ */
 export function updateGuideInfoPanel(row, selectedInfo) {
   if (!row) return;
   const ch = row.kind === 'special' ? { number: row.number, name: row.info.name } : row.ch;
@@ -1419,6 +1661,10 @@ export function updateGuideInfoPanel(row, selectedInfo) {
   giTimeEl.classList.add('gi-update');
 }
 
+/**
+ * Moves the guide selection up or down a row, wrapping at the ends.
+ * @param {number} direction Rows to move; negative moves up.
+ */
 export function moveGuideSelectionRow(direction) {
   const rows = currentGuideRows();
   if (rows.length === 0) return;
@@ -1426,8 +1672,12 @@ export function moveGuideSelectionRow(direction) {
   renderGuideGrid();
 }
 
-// A screenful at a time (CH± on a remote). Stops at the ends rather than
-// wrapping, the way a remote's CH key pages a list.
+/**
+ * A screenful at a time (CH± on a remote). Stops at the ends rather than
+ * wrapping, the way a remote's CH key pages a list.
+ * @param {number} direction -1 for up, 1 for down.
+ * @param {number} step Rows per page.
+ */
 export function pageGuideSelection(direction, step) {
   const rows = currentGuideRows();
   if (rows.length === 0) return;
@@ -1435,8 +1685,11 @@ export function pageGuideSelection(direction, step) {
   renderGuideGrid();
 }
 
-// Move selection to the previous/next show on the current row. Won't move
-// earlier than the show airing right now — a live guide can't rewind.
+/**
+ * Move selection to the previous/next show on the current row. Won't move
+ * earlier than the show airing right now — a live guide can't rewind.
+ * @param {number} direction -1 for the previous show, 1 for the next.
+ */
 export function moveGuideSelectionTime(direction) {
   const row = selectedRow();
   // A special row is one full-width cell: there's no other program to move to.
@@ -1472,11 +1725,13 @@ export function moveGuideSelectionTime(direction) {
   renderGuideGrid();
 }
 
-// The I key while the guide is open — details for whichever program is
-// currently highlighted (same schedule lookup the Enter case below already
-// does to tune into it), rather than whatever's live-playing on the
-// underlying channel. A silent no-op if nothing's selected (e.g. an empty
-// channel), matching showDetailsForCurrentChannel's own no-op behavior.
+/**
+ * The I key while the guide is open — details for whichever program is
+ * currently highlighted (same schedule lookup the Enter case below already
+ * does to tune into it), rather than whatever's live-playing on the
+ * underlying channel. A silent no-op if nothing's selected (e.g. an empty
+ * channel), matching showDetailsForCurrentChannel's own no-op behavior.
+ */
 function showDetailsForGuideSelection() {
   if (!S.config.details || S.config.details.enabled === false) return;
   const row = selectedRow();
@@ -1493,6 +1748,11 @@ function showDetailsForGuideSelection() {
   });
 }
 
+/**
+ * Handles a key while the guide grid is open.
+ * Covers the program-search results, the filter box, popovers and grid navigation.
+ * @param {KeyboardEvent} e The key event.
+ */
 export function handleGuideGridKey(e) {
   // Focus inside the program-search results: Enter/Space activate the focused
   // button natively, Tab walks the buttons; only Escape is ours (close them).

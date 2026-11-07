@@ -14,6 +14,7 @@ import { Dialog } from './ui/dialog.js';
 import { Button } from './ui/button.js';
 import { h } from './ui/kit-core.js';
 
+// The dialog title for each kind of pick.
 const KIND_TITLES = {
   folder: 'Choose a folder on the host',
   video: 'Choose a video on the host',
@@ -21,10 +22,14 @@ const KIND_TITLES = {
   audio: 'Choose an audio file on the host',
 };
 
-// docs/design/06 §5 "asset upload": for an image, a file that only exists on
-// this device (not anywhere the host's folder browser can see) can be sent
-// up directly instead. Resolves to the host's real path for the upload, or
-// null on failure/cancel — same shape pickHostPath() resolves to for a file.
+/**
+ * docs/design/06 §5 "asset upload": for an image, a file that only exists on
+ * this device (not anywhere the host's folder browser can see) can be sent
+ * up directly instead. Resolves to the host's real path for the upload, or
+ * null on failure/cancel — same shape pickHostPath() resolves to for a file.
+ * @param {File} file The image chosen on this device.
+ * @returns {Promise<{path: string}|{error: string}>} The host path of the upload, or the reason it failed.
+ */
 async function uploadAsset(file) {
   const body = new FormData();
   body.append('file', file);
@@ -41,6 +46,12 @@ async function uploadAsset(file) {
   return { path: parsed.path };
 }
 
+/**
+ * Asks the host to list one directory for the picker.
+ * @param {string} kind 'folder', 'video', 'image' or 'audio'.
+ * @param {?string} path The directory to list; empty for the shared roots.
+ * @returns {Promise<object>} The host's listing, or `{ error }` when it could not be read.
+ */
 async function fetchListing(kind, path) {
   const query = new URLSearchParams({ kind });
   if (path) query.set('path', path);
@@ -57,9 +68,13 @@ async function fetchListing(kind, path) {
   return body;
 }
 
-// Resolves to the chosen absolute path on the host, or null if the user backed
-// out. `kind` is 'folder' | 'video' | 'image' | 'audio'; 'folder' picks the
-// directory currently open, the others pick a file by clicking it.
+/**
+ * Resolves to the chosen absolute path on the host, or null if the user backed
+ * out. `kind` is 'folder' | 'video' | 'image' | 'audio'; 'folder' picks the
+ * directory currently open, the others pick a file by clicking it.
+ * @param {string} [kind='folder'] 'folder', 'video', 'image' or 'audio'.
+ * @returns {Promise<?string>} The chosen host path, or null.
+ */
 export function pickHostPath(kind = 'folder') {
   const pickingFolder = kind === 'folder';
   const crumb = h('div', { className: 'control-picker-path' });

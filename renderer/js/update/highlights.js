@@ -36,8 +36,13 @@ export const HIGHLIGHTS = [
   { id: 'plugin-permissions', title: 'Plugin permissions in plain words', text: 'Each plugin’s page says what it can reach, which sites it connects to, and what it has done since start. Plugins you install yourself now work too.', tab: 'plugins', subtab: 'installed' },
 ];
 
-// Opens the page a highlight points at. `showSetup` brings the setup screen up
-// first when the TV is showing.
+/**
+ * Opens the page a highlight points at. `showSetup` brings the setup screen up
+ * first when the TV is showing.
+ * @param {object} highlight A HIGHLIGHTS entry (`tab`, optional `subtab` and `setting`).
+ * @param {Function} [showSetup] Shows the setup screen; awaited when given.
+ * @returns {Promise<void>} Resolves once the tabs are switched (the row flash follows a frame later).
+ */
 export async function goToHighlight(highlight, showSetup) {
   if (typeof showSetup === 'function') await showSetup();
   document.querySelector(`.setup-tab-btn[data-tab="${highlight.tab}"]`)?.click();
@@ -56,8 +61,14 @@ export async function goToHighlight(highlight, showSetup) {
   });
 }
 
-// Fills `container` with the list. onGo runs before navigating (the post-update
-// card closes itself there).
+/**
+ * Fills `container` with the list. onGo runs before navigating (the post-update
+ * card closes itself there).
+ * @param {HTMLElement} container Where the rows go; its contents are replaced.
+ * @param {object} [opts] Hooks.
+ * @param {(highlight: object) => *} [opts.onGo] Called (and awaited) before navigating.
+ * @param {Function} [opts.showSetup] Passed to goToHighlight.
+ */
 export function renderHighlights(container, { onGo, showSetup } = {}) {
   container.innerHTML = '';
   HIGHLIGHTS.forEach((highlight) => {

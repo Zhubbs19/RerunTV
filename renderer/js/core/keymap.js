@@ -32,13 +32,25 @@ export const KEY_ACTIONS = [
 // the channel digits), so they can't be handed out.
 export const RESERVED_KEYS = new Set(['b', 'e', 'k', 'u', 'r', '+', '=', '-', '_', '?', '[', ']', '\\', ' ', '.', '/', ',']);
 
+/**
+ * The key an action currently answers to: its remap, or the key it ships on.
+ * @param {object} keyMap The config key map (action id -> key).
+ * @param {object} action An entry of `KEY_ACTIONS`.
+ * @returns {string} The lower-case key.
+ */
 export function effectiveKey(keyMap, action) {
   const mapped = keyMap && keyMap[action.id];
   return typeof mapped === 'string' && mapped.length === 1 ? mapped.toLowerCase() : action.key;
 }
 
-// Whether `key` can be given to `actionId` given the current map. Returns
-// null when fine, otherwise a short reason.
+/**
+ * Whether `key` can be given to `actionId` given the current map. Returns
+ * null when fine, otherwise a short reason.
+ * @param {object} keyMap The config key map (action id -> key).
+ * @param {string} actionId The action being remapped.
+ * @param {string} key The key the user pressed.
+ * @returns {?string} The reason it cannot be used, or null.
+ */
 export function keyProblem(keyMap, actionId, key) {
   const k = String(key || '').toLowerCase();
   if (k.length !== 1) return 'Press a single letter or symbol key.';
@@ -49,7 +61,12 @@ export function keyProblem(keyMap, actionId, key) {
   return null;
 }
 
-// A function from a pressed key to the key handleKey should see.
+/**
+ * A function from a pressed key to the key handleKey should see.
+ * @param {object} keyMap The config key map (action id -> key).
+ * @returns {{active: boolean, translate: Function}} Whether any remap is in effect, and the
+ *   translate function (an unanswered default letter becomes an empty string).
+ */
 export function buildKeyTranslator(keyMap) {
   const alias = new Map(); // pressed -> default letter
   const dead = new Set(); // default letters no longer answered
@@ -75,7 +92,13 @@ export function buildKeyTranslator(keyMap) {
   };
 }
 
-// The hint bar text for an action with its key swapped in: "G GUIDE" -> "Y GUIDE".
+/**
+ * The hint bar text for an action with its key swapped in: "G GUIDE" -> "Y GUIDE".
+ * @param {string} originalText The hint text as shipped.
+ * @param {string} defaultKey The key the action ships on.
+ * @param {string} newKey The key it answers to now.
+ * @returns {string} The hint text, unchanged when it does not start with the default key.
+ */
 export function hintWithKey(originalText, defaultKey, newKey) {
   const prefix = `${defaultKey.toUpperCase()} `;
   return originalText.startsWith(prefix) ? `${newKey.toUpperCase()} ${originalText.slice(prefix.length)}` : originalText;

@@ -12,6 +12,9 @@
 const SMPTE_TOP_COLORS = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
 const SMPTE_BOTTOM_COLORS = ['#0000c0', '#131313', '#c000c0', '#131313', '#00c0c0', '#131313', '#c0c0c0'];
 
+/**
+ * Draws 75% SMPTE color bars onto the core-owned test-pattern canvas at device-pixel resolution.
+ */
 function draw() {
   const canvas = document.getElementById('test-pattern-canvas');
   if (!canvas) return;

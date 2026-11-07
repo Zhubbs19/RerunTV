@@ -85,12 +85,25 @@ const {
 
 const CATEGORIES = ['episodes', 'commercials', 'bumpers'];
 
+/**
+ * Probes the recording and checks that its duration is readable.
+ * @param {string} input The recording.
+ * @returns {Promise<object>} The `probe` result.
+ * @throws {Error} When the duration can't be read.
+ */
 async function getSource(input) {
   const info = await probe(input);
   if (!info.duration) throw new Error('Could not determine input duration. Is this a valid video file?\n' + info.stderr.slice(-800));
   return info;
 }
 
+/**
+ * Reads the whole recording once with ffmpeg's black, scene-change and silence detectors.
+ * @param {string} input The recording.
+ * @param {object} opts Detection options (thresholds and `noBlack`/`noScene`/`noSilence`).
+ * @param {number} duration The recording's length in seconds, for progress.
+ * @returns {Promise<object>} `{ black, silence, scene }` signals for `mergeBoundaries`.
+ */
 async function detectBoundaries(input, opts, duration) {
   const filters = [];
   if (!opts.noBlack) filters.push(`blackdetect=d=${opts.minGap}:pix_th=${opts.blackThresh}`);
@@ -130,12 +143,26 @@ const LOGO_FPS = 5;
 const LOGO_THUMB = 32;
 const LOGO_MIN_RUN = 0.3;
 
+/**
+ * Grabs one frame as a square grayscale thumbnail.
+ * @param {string[]} args ffmpeg input arguments.
+ * @param {number} size The side length in pixels.
+ * @returns {Promise<Uint8Array>} `size * size` gray values.
+ * @throws {Error} When no frame could be read.
+ */
 async function grayFrame(args, size) {
   const buf = await runFfmpegCollectStdout([...args, '-frames:v', '1', '-vf', `scale=${size}:${size}:force_original_aspect_ratio=disable,format=gray`, '-f', 'rawvideo', '-']);
   if (buf.length < size * size) throw new Error('Could not read a frame.');
   return Uint8Array.from(buf.subarray(0, size * size));
 }
 
+/**
+ * Grabs every logo reference frame from the given images and times.
+ * @param {string} input The recording.
+ * @param {object} opts Options with `logoImages` and `logoTimes`.
+ * @returns {Promise<Uint8Array[]>} One thumbnail per reference.
+ * @throws {Error} When a reference frame can't be read.
+ */
 async function getLogoReferenceVectors(input, opts) {
   const refs = [];
   for (const img of opts.logoImages) {
@@ -147,6 +174,13 @@ async function getLogoReferenceVectors(input, opts) {
   return refs;
 }
 
+/**
+ * Scans the recording for the logo and returns the middle of each run where it shows.
+ * @param {string} input The recording.
+ * @param {object} opts Options with the logo references and `logoThresh`.
+ * @param {number} duration The recording's length in seconds, for progress.
+ * @returns {Promise<number[]>} Cut times in seconds; empty when no logo was given.
+ */
 async function detectLogoCuts(input, opts, duration) {
   if (!opts.logoTimes.length && !opts.logoImages.length) return [];
   const refs = await getLogoReferenceVectors(input, opts);
@@ -168,6 +202,16 @@ async function detectLogoCuts(input, opts, duration) {
 
 // ---------- Writing clips ----------
 
+/**
+ * Writes one clip by stream copy or a full re-encode.
+ * @param {string} input The recording.
+ * @param {number} start Clip start, in seconds.
+ * @param {number} end Clip end, in seconds.
+ * @param {string} outFile Where to write the clip.
+ * @param {boolean} reencode Whether to re-encode to H.264/AAC.
+ * @returns {Promise<void>} Resolves once written.
+ * @throws {Error} When ffmpeg fails.
+ */
 async function encodeClip(input, start, end, outFile, reencode) {
   // No -ss at all for a clip that starts the recording: a copy starting at
   // 0 drops every video packet before the next keyframe on sources whose
@@ -180,7 +224,16 @@ async function encodeClip(input, start, end, outFile, reencode) {
   if (code !== 0) throw new Error(`ffmpeg failed on ${outFile} (exit ${code}):\n${stderr.slice(-500)}`);
 }
 
-// Writes one clip, choosing how: returns { file, method }.
+/**
+ * Writes one clip, choosing how: returns { file, method }.
+ * @param {string} input The recording.
+ * @param {object} clip `{ start, end }` in seconds.
+ * @param {string} outBase The output path without extension.
+ * @param {string} ext The source extension.
+ * @param {object} opts Options with `reencode` and `fastCut`.
+ * @param {object} source The `probe` result for `input`.
+ * @returns {Promise<object>} `{ file, method }`.
+ */
 async function writeClip(input, clip, outBase, ext, opts, source) {
   if (opts.reencode) {
     const file = `${outBase}${reencodeExt(ext)}`;
@@ -213,8 +266,14 @@ async function writeClip(input, clip, outBase, ext, opts, source) {
   return { file, method: 'copied' };
 }
 
-// A name not already taken in this run or on disk, in any extension a clip
-// might end up with.
+/**
+ * A name not already taken in this run or on disk, in any extension a clip
+ * might end up with.
+ * @param {string} dir The category folder.
+ * @param {string} stem The wanted name.
+ * @param {Set<string>} seenNames Lower-cased paths used so far in this run; updated.
+ * @returns {string} The free name.
+ */
 function freeBase(dir, stem, seenNames) {
   const taken = (candidate) => seenNames.has(path.join(dir, candidate).toLowerCase())
     || ['.mp4', '.mkv', '.mov', '.m4v', '.avi', '.ts', '.wmv', '.mpg'].some((e) => fs.existsSync(path.join(dir, candidate + e)));
@@ -224,7 +283,15 @@ function freeBase(dir, stem, seenNames) {
   return name;
 }
 
-// clips: [{ start, end, category, name? }]; category 'skip' writes nothing.
+/**
+ * clips: [{ start, end, category, name? }]; category 'skip' writes nothing.
+ * @param {string} input The recording.
+ * @param {Array<object>} clips The clips to write.
+ * @param {object} opts Split options (`out`, thresholds, write flags).
+ * @param {Array<object>} manifest Receives one entry per written clip.
+ * @param {Set<string>} seenNames Names used so far in this run.
+ * @returns {Promise<void>} Resolves once every clip is written.
+ */
 async function writeClips(input, clips, opts, manifest, seenNames) {
   const ext = path.extname(input) || '.mp4';
   const base = path.basename(input, ext).replace(/[^a-z0-9_-]+/gi, '_');
@@ -260,6 +327,14 @@ async function writeClips(input, clips, opts, manifest, seenNames) {
 
 // ---------- Detect / review ----------
 
+/**
+ * Writes a before/after thumbnail per cut and `candidates.json` for review; writes no clips.
+ * @param {string} input The recording.
+ * @param {Array<object>} cuts The detected cuts.
+ * @param {number} duration The recording's length in seconds.
+ * @param {object} opts Options with `reviewOut` and `out`.
+ * @returns {Promise<object>} `{ reviewDir, candidatesFile, candidates }`.
+ */
 async function generateReviewSheet(input, cuts, duration, opts) {
   const base = path.basename(input, path.extname(input)).replace(/[^a-z0-9_-]+/gi, '_');
   const reviewDir = path.join(opts.reviewOut, base);
@@ -305,6 +380,14 @@ async function generateReviewSheet(input, cuts, duration, opts) {
   return { reviewDir, candidatesFile, candidates };
 }
 
+/**
+ * Detects one recording's cuts and then reviews, reports or splits it, depending on the mode.
+ * @param {string} input The recording.
+ * @param {object} opts All options.
+ * @param {Array<object>} manifest Receives written clips.
+ * @param {Set<string>} seenNames Names used so far in this run.
+ * @returns {Promise<object>} The per-file result, its `mode` one of `review`, `detect` or `split`.
+ */
 async function processFile(input, opts, manifest, seenNames) {
   console.log(`\n=== ${path.basename(input)} ===`);
   const source = await getSource(input);
@@ -352,6 +435,12 @@ async function processFile(input, opts, manifest, seenNames) {
 
 // ---------- Plans ----------
 
+/**
+ * Reads a plan file and checks that every recording in it exists.
+ * @param {string} file The plan JSON.
+ * @returns {Array<object>} The plan's files.
+ * @throws {Error} When a recording is missing.
+ */
 function readPlan(file) {
   const plan = JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
   const files = plan.files || [plan];
@@ -361,6 +450,12 @@ function readPlan(file) {
   return files;
 }
 
+/**
+ * Splits exactly the clips a plan lists.
+ * @param {object} argv Parsed arguments with `plan`.
+ * @param {object} opts Split options.
+ * @returns {Promise<void>} Resolves when done.
+ */
 async function runPlan(argv, opts) {
   const files = readPlan(argv.plan);
   const manifest = [];
@@ -378,8 +473,12 @@ async function runPlan(argv, opts) {
   return finishSplit(manifest, failures, opts, files.length);
 }
 
-// Three small frames through each clip; clips alike at every one of them and
-// about as long are the same thing aired twice.
+/**
+ * Three small frames through each clip; clips alike at every one of them and
+ * about as long are the same thing aired twice.
+ * @param {object} argv Parsed arguments with `find-repeats` and optional `json-out`.
+ * @returns {Promise<void>} Resolves once the report is written.
+ */
 async function runFindRepeats(argv) {
   const files = readPlan(argv['find-repeats']);
   const clips = [];
@@ -407,6 +506,13 @@ async function runFindRepeats(argv) {
   if (argv['json-out']) fs.writeFileSync(path.resolve(argv['json-out']), JSON.stringify({ mode: 'repeats', repeats }, null, 2));
 }
 
+/**
+ * Splits a recording using a reviewed `candidates.json`, minus the excluded cuts.
+ * @param {object} argv Parsed arguments with `split-candidates`, `exclude` and `out`.
+ * @param {object} opts Split options.
+ * @returns {Promise<void>} Resolves when done.
+ * @throws {Error} When the candidates file or its recording is missing.
+ */
 async function runSplitCandidates(argv, opts) {
   const candidatesPath = path.resolve(argv['split-candidates']);
   if (!fs.existsSync(candidatesPath)) throw new Error(`candidates file not found: ${candidatesPath}`);
@@ -430,6 +536,13 @@ async function runSplitCandidates(argv, opts) {
   return finishSplit(manifest, failures, opts, 1);
 }
 
+/**
+ * Writes `manifest.json` and the JSON result, and reports failures through the exit code.
+ * @param {Array<object>} manifest The written clips.
+ * @param {Array<object>} failures `{ input, error }` per failed recording.
+ * @param {object} opts Split options with `out` and `jsonOut`.
+ * @param {number} fileCount How many recordings were attempted.
+ */
 function finishSplit(manifest, failures, opts, fileCount) {
   if (manifest.length) {
     fs.mkdirSync(opts.out, { recursive: true });
@@ -448,6 +561,12 @@ function finishSplit(manifest, failures, opts, fileCount) {
 
 // ---------- Collecting inputs ----------
 
+/**
+ * Resolves the recordings from `--dir` or the bare arguments.
+ * @param {object} argv Parsed arguments.
+ * @returns {object} `{ files, defaultOutBase }`.
+ * @throws {Error} When `--dir` is not a folder.
+ */
 function collectInputs(argv) {
   if (argv.dir) {
     const dir = path.resolve(argv.dir);
@@ -470,6 +589,10 @@ function collectInputs(argv) {
   return { files: [], defaultOutBase: null };
 }
 
+/**
+ * Runs the splicer from the command line in whichever mode the arguments pick.
+ * @returns {Promise<*>} Resolves when done; exits the process on bad input.
+ */
 async function main() {
   const argv = parseArgs(process.argv.slice(2));
   if (argv.help || argv.h) {

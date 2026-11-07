@@ -44,10 +44,16 @@ import { formatClock, formatDuration, formatHourLabel, getDisplayTitle } from '.
 // PROGRAMMING, the way a real listings grid showed it); a setup screen
 // explaining a schedule should just say what it is.
 const BREAK_LABEL_OVERRIDES = { commercial: 'AD BREAK', adBreakIn: 'AD BREAK', adBreakOut: 'AD BREAK' };
+/**
+ * The label a break type shows on the ON AIR strip.
+ * @param {string} type The break type.
+ * @returns {string} The label.
+ */
 function breakLabel(type) {
   return BREAK_LABEL_OVERRIDES[type] || GUIDE_BREAK_LABELS[type] || String(type).toUpperCase();
 }
 
+// The zoom steps for the ON AIR strips.
 const ZOOM_LEVELS = [
   { label: 'DAY', pxPerHour: 60 },
   { label: 'PRIME', pxPerHour: 140 },
@@ -58,15 +64,33 @@ const ZOOM_LEVELS = [
 // channel editor), per channel number.
 const viewStateByChannel = new Map();
 
+/**
+ * The local midnight starting the Sunday-based week that contains a time.
+ * @param {number} ms Timestamp in ms.
+ * @returns {number} The week start in ms.
+ */
 function startOfWeek(ms) {
   const day = startOfDay(ms);
   return addDays(day, -new Date(day).getDay());
 }
 
+/**
+ * The key that identifies a schedule source: a block's id, or the channel's default rotation.
+ * @param {object} ch The channel config.
+ * @param {?object} block The block, or null for the default rotation.
+ * @returns {string} The key.
+ */
 function sourceKey(ch, block) {
   return block ? block.id : `default-${ch.number}`;
 }
 
+/**
+ * Creates an element with an optional class and text.
+ * @param {string} tag Tag name.
+ * @param {string} [className] Class name.
+ * @param {?string} [text] Text content.
+ * @returns {HTMLElement} The element.
+ */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -74,27 +98,57 @@ function el(tag, className, text) {
   return node;
 }
 
+/**
+ * Creates a plain `type="button"` button.
+ * @param {string} label Button text.
+ * @param {string} [className='btn'] Class name.
+ * @returns {HTMLButtonElement} The button.
+ */
 function button(label, className = 'btn') {
   const b = el('button', className, label);
   b.type = 'button';
   return b;
 }
 
+/**
+ * A short day heading such as "SAT NOV 4".
+ * @param {number} dayMs Timestamp in the day, in ms.
+ * @returns {string} The heading.
+ */
 function formatDayHeading(dayMs) {
   const d = new Date(dayMs);
   return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
-// WEEKDAYS is uppercase for the retro headings; sentences want 'Saturday'.
+/**
+ * The weekday's name in sentence case.
+ * WEEKDAYS is uppercase for the retro headings; sentences want 'Saturday'.
+ * @param {number} weekday 0 (Sunday) to 6.
+ * @returns {string} The name.
+ */
 function dayName(weekday) {
   const name = WEEKDAYS[weekday];
   return name.charAt(0) + name.slice(1).toLowerCase();
 }
 
+/**
+ * A label for an hour range, such as "6 PM-9 PM".
+ * @param {number} startHour Start hour (0-23).
+ * @param {number} endHour End hour; values past 23 wrap.
+ * @returns {string} The label.
+ */
 function hourSpanLabel(startHour, endHour) {
   return `${formatHourLabel(startHour)}–${formatHourLabel(endHour % 24)}`;
 }
 
+/**
+ * Describes how much of the week an edit changes, for the preview line.
+ * @param {object} counts Change counts.
+ * @param {number} counts.programs Programs that change.
+ * @param {number} counts.breaks Breaks that change.
+ * @param {number} counts.signOffDays Days whose sign-off hours change.
+ * @returns {string} The sentence fragment.
+ */
 function countsSentence({ programs, breaks, signOffDays }) {
   if (!programs && !breaks && !signOffDays) return 'nothing on screen changes this week';
   const parts = [];
@@ -104,20 +158,39 @@ function countsSentence({ programs, breaks, signOffDays }) {
   return `changes ${parts.join(', ').replace(/, ([^,]*)$/, ' and $1')} this week`;
 }
 
-// "Edit this layer" destinations elsewhere in setup, reached the way a person
-// would: by the section, sub-tab and row a click would use.
+/**
+ * Opens one of the channel's edit pages.
+ * "Edit this layer" destinations elsewhere in setup, reached the way a person
+ * would: by the section, sub-tab and row a click would use.
+ * @param {object} ch The channel config.
+ * @param {string} page The edit page id.
+ */
 function goToChannelPage(ch, page) {
   document.getElementById(`channel-${ch.number}-edit-tab-${page}`)?.click();
 }
+/**
+ * Opens a PROGRAMMING sub-tab and, optionally, clicks a row in it.
+ * @param {string} subtab The sub-tab id.
+ * @param {?string} rowSelector Selector of the row to click once the sub-tab is drawn.
+ */
 function goToProgramming(subtab, rowSelector) {
   document.querySelector('.setup-tab-btn[data-tab="programming"]')?.click();
   document.querySelector(`.setup-subtab-btn[data-subtab="${subtab}"]`)?.click();
   if (rowSelector) requestAnimationFrame(() => document.querySelector(rowSelector)?.click());
 }
 
-// opts.colorFor(key)  — the same per-source colour CALENDAR uses
-// opts.blockLabel(b)  — blockPickerLabel, so a block reads the same everywhere
-// opts.onEditBlock(b) — jump to that block in the BLOCKS view
+/**
+ * Builds a channel's ON AIR page: the editable week, one strip per day.
+ * opts.colorFor(key)  — the same per-source colour CALENDAR uses
+ * opts.blockLabel(b)  — blockPickerLabel, so a block reads the same everywhere
+ * opts.onEditBlock(b) — jump to that block in the BLOCKS view
+ * @param {object} ch The channel config.
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ * @param {object} [opts={}] Options.
+ * @param {(key: string) => string} [opts.colorFor] Colour for a source key.
+ * @param {(b: object) => string} [opts.blockLabel] Label for a block.
+ * @param {(b: object) => void} [opts.onEditBlock] Opens a block in the BLOCKS view.
+ */
 export function buildOnAirPanel(ch, panelEl, opts = {}) {
   panelEl.innerHTML = '';
   const colorFor = opts.colorFor || (() => '#5163b8');

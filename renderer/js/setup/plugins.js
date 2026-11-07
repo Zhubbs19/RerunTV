@@ -25,6 +25,9 @@ import { safeApi, tryApi } from './util.js';
 // reuses the same flash keyframe as the schedule's block-row-flash.
 let lastCapabilityChangedId = null;
 
+/**
+ * Shows the loaded custom stylesheet's path and the remove button when one is set.
+ */
 function renderCustomCssRow() {
   const path = S.config.display && S.config.display.customCssPath;
   customCssPathEl.textContent = path || 'NO CUSTOM CSS LOADED';
@@ -53,18 +56,23 @@ if (customCssRemoveBtn) {
   });
 }
 
-// Plugin count keeps growing (24+ as of 2026-08-17, was a handful when this
-// tab was first built) — a flat unsorted list with no way to find a
-// specific one or tell installed-but-broken apart from working-but-off
-// stopped scaling. Three changes address that without a redesign: (1)
-// broken plugins (manifest error or a renderer/main load error) sort to the
-// very top, since they're the ones most likely to need attention; (2) a
-// live text filter (name/id/description/dependency, same `.filtered-out`
-// convention the Virtual Channels sub-tab already uses — see
-// setup-settings.js) makes "find the one I'm looking for" a type-ahead
-// instead of a scroll; (3) each row now shows its own dependsOn status
-// inline (previously nothing surfaced this at all) and dims when disabled, so enabled/disabled/broken/dependent
-// are all visible at a glance without expanding anything.
+/**
+ * Sorts plugins for the list: broken ones first, then by name.
+ * Plugin count keeps growing (24+ as of 2026-08-17, was a handful when this
+ * tab was first built) — a flat unsorted list with no way to find a
+ * specific one or tell installed-but-broken apart from working-but-off
+ * stopped scaling. Three changes address that without a redesign: (1)
+ * broken plugins (manifest error or a renderer/main load error) sort to the
+ * very top, since they're the ones most likely to need attention; (2) a
+ * live text filter (name/id/description/dependency, same `.filtered-out`
+ * convention the Virtual Channels sub-tab already uses — see
+ * setup-settings.js) makes "find the one I'm looking for" a type-ahead
+ * instead of a scroll; (3) each row now shows its own dependsOn status
+ * inline (previously nothing surfaced this at all) and dims when disabled, so enabled/disabled/broken/dependent
+ * are all visible at a glance without expanding anything.
+ * @param {Array<object>} plugins Plugin records from `pluginsList`.
+ * @returns {Array<object>} A sorted copy.
+ */
 function sortPluginsForDisplay(plugins) {
   return [...plugins].sort((a, b) => {
     const aBroken = a.error || a.loadError ? 0 : 1;
@@ -74,10 +82,14 @@ function sortPluginsForDisplay(plugins) {
   });
 }
 
-// The plain-language summary (plugin/permissions.js) as DOM: one block per
-// section, coloured by how much it allows, with the author's reason under each line
-// and the raw manifest entries behind a Details fold. Used by both the
-// approval dialog and the plugin's own page, so they always say the same.
+/**
+ * The plain-language summary (plugin/permissions.js) as DOM: one block per
+ * section, coloured by how much it allows, with the author's reason under each line
+ * and the raw manifest entries behind a Details fold. Used by both the
+ * approval dialog and the plugin's own page, so they always say the same.
+ * @param {object} p The plugin record.
+ * @returns {HTMLElement} The permissions summary.
+ */
 function permissionsElement(p) {
   const { sections, technical } = describePermissions(p);
   const wrap = document.createElement('div');
@@ -122,8 +134,12 @@ function permissionsElement(p) {
   return wrap;
 }
 
-// What the plugin has actually done since the app started (bridge.js keeps
-// the record). Filled in after the call returns, so the page never waits on it.
+/**
+ * What the plugin has actually done since the app started (bridge.js keeps
+ * the record). Filled in after the call returns, so the page never waits on it.
+ * @param {object} p The plugin record.
+ * @returns {HTMLElement} The activity block, filled in when the host replies.
+ */
 function activityElement(p) {
   const wrap = document.createElement('div');
   wrap.className = 'plugin-perms-section tone-ok plugin-activity';
@@ -147,13 +163,17 @@ function activityElement(p) {
   return wrap;
 }
 
-// Shows what a plugin's *current* manifest declares and asks the user to
-// approve it before it's allowed to activate (see buildCheckedCtx,
-// main-plugins.js — an unapproved plugin is skipped at boot the same way a
-// disabled one is). Approval is keyed to the exact declared capabilities
-// (JSON.stringify of the same normalized shape main-plugins.js computes),
-// so a later plugin update that adds a new port/channel/binary re-prompts
-// instead of silently inheriting a stale approval.
+/**
+ * Shows what a plugin's *current* manifest declares and asks the user to
+ * approve it before it's allowed to activate (see buildCheckedCtx,
+ * main-plugins.js — an unapproved plugin is skipped at boot the same way a
+ * disabled one is). Approval is keyed to the exact declared capabilities
+ * (JSON.stringify of the same normalized shape main-plugins.js computes),
+ * so a later plugin update that adds a new port/channel/binary re-prompts
+ * instead of silently inheriting a stale approval.
+ * @param {object} p The plugin record.
+ * @returns {Promise<void>}
+ */
 async function promptCapabilityApproval(p) {
   const { fullAccess } = describePermissions(p);
   const message = `Here's what ${p.name} can do once you approve it. Restart RerunTV afterwards for it to start.`;
@@ -185,9 +205,13 @@ async function promptCapabilityApproval(p) {
   renderPluginsList();
 }
 
-// Undo-approval counterpart — clears the stored signature so the plugin
-// falls back to needing a fresh approval (same inactive treatment as never
-// approving it, or as disabling it) until approved again.
+/**
+ * Undo-approval counterpart — clears the stored signature so the plugin
+ * falls back to needing a fresh approval (same inactive treatment as never
+ * approving it, or as disabling it) until approved again.
+ * @param {object} p The plugin record.
+ * @returns {Promise<void>}
+ */
 async function revokeCapabilityApproval(p) {
   const ok = await confirmDialog({
     title: 'REVOKE PLUGIN PERMISSIONS',
@@ -204,13 +228,18 @@ async function revokeCapabilityApproval(p) {
   renderPluginsList();
 }
 
-// Permanently deletes a plugin's own folder — genuinely destructive (no undo
-// short of reinstalling), hence its own danger-styled confirm dialog
-// distinct from the plain disable-toggle's confirm. Refused server-side for
-// a bundled plugin (main-plugins.js's uninstallPlugin) since it would just
-// reappear on the next boot; the button itself is already hidden for those
-// (see the p.bundled check in renderPluginsList) so this only ever fires for
-// a genuinely removable third-party install.
+/**
+ * Builds a plugin's FULLY UNINSTALL button.
+ * Permanently deletes a plugin's own folder — genuinely destructive (no undo
+ * short of reinstalling), hence its own danger-styled confirm dialog
+ * distinct from the plain disable-toggle's confirm. Refused server-side for
+ * a bundled plugin (main-plugins.js's uninstallPlugin) since it would just
+ * reappear on the next boot; the button itself is already hidden for those
+ * (see the p.bundled check in renderPluginsList) so this only ever fires for
+ * a genuinely removable third-party install.
+ * @param {object} p The plugin record.
+ * @returns {HTMLButtonElement} The button.
+ */
 function uninstallButton(p) {
   const uninstallBtn = document.createElement('button');
   uninstallBtn.type = 'button';
@@ -225,6 +254,11 @@ function uninstallButton(p) {
 // user has not saved yet. Cleared when saved; pruned of plugins that vanished.
 const pendingPluginChanges = new Map();
 
+/**
+ * Asks, then deletes a plugin's folder from disk and redraws the list.
+ * @param {object} p The plugin record; a plugin that failed to load has only `dir`.
+ * @returns {Promise<void>}
+ */
 async function confirmUninstallPlugin(p) {
   p = { ...p, name: p.name || p.dir, id: p.id || p.dir }; // a plugin that failed to load has no id/name, only its folder
   const ok = await confirmDialog({
@@ -244,23 +278,31 @@ async function confirmUninstallPlugin(p) {
   renderPluginsList();
 }
 
-// Whether a plugin's manifest declares anything requiring approval at all —
-// mirrors main-plugins.js's loadMainPlugins() hasAnyCapability check exactly
-// (same four arrays, same truthiness test) so this stays in lockstep with
-// what actually gates activation there.
+/**
+ * Whether a plugin's manifest declares anything requiring approval at all —
+ * mirrors main-plugins.js's loadMainPlugins() hasAnyCapability check exactly
+ * (same four arrays, same truthiness test) so this stays in lockstep with
+ * what actually gates activation there.
+ * @param {?object} caps The plugin's normalized capabilities.
+ * @returns {boolean} True when anything is declared.
+ */
 function hasAnyCapability(caps) {
   return !!(caps && (caps.ipc.length || caps.spawn.length || caps.net.length || caps.mediaSource.length
     || (caps.system && caps.system.length)));
 }
 
-// Recomputes approval state fresh from S.config on every render, rather than
-// trusting p.needsApproval (a one-time snapshot loadMainPlugins() took at
-// app boot, main.js's pluginsNeedingApproval) — that snapshot only updates
-// on restart, so relying on it left the REVIEW & APPROVE button visibly
-// stuck showing right after a user had just approved (or revoked) in this
-// same session, even though S.config already reflects the change. Actual
-// activation still genuinely needs a restart either way; this only affects
-// what the row displays right now.
+/**
+ * Recomputes approval state fresh from S.config on every render, rather than
+ * trusting p.needsApproval (a one-time snapshot loadMainPlugins() took at
+ * app boot, main.js's pluginsNeedingApproval) — that snapshot only updates
+ * on restart, so relying on it left the REVIEW & APPROVE button visibly
+ * stuck showing right after a user had just approved (or revoked) in this
+ * same session, even though S.config already reflects the change. Actual
+ * activation still genuinely needs a restart either way; this only affects
+ * what the row displays right now.
+ * @param {object} p The plugin record.
+ * @returns {string} `'none'`, `'approved'` or `'needs-approval'`.
+ */
 function permissionState(p) {
   if (!hasAnyCapability(p.capabilities)) return 'none';
   const signature = JSON.stringify(p.capabilities);
@@ -268,6 +310,10 @@ function permissionState(p) {
   return approved[p.id] === signature ? 'approved' : 'needs-approval';
 }
 
+/**
+ * Writes the "N of M enabled" summary line above the list.
+ * @param {Array<object>} plugins Plugin records.
+ */
 function updateSummary(plugins) {
   if (!pluginsSummaryEl) return;
   if (!plugins.length) { pluginsSummaryEl.textContent = ''; return; }
@@ -292,11 +338,22 @@ function updateSummary(plugins) {
 const CATEGORY_LABELS = {
   channel: 'CHANNELS', theme: 'THEMES', onscreen: 'ON-SCREEN', system: 'SYSTEM', other: 'OTHER',
 };
+// Order of the category tabs.
 const CATEGORY_ORDER = ['channel', 'theme', 'onscreen', 'system', 'other'];
+/**
+ * A plugin's list category, `'other'` when it declares none that is known.
+ * @param {object} p The plugin record.
+ * @returns {string} The category id.
+ */
 function effectiveCategory(p) {
   return CATEGORY_LABELS[p.category] ? p.category : 'other';
 }
 
+/**
+ * Whether a plugin should be flagged: an error, unapproved files or permissions, or a missing or disabled dependency.
+ * @param {object} p The plugin record.
+ * @returns {boolean} True when it needs attention.
+ */
 function needsAttention(p) {
   if (p.error || p.loadError || p.needsIntegrityApproval) return true;
   if (!p.error && permissionState(p) === 'needs-approval') return true;
@@ -307,15 +364,19 @@ function needsAttention(p) {
   });
 }
 
-// Splits needsAttention's reasons into "actually broken" (an error, a
-// tampered/unapproved integrity change, a missing/disabled dependency) vs.
-// "just hasn't had its permissions approved yet" — a routine one-time step
-// every plugin with any capability goes through, including every built-in
-// one RerunTV ships and maintains itself. A brand-new install can otherwise
-// show a dozen identical red ATTENTION badges before anything is actually
-// wrong, which reads as "half this app is broken" rather than "review these
-// once." Reserve ATTENTION's urgency for the reasons that actually warrant
-// it; this one gets its own calmer badge.
+/**
+ * Splits needsAttention's reasons into "actually broken" (an error, a
+ * tampered/unapproved integrity change, a missing/disabled dependency) vs.
+ * "just hasn't had its permissions approved yet" — a routine one-time step
+ * every plugin with any capability goes through, including every built-in
+ * one RerunTV ships and maintains itself. A brand-new install can otherwise
+ * show a dozen identical red ATTENTION badges before anything is actually
+ * wrong, which reads as "half this app is broken" rather than "review these
+ * once." Reserve ATTENTION's urgency for the reasons that actually warrant
+ * it; this one gets its own calmer badge.
+ * @param {object} p The plugin record.
+ * @returns {boolean} True when unapproved permissions are its only reason for attention.
+ */
 function isOnlyUnapprovedPermissions(p) {
   if (p.error || p.loadError || p.needsIntegrityApproval) return false;
   if (permissionState(p) !== 'needs-approval') return false;
@@ -326,6 +387,7 @@ function isOnlyUnapprovedPermissions(p) {
   });
 }
 
+// The plugin list last fetched, used to check dependencies in `needsAttention`.
 let currentPluginsForAttention = [];
 
 // The plugin whose details and settings fill the detail pane. Kept across
@@ -333,9 +395,13 @@ let currentPluginsForAttention = [];
 // doesn't jump back to the top of the list. Session-only UI state.
 let selectedPluginId = null;
 
-// One line for the plugin list (docs/design/03 §5.5): the manifest's summary,
-// else the description's first sentence, capped. The full description stays
-// in the detail pane.
+/**
+ * One line for the plugin list (docs/design/03 §5.5): the manifest's summary,
+ * else the description's first sentence, capped. The full description stays
+ * in the detail pane.
+ * @param {object} p The plugin record.
+ * @returns {string} The summary line, or an empty string.
+ */
 export function pluginSummary(p) {
   const source = (p.summary || p.description || '').trim();
   if (!source) return '';
@@ -343,13 +409,22 @@ export function pluginSummary(p) {
   return first.length > 110 ? `${first.slice(0, 107).trimEnd()}…` : first;
 }
 
+/**
+ * The plugin entries currently in the list.
+ * @returns {Array<HTMLElement>} The `.plugin-entry` elements.
+ */
 function pluginEntries() {
   return Array.from(pluginsListEl.querySelectorAll('.plugin-entry'));
 }
 
-// Shows one entry's detail element in the pane and marks its row selected.
-// The detail is built once per render and parked on the entry, so moving the
-// selection never loses a half-edited settings field in another plugin.
+/**
+ * Shows one entry's detail element in the pane and marks its row selected.
+ * The detail is built once per render and parked on the entry, so moving the
+ * selection never loses a half-edited settings field in another plugin.
+ * @param {?HTMLElement} entry The entry to select, or null for none.
+ * @param {object} [opts={}] Options.
+ * @param {boolean} [opts.focus=false] Whether to move focus to the row.
+ */
 function selectPluginEntry(entry, { focus = false } = {}) {
   const detailEl = document.getElementById('plugins-detail');
   selectedPluginId = entry ? entry.dataset.pluginId : null;
@@ -368,6 +443,9 @@ function selectPluginEntry(entry, { focus = false } = {}) {
   if (focus) entry.querySelector('.plugin-row').focus();
 }
 
+/**
+ * Keeps the selection on a visible entry, moving it to the first visible one when the filter hides it.
+ */
 function ensureVisibleSelection() {
   const visible = pluginEntries().filter((entry) => !entry.classList.contains('filtered-out'));
   const current = visible.find((entry) => entry.dataset.pluginId === selectedPluginId);
@@ -395,6 +473,11 @@ pluginsListEl?.addEventListener('keydown', (event) => {
   selectPluginEntry(target, { focus: true });
 });
 
+/**
+ * Asks the person to trust a plugin whose files changed or were not installed from a recorded ZIP.
+ * @param {object} p The plugin record.
+ * @returns {Promise<void>}
+ */
 async function promptIntegrityApproval(p) {
   const changed = p.integrityStatus === 'modified';
   const message = `${p.name}'s files are ${changed ? 'different from the last trusted install' : 'not from a recorded ZIP install'}.\n\nRenderer JavaScript and CSS run inside RerunTV's UI and can read or change anything visible there. Main-process isolation does not sandbox renderer code.\n\nCurrent SHA-256: ${p.integrityHash}\n\nOnly trust this exact version if you know where it came from.`;
@@ -412,11 +495,18 @@ async function promptIntegrityApproval(p) {
   renderPluginsList();
 }
 
+// The selected category tab (`'all'`, `'attention'` or a category id); null until one is chosen.
 let activeCategory = null;
+// The latest list render, awaited by `openPluginFromSearch`.
 let pluginsRender = Promise.resolve();
 
-// Opens Plug-ins on one plugin (from the setup search), clearing any filter
-// that would hide it, and scrolls to one of its settings sections if given.
+/**
+ * Opens Plug-ins on one plugin (from the setup search), clearing any filter
+ * that would hide it, and scrolls to one of its settings sections if given.
+ * @param {string} pluginId The plugin id.
+ * @param {?string} [sectionId=null] A settings section to scroll to.
+ * @returns {Promise<void>}
+ */
 export async function openPluginFromSearch(pluginId, sectionId = null) {
   selectedPluginId = pluginId;
   activeCategory = 'all';
@@ -439,6 +529,10 @@ export async function openPluginFromSearch(pluginId, sectionId = null) {
   entry.querySelector('.plugin-row')?.focus({ preventScroll: true });
 }
 
+/**
+ * Draws the category tabs with their counts, plus an ATTENTION tab when any plugin needs it.
+ * @param {Array<object>} plugins Plugin records.
+ */
 function renderCategoryTabs(plugins) {
   if (!pluginsCategoryTabsEl) return;
   const counts = {};
@@ -475,8 +569,11 @@ function renderCategoryTabs(plugins) {
   present.forEach((cat) => makeTab(cat, CATEGORY_LABELS[cat], counts[cat]));
 }
 
-// Counts plugins needing attention for the sidebar badge (setup-sidebar.js)
-// without building the list.
+/**
+ * Counts plugins needing attention for the sidebar badge (setup-sidebar.js)
+ * without building the list.
+ * @returns {Promise<void>}
+ */
 export async function reportPluginAttention() {
   try {
     const plugins = await window.api.pluginsList();
@@ -485,6 +582,10 @@ export async function reportPluginAttention() {
   } catch (e) { /* the badge just stays as it was */ }
 }
 
+/**
+ * Fetches the installed plugins and rebuilds the list and its detail panes.
+ * @returns {Promise<void>}
+ */
 export async function renderPluginsList() {
   if (!pluginsListEl) return;
   let plugins;
@@ -844,12 +945,17 @@ export async function renderPluginsList() {
   applyPluginsFilter();
 }
 
-// Applies every staged checkbox change in one pass: one dependency-conflict
-// warning (if any newly-disabled plugin has a dependent that will still be
-// enabled afterward) instead of one per checkbox, then one write per
-// changed id and a single re-render — replacing the old per-toggle
-// "Enabling/Disabling X takes effect..." dialog, which was real friction
-// once there were 24+ plugins to review at once.
+/**
+ * Applies every staged checkbox change in one pass: one dependency-conflict
+ * warning (if any newly-disabled plugin has a dependent that will still be
+ * enabled afterward) instead of one per checkbox, then one write per
+ * changed id and a single re-render — replacing the old per-toggle
+ * "Enabling/Disabling X takes effect..." dialog, which was real friction
+ * once there were 24+ plugins to review at once.
+ * @param {Array<object>} plugins Plugin records.
+ * @param {Map<string, boolean>} pendingChanges Staged enabled state by plugin id.
+ * @returns {Promise<void>}
+ */
 async function commitPendingPluginChanges(plugins, pendingChanges) {
   if (!pendingChanges.size) return;
   const disabledIdsNow = S.config.plugins.disabled || [];
@@ -901,9 +1007,11 @@ async function commitPendingPluginChanges(plugins, pendingChanges) {
   if (pluginsSaveStatusEl) pluginsSaveStatusEl.textContent = `SAVED ${savedCount} CHANGE${savedCount > 1 ? 'S' : ''} — RESTART TO APPLY`;
 }
 
-// Re-applied after every renderPluginsList() (RESCAN, install, enable/
-// disable toggle all rebuild the list from scratch) so an in-progress
-// filter isn't silently dropped by the next re-render.
+/**
+ * Re-applied after every renderPluginsList() (RESCAN, install, enable/
+ * disable toggle all rebuild the list from scratch) so an in-progress
+ * filter isn't silently dropped by the next re-render.
+ */
 function applyPluginsFilter() {
   const q = pluginsFilterInputEl ? pluginsFilterInputEl.value.trim().toLowerCase() : '';
   const state = pluginsStateFilterEl ? pluginsStateFilterEl.value : 'all';
@@ -935,12 +1043,16 @@ if (pluginsStateFilterEl) {
   pluginsStateFilterEl.addEventListener('change', applyPluginsFilter);
 }
 
-// Two-step because main.js's plugins:installFromZip only opens the OS file
-// picker once per click — if the target plugin id is already installed, the
-// handler comes back { alreadyExists: true } instead of overwriting
-// silently, and this asks (via the app's own themed dialog, not a raw
-// confirm()) before retrying with { zipPath, overwrite: true } against the
-// exact same file rather than re-prompting the picker.
+/**
+ * Installs a plugin from a ZIP the person picks, asking before overwriting one already installed.
+ * Two-step because main.js's plugins:installFromZip only opens the OS file
+ * picker once per click — if the target plugin id is already installed, the
+ * handler comes back { alreadyExists: true } instead of overwriting
+ * silently, and this asks (via the app's own themed dialog, not a raw
+ * confirm()) before retrying with { zipPath, overwrite: true } against the
+ * exact same file rather than re-prompting the picker.
+ * @returns {Promise<void>}
+ */
 async function installFromZip() {
   const result = await safeApi('Installing the plugin', () => window.api.pluginsInstallFromZip({}));
   if (!result || result.cancelled) return;
@@ -974,6 +1086,9 @@ if (pluginsRescanBtn) {
   pluginsRescanBtn.addEventListener('click', () => renderPluginsList());
 }
 
+/**
+ * Draws the PLUGINS tab.
+ */
 export function renderPluginsTab() {
   renderCustomCssRow();
   pluginsRender = renderPluginsList();

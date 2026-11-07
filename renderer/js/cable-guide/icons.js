@@ -1,6 +1,7 @@
 // The cable-guide UI's small icon set: square tiles on program info and the
 // Quick Menu. 20×20 SVG paths; class cg-icon-rec paints in the record red.
 
+// SVG path markup for each icon name.
 export const ICONS = Object.freeze({
   back: '<path d="M8 4 2 10l6 6v-4h10V8H8z"/>',
   play: '<path d="M5 3v14l12-7z"/>',
@@ -25,6 +26,11 @@ export const ICONS = Object.freeze({
   audio: '<path d="M2 7h4l5-4v14l-5-4H2zm11.5-.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zm2.8-2.8a9 9 0 0 1 0 12.6l-1.4-1.4a7 7 0 0 0 0-9.8z"/>',
 });
 
+/**
+ * Builds an icon's SVG markup.
+ * @param {string} name The icon name, a key of `ICONS`.
+ * @returns {string} The SVG markup, or '' for an unknown name.
+ */
 export function iconSvg(name) {
   return ICONS[name] ? `<svg viewBox="0 0 20 20" aria-hidden="true">${ICONS[name]}</svg>` : '';
 }

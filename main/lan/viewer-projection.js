@@ -1,3 +1,7 @@
+// Redaction for everything a paired LAN viewer receives: credential-looking keys and values are
+// dropped, host paths become opaque `viewer:<id>` refs, and applied-command broadcasts are stripped
+// of secret values.
+
 const path = require('path');
 const crypto = require('crypto');
 
@@ -14,6 +18,11 @@ const LEGACY_SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credentia
 // when it is the name's final word (apiKey, licenseKey, secretKey, key).
 const SENSITIVE_WORD = /^(?:pass|passwd|password|passcode|passphrase|secret|secrets|token|tokens|webhook|webhooks|licen[sc]e|credential|credentials|cookie|cookies|auth(?!or)\w*|bearer|signature)$/i;
 
+/**
+ * Splits a key name into lowercase words (camelCase, snake_case, kebab-case, dots).
+ * @param {*} key The key name.
+ * @returns {string[]} Its words.
+ */
 function keyWords(key) {
   return String(key)
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -22,6 +31,11 @@ function keyWords(key) {
     .map((word) => word.toLowerCase());
 }
 
+/**
+ * Whether a config key name looks like it holds a credential (see the two rules above).
+ * @param {*} key The key name.
+ * @returns {boolean} True when it should be dropped.
+ */
 function isSensitiveKey(key) {
   const text = String(key);
   if (LEGACY_SENSITIVE_CONFIG_KEY.test(text)) return true;
@@ -39,6 +53,12 @@ const SENSITIVE_CONFIG_KEY = { test: isSensitiveKey };
 // when their key looks harmless.
 const SECRET_VALUE_SHAPE = /^(?:(?:sk|pk|rk)[-_][A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.-]{10,}|[A-Za-z0-9_-]{40,})$/;
 
+/**
+ * Deep copy of a config with sensitive keys removed, and credential-shaped strings removed inside `pluginSettings`.
+ * @param {*} value Any part of a config.
+ * @param {boolean} [inPluginSettings=false] Whether `value` sits under `pluginSettings`.
+ * @returns {*} The sanitised copy (undefined for a dropped string).
+ */
 function sanitizeViewerConfig(value, inPluginSettings = false) {
   if (Array.isArray(value)) return value.map((child) => sanitizeViewerConfig(child, inPluginSettings));
   if (typeof value === 'string') return inPluginSettings && SECRET_VALUE_SHAPE.test(value) ? undefined : value;
@@ -49,13 +69,17 @@ function sanitizeViewerConfig(value, inPluginSettings = false) {
     .filter(([, child]) => child !== undefined));
 }
 
-// Key-name filtering above only catches a secret stored as its own
-// key/value pair. A credential embedded INSIDE a string value — most
-// commonly a webhook/callback URL's own query string (?token=..., ?key=...)
-// — isn't a key at all, so it sails through untouched. Since this is the
-// projection every paired LAN viewer receives over the network, redact any
-// query parameter on a URL-shaped string value whose own name looks
-// sensitive, the same way a key would be dropped.
+/**
+ * Key-name filtering above only catches a secret stored as its own
+ * key/value pair. A credential embedded INSIDE a string value — most
+ * commonly a webhook/callback URL's own query string (?token=..., ?key=...)
+ * — isn't a key at all, so it sails through untouched. Since this is the
+ * projection every paired LAN viewer receives over the network, redact any
+ * query parameter on a URL-shaped string value whose own name looks
+ * sensitive, the same way a key would be dropped.
+ * @param {*} value A config value.
+ * @returns {*} The value, with URL credentials and sensitive query values replaced when it is an http(s) URL.
+ */
 function redactSensitiveUrlValue(value) {
   if (typeof value !== 'string' || !/^https?:\/\//i.test(value)) return value;
   let url;
@@ -73,6 +97,11 @@ function redactSensitiveUrlValue(value) {
 // server from accumulating every ref a library has ever contained.
 const MAX_PROJECTED_REFS = 50000;
 
+/**
+ * Creates the viewer projection: a redacted config with every host path replaced by an HMAC-derived opaque ref, plus the private map that resolves those refs back for `/media`.
+ * @param {Buffer} [secret] HMAC key; a fresh random one per process by default.
+ * @returns {object} `{ project, registerRef, resolve, name, size }`.
+ */
 function createViewerProjection(secret = crypto.randomBytes(32)) {
   const refs = new Map();
   function opaqueRef(ref) {
@@ -129,13 +158,17 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
   };
 }
 
-// The commands the host applied (config-host.js's update), as published to
-// control sessions on the viewer event bus. A command payload can carry a
-// credential — plugin.setSettings holds a plugin's whole settings object (API
-// keys included), settings.set a single value under a path — and the client's
-// own config copy never had those keys (/api/control/config strips them), so
-// dropping them here keeps both sides consistent. Sensitive keys are removed at
-// any depth; a command addressed to a sensitive path loses its value too.
+/**
+ * The commands the host applied (config-host.js's update), as published to
+ * control sessions on the viewer event bus. A command payload can carry a
+ * credential — plugin.setSettings holds a plugin's whole settings object (API
+ * keys included), settings.set a single value under a path — and the client's
+ * own config copy never had those keys (/api/control/config strips them), so
+ * dropping them here keeps both sides consistent. Sensitive keys are removed at
+ * any depth; a command addressed to a sensitive path loses its value too.
+ * @param {object} update An applied-commands update from the config host.
+ * @returns {object} A copy with sensitive command values removed.
+ */
 function sanitizeAppliedUpdate(update) {
   if (!update || typeof update !== 'object' || !Array.isArray(update.commands)) return update;
   const commands = update.commands.map((cmd) => {

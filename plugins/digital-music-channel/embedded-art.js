@@ -24,22 +24,39 @@
 // fall back to whatever came first.
 const FRONT_COVER = 3;
 
+/**
+ * True for the image MIME types an `<img>` can show.
+ * @param {string} mime The MIME type from the tag.
+ * @returns {boolean} Whether it is supported.
+ */
 function isSupportedImageMime(mime) {
   return /^image\/(jpeg|jpg|png|gif|webp|bmp)$/i.test(mime);
 }
 
 // ---------- ID3v2 (.mp3, and .aiff which this plugin does not scan) ----------
 
-// Sizes in an ID3v2 header, and in v2.4 frame headers, are "synchsafe": seven
-// bits per byte, the top bit always clear, so a size can never be mistaken
-// for an MPEG frame sync.
+/**
+ * Sizes in an ID3v2 header, and in v2.4 frame headers, are "synchsafe": seven
+ * bits per byte, the top bit always clear, so a size can never be mistaken
+ * for an MPEG frame sync.
+ * @param {Buffer} buf The tag bytes.
+ * @param {number} offset Where the four size bytes start.
+ * @returns {number} The decoded size.
+ */
 function synchsafe(buf, offset) {
   return ((buf[offset] & 0x7f) << 21) | ((buf[offset + 1] & 0x7f) << 14)
     | ((buf[offset + 2] & 0x7f) << 7) | (buf[offset + 3] & 0x7f);
 }
 
-// Terminator width depends on the text encoding byte that opened the field:
-// the two UTF-16 encodings terminate on a two-byte null, the others on one.
+/**
+ * Terminator width depends on the text encoding byte that opened the field:
+ * the two UTF-16 encodings terminate on a two-byte null, the others on one.
+ * @param {Buffer} buf The frame bytes.
+ * @param {number} start Where the description starts.
+ * @param {number} encoding The ID3 text encoding byte (1 and 2 are UTF-16).
+ * @param {number} limit Where the search stops.
+ * @returns {number} The offset just past the terminator, or -1 when there is none.
+ */
 function descriptionEnd(buf, start, encoding, limit) {
   const wide = encoding === 1 || encoding === 2;
   if (wide) {
@@ -54,6 +71,12 @@ function descriptionEnd(buf, start, encoding, limit) {
   return -1;
 }
 
+/**
+ * Parses one APIC (or v2.2 PIC) frame body into an image.
+ * @param {Buffer} frame The frame body, already unsynchronised.
+ * @param {number} version The ID3v2 major version (2, 3 or 4).
+ * @returns {?object} `{ mime, pictureType, data }`, or null when the frame is malformed.
+ */
 function readId3Picture(frame, version) {
   if (frame.length < 4) return null;
   const encoding = frame[0];
@@ -81,6 +104,11 @@ function readId3Picture(frame, version) {
   return { mime, pictureType, data: frame.slice(dataStart) };
 }
 
+/**
+ * The front cover from an ID3v2 tag, else its first picture.
+ * @param {Buffer} buf The file bytes, starting with the ID3 header.
+ * @returns {?object} `{ mime, pictureType, data }`, or null.
+ */
 function readId3(buf) {
   if (buf.length < 10 || buf.toString('latin1', 0, 3) !== 'ID3') return null;
   const version = buf[3];
@@ -142,6 +170,11 @@ function readId3(buf) {
 
 // ---------- FLAC ----------
 
+/**
+ * The front cover from a FLAC file's PICTURE metadata blocks, else its first picture.
+ * @param {Buffer} buf The file bytes, starting with `fLaC`.
+ * @returns {?object} `{ mime, pictureType, data }`, or null.
+ */
 function readFlac(buf) {
   if (buf.length < 4 || buf.toString('latin1', 0, 4) !== 'fLaC') return null;
   let cursor = 4;
@@ -175,8 +208,15 @@ function readFlac(buf) {
 
 // ---------- MP4 / M4A ----------
 
-// Walks sibling atoms inside [start, end), calling visit(type, bodyStart,
-// bodyEnd). Returning a value from visit stops the walk and hands it back.
+/**
+ * Walks sibling atoms inside [start, end), calling visit(type, bodyStart,
+ * bodyEnd). Returning a value from visit stops the walk and hands it back.
+ * @param {Buffer} buf The file bytes.
+ * @param {number} start First byte of the sibling run.
+ * @param {number} end End of the parent atom.
+ * @param {Function} visit Called as `visit(type, bodyStart, bodyEnd)`.
+ * @returns {*} The first value `visit` returned, or undefined.
+ */
 function walkAtoms(buf, start, end, visit) {
   let cursor = start;
   while (cursor + 8 <= end) {
@@ -199,6 +239,11 @@ function walkAtoms(buf, start, end, visit) {
   return undefined;
 }
 
+/**
+ * The cover from an MP4/M4A file's `moov.udta.meta.ilst.covr` atom.
+ * @param {Buffer} buf The file bytes.
+ * @returns {?object} `{ mime, pictureType, data }`, or null.
+ */
 function readMp4(buf) {
   if (buf.length < 12 || buf.toString('latin1', 4, 8) !== 'ftyp') return null;
   const findCovr = (start, end) => walkAtoms(buf, start, end, (type, body, atomEnd) => {
@@ -220,9 +265,13 @@ function readMp4(buf) {
   return findCovr(0, buf.length) || null;
 }
 
-// Single entry point: sniff the container from its magic bytes rather than
-// trusting the file extension, since a mislabelled file is common enough in
-// a personal library and the wrong parser just returns null anyway.
+/**
+ * Single entry point: sniff the container from its magic bytes rather than
+ * trusting the file extension, since a mislabelled file is common enough in
+ * a personal library and the wrong parser just returns null anyway.
+ * @param {Buffer} buf The whole audio file.
+ * @returns {?object} `{ mime, pictureType, data }` with a supported image type, or null.
+ */
 function extractEmbeddedArt(buf) {
   if (!buf || buf.length < 12) return null;
   let pic = null;

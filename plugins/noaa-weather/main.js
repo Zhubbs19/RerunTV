@@ -5,6 +5,10 @@
 // nothing here decides whether/when to interrupt playback.
 const HEADERS = { 'User-Agent': 'RerunTV (https://github.com/Zhubbs19/RerunTV)', Accept: 'application/geo+json' };
 
+/**
+ * Registers the `noaa:getActiveAlerts` and `noaa:getForecast` IPC handlers.
+ * @param {object} ctx The plugin's main-process context (`ipcMain`, `fetchJsonCached`).
+ */
 function activate(ctx) {
   const { ipcMain, fetchJsonCached } = ctx;
 

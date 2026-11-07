@@ -64,9 +64,12 @@ const badgeEl = overlayEl.querySelector('[data-el="badge"]');
 const titleEl = overlayEl.querySelector('[data-el="title"]');
 const headlineEl = overlayEl.querySelector('[data-el="headline"]');
 
-// Same stinger/speech as the old core audio.js's playNewsStinger/
-// speakNewsMessage/cancelNewsSpeech — playNoiseBurst is exposed on window
-// (core primitive, 22+ other usages, too foundational to duplicate).
+/**
+ * Same stinger/speech as the old core audio.js's playNewsStinger/
+ * speakNewsMessage/cancelNewsSpeech — playNoiseBurst is exposed on window
+ * (core primitive, 22+ other usages, too foundational to duplicate).
+ * @param {string} style The alert style id; `alien-report` gets its own sweep sound.
+ */
 function playNewsStinger(style) {
   const ctx = window.getAudioCtx();
   const now = ctx.currentTime;
@@ -130,6 +133,12 @@ function playNewsStinger(style) {
   }
 }
 
+/**
+ * Reads `text` aloud with speech synthesis at the current volume, cancelling any speech already playing.
+ * @param {string} text The headline to speak.
+ * @param {Function} [onDone] Called when speech ends or fails, or at once when speech is unavailable.
+ * @returns {?SpeechSynthesisUtterance} The utterance, or null when speech is unavailable.
+ */
 function speakNewsMessage(text, onDone) {
   if (!window.speechSynthesis) { if (onDone) onDone(); return null; }
   window.speechSynthesis.cancel();
@@ -143,10 +152,17 @@ function speakNewsMessage(text, onDone) {
   return utter;
 }
 
+/**
+ * Stops any headline speech in progress.
+ */
 function cancelNewsSpeech() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
+/**
+ * Schedules the next random alert at the configured interval, plus or minus 25%.
+ * Clears any pending schedule first; does nothing when alerts are disabled.
+ */
 export function scheduleNextNewsAlert() {
   const S = window.S;
   clearTimeout(S.newsScheduleTimer);
@@ -159,6 +175,18 @@ export function scheduleNextNewsAlert() {
   S.newsScheduleTimer = setTimeout(runBreakingNewsAlert, delayMs);
 }
 
+/**
+ * Shows a breaking-news alert now, or dismisses the current one on a manual repeat.
+ * A random alert that is blocked (power off, guide or another overlay up, virtual channel) just reschedules.
+ * @param {object} [opts] Alert options.
+ * @param {boolean} [opts.manual] Triggered by the user; ignores the enabled switch and does not reschedule when blocked.
+ * @param {string} [opts.headline] Headline text to show instead of a random one.
+ * @param {object} [opts.real] A real weather alert object whose `headline` is shown.
+ * @param {string} [opts.style] Style override.
+ * @param {string} [opts.position] Position override.
+ * @param {number} [opts.duration] Display duration override, in seconds.
+ * @param {boolean} [opts.silent] Skip the sound stinger.
+ */
 export function runBreakingNewsAlert(opts) {
   opts = opts || {};
   const S = window.S;
@@ -249,6 +277,9 @@ export function runBreakingNewsAlert(opts) {
   }
 }
 
+/**
+ * Hides the current alert and stops its timers and speech; does not reschedule.
+ */
 export function cancelNewsAlert() {
   const S = window.S;
   if (!S.breakingNewsActive && !S.newsEndTimer) return;
@@ -280,6 +311,13 @@ window.RCBPlugins.registerInterrupt('breaking-news', {
 // no-op if breaking news isn't configured/enabled.
 scheduleNextNewsAlert();
 
+/**
+ * Renders the editable headline bank rows into the settings section.
+ * Edits the live `cfg.headlines` array in place and saves through `saveConfigDebounced`.
+ * @param {HTMLElement} container The settings section element holding `[data-el="headlines-list"]`.
+ * @param {object} cfg The live `breakingNews` config object.
+ * @param {Function} saveConfigDebounced Saves the config after an edit.
+ */
 export function renderHeadlinesList(container, cfg, saveConfigDebounced) {
   const listEl = container.querySelector('[data-el="headlines-list"]');
   listEl.innerHTML = '';

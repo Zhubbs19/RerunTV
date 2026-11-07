@@ -1,3 +1,6 @@
+// The app:// protocol: serves the renderer bundle, plugin files and media
+// (local files with Range support, or plugin-sourced refs through a provider's
+// readRange service), plus a bridge from web Responses to Node http responses.
 const { protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
@@ -16,6 +19,10 @@ const { parseMediaRef, callMediaService, MEDIA_READRANGE_TIMEOUT_MS } = require(
 // module's protocol.handle('app', ...) registration happens once, outside
 // any per-request scope that could otherwise thread the object through).
 let pluginServicesRef = {};
+/**
+ * Stores the shared plugin service registry that `serveFileViaPlugin` dispatches through.
+ * @param {object} services The shared plugin service registry.
+ */
 function setMediaDispatchServices(services) { pluginServicesRef = services || {}; }
 
 // Set once by main.js, right after loadMainPlugins() resolves — the loopback
@@ -27,14 +34,21 @@ function setMediaDispatchServices(services) { pluginServicesRef = services || {}
 // the static <meta> CSP in index.html the way this used to require. See
 // that file's CSP comment for the full history.
 let allowedMediaSrcPortsRef = [];
+/**
+ * Stores the loopback ports added to `index.html`'s `media-src` CSP.
+ * @param {number[]} ports Approved plugin ports plus core's own ports.
+ */
 function setAllowedMediaSrcPorts(ports) { allowedMediaSrcPortsRef = Array.isArray(ports) ? ports : []; }
 
-// The renderer is served over a custom app:// scheme rather than file://
-// because Chromium refuses to load ES modules from a file:// origin. That
-// choice cascades: a non-file:// page also can't load file:// media, so
-// video is streamed through the same handler (see serveFile's Range
-// support — the schedule math seeks constantly, so partial requests are
-// not optional here).
+/**
+ * The renderer is served over a custom app:// scheme rather than file://
+ * because Chromium refuses to load ES modules from a file:// origin. That
+ * choice cascades: a non-file:// page also can't load file:// media, so
+ * video is streamed through the same handler (see serveFile's Range
+ * support — the schedule math seeks constantly, so partial requests are
+ * not optional here).
+ * Registers `app://` as a privileged scheme; must run before the app is ready.
+ */
 function registerAppSchemePrivileges() {
   protocol.registerSchemesAsPrivileged([
     {
@@ -63,14 +77,26 @@ const RANGE_RE = /^[ \t]{0,8}bytes[ \t]{0,8}=[ \t]{0,8}(\d{0,20})[ \t]{0,8}-[ \t
 const RANGE_PREFIX_RE = /^[ \t]{0,8}bytes[ \t]{0,8}=/i;
 const MAX_RANGE_HEADER = 200;
 
-// Returns { match, malformed }: the first "bytes=START-END" range, or malformed true when a
-// bytes range was asked for but cannot be satisfied (the caller answers 416).
+/**
+ * Returns { match, malformed }: the first "bytes=START-END" range, or malformed true when a
+ * bytes range was asked for but cannot be satisfied (the caller answers 416).
+ * @param {?string} rangeHeader The request's Range header.
+ * @returns {object} `{ match, malformed }`, where `match` is the regex match or null.
+ */
 function parseRangeHeader(rangeHeader) {
   if (!rangeHeader || typeof rangeHeader !== 'string') return { match: null, malformed: false };
   const match = rangeHeader.length <= MAX_RANGE_HEADER ? RANGE_RE.exec(rangeHeader) : null;
   return { match, malformed: !match && RANGE_PREFIX_RE.test(rangeHeader) };
 }
 
+/**
+ * Serves a local file as a web `Response`, honouring a single byte range.
+ * @param {string} filePath The file to serve.
+ * @param {?string} rangeHeader The request's Range header.
+ * @param {boolean} [crossOrigin] Whether to add `Access-Control-Allow-Origin: *`.
+ * @param {boolean} [noCache] Whether to add `Cache-Control: no-store` (app source files).
+ * @returns {Promise<Response>} A 200, 206, 404 or 416 response.
+ */
 async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   // Every app://bundle and app://plugins response (the app's own JS/CSS/
   // HTML/SVG source, not a user's media file) had NO cache header at all
@@ -177,10 +203,15 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
 // module proxies straight to instead of calling a service, trading "every
 // provider author reimplements Range handling" for real, uncapped
 // streaming.
-// Turns a parsed Range match into { start, endRequested } against an optional
-// known total size. A suffix range ("bytes=-N", the last N bytes) needs the total;
-// returns { suffixNeedsTotal: true } when it is not known yet, and
-// { invalid: true } for a range that cannot be satisfied.
+/**
+ * Turns a parsed Range match into { start, endRequested } against an optional
+ * known total size. A suffix range ("bytes=-N", the last N bytes) needs the total;
+ * returns { suffixNeedsTotal: true } when it is not known yet, and
+ * { invalid: true } for a range that cannot be satisfied.
+ * @param {?Array<string>} match The match from `parseRangeHeader`, or null for no range.
+ * @param {number} totalSize The resource's total size in bytes, or NaN when unknown.
+ * @returns {object} `{ start, endRequested }`, `{ suffixNeedsTotal: true }` or `{ invalid: true }`.
+ */
 function resolveProviderRange(match, totalSize) {
   if (!match) return { start: 0, endRequested: null };
   if (!match[1] && !match[2]) return { invalid: true };
@@ -197,6 +228,14 @@ function resolveProviderRange(match, totalSize) {
   return { start, endRequested };
 }
 
+/**
+ * Serves one capped chunk of a plugin-sourced media ref through its provider's `readRange` service.
+ * @param {string} providerId The media-source provider id.
+ * @param {string} ref The provider's unprefixed ref.
+ * @param {?string} rangeHeader The request's Range header.
+ * @param {boolean} [crossOrigin] Whether to add `Access-Control-Allow-Origin: *`.
+ * @returns {Promise<Response>} A 200, 206, 404, 416 or 502 response.
+ */
 async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
   const corsHeaders = { ...(crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {}), 'X-Content-Type-Options': 'nosniff' };
   const parsedRange = parseRangeHeader(rangeHeader);
@@ -310,13 +349,19 @@ async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
   return new Response(body, { status: 200, headers });
 }
 
-// Unified entry point for anything that used to hand a bare local path
-// straight to serveFile — app://media (handleAppRequest below) and the LAN
-// viewer's own /media route (main-viewer-server.js) both go through this
-// instead now, so a plugin-sourced channel streams correctly to either
-// consumer rather than only the main window. serveFile itself stays
-// local-file-only and is still called directly for bundle/plugins static
-// assets (app.js/CSS/plugin files), which are never anything but local.
+/**
+ * Unified entry point for anything that used to hand a bare local path
+ * straight to serveFile — app://media (handleAppRequest below) and the LAN
+ * viewer's own /media route (main-viewer-server.js) both go through this
+ * instead now, so a plugin-sourced channel streams correctly to either
+ * consumer rather than only the main window. serveFile itself stays
+ * local-file-only and is still called directly for bundle/plugins static
+ * assets (app.js/CSS/plugin files), which are never anything but local.
+ * @param {string} ref A local path or `mediasource:` ref.
+ * @param {?string} rangeHeader The request's Range header.
+ * @param {boolean} [crossOrigin] Whether to add `Access-Control-Allow-Origin: *`.
+ * @returns {Promise<Response>} The media response, or 403 for a disallowed local extension.
+ */
 async function serveMediaRef(ref, rangeHeader, crossOrigin) {
   const parsed = parseMediaRef(ref);
   const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
@@ -348,12 +393,16 @@ async function serveMediaRef(ref, rangeHeader, crossOrigin) {
   return serveFileViaPlugin(parsed.source, parsed.ref, rangeHeader, crossOrigin);
 }
 
-// app://bundle/...        -> files shipped with the app (sandboxed to appRootDir)
-// app://media/?p=<path>   -> a user-chosen media file anywhere on disk
-// app://plugins/...       -> plugin files (sandboxed to pluginsDir) — see main-plugins.js
-// appRootDir is passed in (rather than this module's own __dirname) so the
-// containment check is always against the real app directory regardless of
-// where this file itself lives on disk.
+/**
+ * app://bundle/...        -> files shipped with the app (sandboxed to appRootDir)
+ * app://media/?p=<path>   -> a user-chosen media file anywhere on disk
+ * app://plugins/...       -> plugin files (sandboxed to pluginsDir) — see main-plugins.js
+ * appRootDir is passed in (rather than this module's own __dirname) so the
+ * containment check is always against the real app directory regardless of
+ * where this file itself lives on disk.
+ * @param {string} appRootDir The app's root folder, which bundle requests are confined to.
+ * @param {?string} pluginsDir The plugins folder, which plugin requests are confined to.
+ */
 function registerAppProtocol(appRootDir, pluginsDir) {
   protocol.handle('app', async (request) => {
     try {
@@ -368,6 +417,13 @@ function registerAppProtocol(appRootDir, pluginsDir) {
   });
 }
 
+/**
+ * Routes one `app://` request to media, plugin or bundle files.
+ * @param {Request} request The incoming request.
+ * @param {string} appRootDir The app's root folder.
+ * @param {?string} pluginsDir The plugins folder.
+ * @returns {Promise<Response>} The response.
+ */
 async function handleAppRequest(request, appRootDir, pluginsDir) {
   const url = new URL(request.url);
   const range = request.headers.get('range');
@@ -401,12 +457,17 @@ async function handleAppRequest(request, appRootDir, pluginsDir) {
   return serveFile(resolved, range, false, true);
 }
 
-// serveFile() returns a web-standard Response (built for protocol.handle's
-// Fetch-API contract) — Node's classic http.createServer callback needs a
-// (req, res) pair instead, so this bridges the two: copy headers/status
-// across, then pipe the Response's body (a web ReadableStream, uniformly
-// present whether the original body was a string or a file stream) into
-// the Node response via Readable.fromWeb.
+/**
+ * serveFile() returns a web-standard Response (built for protocol.handle's
+ * Fetch-API contract) — Node's classic http.createServer callback needs a
+ * (req, res) pair instead, so this bridges the two: copy headers/status
+ * across, then pipe the Response's body (a web ReadableStream, uniformly
+ * present whether the original body was a string or a file stream) into
+ * the Node response via Readable.fromWeb.
+ * @param {Response} response The web response to copy.
+ * @param {object} res The Node `http.ServerResponse` to write to.
+ * @returns {Promise<void>} Resolves once piping has started.
+ */
 async function pipeWebResponse(response, res) {
   const headers = {};
   response.headers.forEach((v, k) => { headers[k] = v; });

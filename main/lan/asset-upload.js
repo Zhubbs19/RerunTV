@@ -12,11 +12,17 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// Largest single uploaded image.
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
 // The assets folder as a whole is capped too: a paired editor could otherwise
 // upload 8 MB files until the host's disk is full.
 const MAX_ASSETS_TOTAL_BYTES = 200 * 1024 * 1024;
 
+/**
+ * Total size of the regular files directly in a folder.
+ * @param {string} dir The assets folder.
+ * @returns {number} Bytes; 0 when the folder does not exist yet.
+ */
 function assetsFolderBytes(dir) {
   let total = 0;
   try {
@@ -40,9 +46,13 @@ const EXT_BY_MIME = {
   'image/gif': '.gif',
 };
 
-// The declared multipart type is whatever the client says it is. Check the
-// bytes: an image upload that is really an HTML page, script or executable is
-// refused before it can be referenced from a real app surface.
+/**
+ * The declared multipart type is whatever the client says it is. Check the
+ * bytes: an image upload that is really an HTML page, script or executable is
+ * refused before it can be referenced from a real app surface.
+ * @param {?Buffer} buf The first bytes of a file.
+ * @returns {?string} The image extension the bytes match (`.png`, `.jpg`, `.gif`, `.webp`), or null.
+ */
 function sniffImageExt(buf) {
   if (!buf || buf.length < 12) return null;
   if (buf[0] === 0x89 && buf.toString('latin1', 1, 4) === 'PNG') return '.png';
@@ -52,6 +62,12 @@ function sniffImageExt(buf) {
   return null;
 }
 
+/**
+ * Whether a written file's magic bytes match the extension chosen from its declared type.
+ * @param {string} destPath The written file.
+ * @param {string} ext The expected extension.
+ * @returns {boolean} True when the bytes match; false when they do not or the file is unreadable.
+ */
 function fileMatchesExt(destPath, ext) {
   let fd;
   try {
@@ -71,13 +87,25 @@ function fileMatchesExt(destPath, ext) {
 // pass it and together overshoot the cap.
 let reservedBytes = 0;
 
+/**
+ * Collision-resistant file name for an uploaded asset.
+ * @param {string} ext The file extension, including the dot.
+ * @returns {string} A timestamp-plus-random name.
+ */
 function randomName(ext) {
   return `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
 }
 
-// req/res are the raw Node request/response; busboy is the dependency
-// (ctx.busboy in a plugin, require('busboy') in core) so this file stays
-// testable without pulling in the real HTTP machinery.
+/**
+ * req/res are the raw Node request/response; busboy is the dependency
+ * (ctx.busboy in a plugin, require('busboy') in core) so this file stays
+ * testable without pulling in the real HTTP machinery.
+ * Receives one image from a multipart upload into the assets folder, enforcing type, size and folder-total caps. Never rejects.
+ * @param {string} assetsDir Folder the image is saved into.
+ * @param {http.IncomingMessage} req The upload request.
+ * @param {Function} busboy The busboy factory.
+ * @returns {Promise<object>} `{ ok: true, path, fileName }` or `{ ok: false, status, error }`.
+ */
 function receiveAssetUpload(assetsDir, req, busboy) {
   return new Promise((resolve) => {
     let bb;
@@ -158,4 +186,15 @@ function receiveAssetUpload(assetsDir, req, busboy) {
   });
 }
 
-module.exports = { receiveAssetUpload, sniffImageExt, getReservedBytes: () => reservedBytes, MAX_ASSET_BYTES, MAX_ASSETS_TOTAL_BYTES, EXT_BY_MIME };
+module.exports = {
+  receiveAssetUpload,
+  sniffImageExt,
+  /**
+   * Bytes promised to uploads that are still streaming (see reservedBytes).
+   * @returns {number} The reserved byte count.
+   */
+  getReservedBytes: () => reservedBytes,
+  MAX_ASSET_BYTES,
+  MAX_ASSETS_TOTAL_BYTES,
+  EXT_BY_MIME
+};

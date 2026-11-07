@@ -27,8 +27,14 @@ const MAX_ENTRIES = 50000;
 // What list() returns when the caller doesn't ask for a number: the old cap,
 // which is what every reader was written against.
 const DEFAULT_LIST_LIMIT = 2000;
+// Debounce before trimming the table back to `MAX_ENTRIES` after an append.
 const PRUNE_DEBOUNCE_MS = 5000;
 
+/**
+ * Normalises a renderer-reported entry: fills missing times, bounds string lengths.
+ * @param {object} entry `{ at, viewAt, channelNumber, channelName, title, path, durationS }` as reported.
+ * @returns {object} The cleaned entry with the same fields.
+ */
 function sanitize(entry) {
   const clean = {};
   const str = (value, max) => (typeof value === 'string' ? value.slice(0, max) : '');
@@ -42,19 +48,34 @@ function sanitize(entry) {
   return clean;
 }
 
-// The renderer re-reports the same programme on any re-tune to the channel
-// it is already on (a break ending, a block boundary, a drift correction
-// that happens to re-enter playChannelLive). Collapsing a repeat of the
-// same channel+file keeps the log readable as "what I watched" instead of
-// "every time the player was touched".
+/**
+ * The renderer re-reports the same programme on any re-tune to the channel
+ * it is already on (a break ending, a block boundary, a drift correction
+ * that happens to re-enter playChannelLive). Collapsing a repeat of the
+ * same channel+file keeps the log readable as "what I watched" instead of
+ * "every time the player was touched".
+ * @param {?object} previous The newest logged entry, or null.
+ * @param {object} clean The cleaned incoming entry.
+ * @returns {boolean} True when it repeats the previous entry.
+ */
 function isRepeat(previous, clean) {
   return !!previous && previous.channelNumber === clean.channelNumber && previous.path === clean.path;
 }
 
+/**
+ * Clamps a requested list size to `1..MAX_ENTRIES`, defaulting to `DEFAULT_LIST_LIMIT`.
+ * @param {*} limit The requested number of entries.
+ * @returns {number} The limit to use.
+ */
 function clampLimit(limit) {
   return Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), MAX_ENTRIES) : DEFAULT_LIST_LIMIT;
 }
 
+/**
+ * Converts a `history` table row to an entry object.
+ * @param {object} row The SQLite row.
+ * @returns {object} `{ at, viewAt, channelNumber, channelName, title, path, durationS }`.
+ */
 function rowToEntry(row) {
   return {
     at: Number(row.at),
@@ -67,6 +88,12 @@ function rowToEntry(row) {
   };
 }
 
+/**
+ * Viewing log backed by the `history` table, with debounced pruning.
+ * @param {object} db The open `node:sqlite` database.
+ * @param {number} maxEntries Rows to keep.
+ * @returns {object} `{ last, push, importEntries, list, count, clear, prune, pruneSoon }`.
+ */
 function sqlLog(db, maxEntries) {
   const insert = db.prepare(`INSERT INTO history (at, view_at, channel_number, channel_name, title, path, duration_s)
     VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -128,6 +155,11 @@ function sqlLog(db, maxEntries) {
   return log;
 }
 
+/**
+ * In-memory viewing log used when SQLite is unavailable; same shape as `sqlLog`.
+ * @param {number} maxEntries Entries to keep.
+ * @returns {object} `{ last, push, importEntries, list, count, clear, prune, pruneSoon }`.
+ */
 function memoryLog(maxEntries) {
   let rows = [];
   return {
@@ -150,7 +182,14 @@ function memoryLog(maxEntries) {
   };
 }
 
-// The viewing log for one userData folder. Electron-free so tests drive it.
+/**
+ * The viewing log for one userData folder. Electron-free so tests drive it.
+ * Imports and removes a legacy viewing-history.json when one is found.
+ * @param {object} opts Options.
+ * @param {string} opts.dir The userData folder.
+ * @param {number} [opts.maxEntries=MAX_ENTRIES] Rows to keep.
+ * @returns {object} `{ append, list, all, count, clear }`.
+ */
 function createViewingHistory({ dir, maxEntries = MAX_ENTRIES }) {
   const { db } = getDatabase(dir);
   const log = db ? sqlLog(db, maxEntries) : memoryLog(maxEntries);
@@ -187,13 +226,19 @@ function createViewingHistory({ dir, maxEntries = MAX_ENTRIES }) {
 }
 
 let shared = null;
-// Opened on first use rather than at require() time: main.js's portable
-// userData migration can still repoint app.getPath('userData') before then.
+/**
+ * Opened on first use rather than at require() time: main.js's portable
+ * userData migration can still repoint app.getPath('userData') before then.
+ * @returns {object} The shared viewing log for this process's userData folder.
+ */
 function viewingHistory() {
   if (!shared) shared = createViewingHistory({ dir: app.getPath('userData') });
   return shared;
 }
 
+/**
+ * Registers the `history:append`, `history:list` and `history:clear` IPC handlers.
+ */
 function registerHistoryIpc() {
   ipcMain.handle('history:append', async (event, entry) => {
     try { return viewingHistory().append(entry); } catch (e) {

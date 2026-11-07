@@ -15,8 +15,13 @@ const path = require('path');
 const MAX_PROFILE_BYTES = 256 * 1024;
 const MAX_EVENTS = 2000;
 
-// Pure: validates and shapes a capture before it's written. Returns
-// { ok: true, profile, fileName } or { ok: false, error }.
+/**
+ * Pure: validates and shapes a capture before it's written. Returns
+ * { ok: true, profile, fileName } or { ok: false, error }.
+ * @param {*} input The capture posted by a client.
+ * @param {number} [now=Date.now()] Capture time in ms.
+ * @returns {object} The prepared profile or an error.
+ */
 function prepareRemoteProfile(input, now = Date.now()) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return { ok: false, error: 'Profile must be an object' };
   const json = JSON.stringify(input);
@@ -37,6 +42,10 @@ function prepareRemoteProfile(input, now = Date.now()) {
 
 // Any paired device can post captures, so the folder must not grow forever.
 const MAX_SAVED_PROFILES = 20;
+/**
+ * Deletes all but the newest `MAX_SAVED_PROFILES` captures in a folder. Best effort.
+ * @param {string} dir The remote-profiles folder.
+ */
 function pruneRemoteProfiles(dir) {
   try {
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
@@ -46,6 +55,13 @@ function pruneRemoteProfiles(dir) {
   } catch (e) { /* best effort */ }
 }
 
+/**
+ * Validates a Remote-test capture and writes it under `remote-profiles/`, pruning old ones.
+ * @param {string} userDataDir The userData folder.
+ * @param {*} input The capture posted by a client.
+ * @param {number} [now=Date.now()] Capture time in ms.
+ * @returns {object} `{ ok: true, path }` or `{ ok: false, error }`.
+ */
 function saveRemoteProfile(userDataDir, input, now = Date.now()) {
   const prepared = prepareRemoteProfile(input, now);
   if (!prepared.ok) return { ok: false, error: prepared.error };
@@ -57,12 +73,20 @@ function saveRemoteProfile(userDataDir, input, now = Date.now()) {
   return { ok: true, path: file };
 }
 
-// accessUrls: [{ name, url }] — pass control-scope viewer URLs (each already
-// carrying a one-time pairing code, see main.js's viewerControlAccessUrls) to
-// hand off straight into an editable session; pass the Companion's own
-// access URLs as a fallback when no control-scope link is available.
-// deepLink: an optional task path appended before any pairing-code query string.
-// writable: true when accessUrls are control-scope links, for the label text.
+/**
+ * accessUrls: [{ name, url }] — pass control-scope viewer URLs (each already
+ * carrying a one-time pairing code, see main.js's viewerControlAccessUrls) to
+ * hand off straight into an editable session; pass the Companion's own
+ * access URLs as a fallback when no control-scope link is available.
+ * deepLink: an optional task path appended before any pairing-code query string.
+ * writable: true when accessUrls are control-scope links, for the label text.
+ * @param {Array<object>} accessUrls `{ name, url }` entries to hand off to.
+ * @param {object} QRCode The `qrcode` module.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.deepLink=""] Task path to append.
+ * @param {boolean} [opts.writable=false] Whether the URLs are control-scope links.
+ * @returns {Promise<object>} `{ url, qrDataUrl, label }`; empty url and QR when nothing is available.
+ */
 async function handoffInfo(accessUrls, QRCode, { deepLink = '', writable = false } = {}) {
   const first = (accessUrls || []).find((entry) => entry && entry.url);
   if (!first) return { url: '', qrDataUrl: '', label: 'Turn on "Share with devices on this network" in Settings to edit from a phone or computer.' };
@@ -77,9 +101,14 @@ async function handoffInfo(accessUrls, QRCode, { deepLink = '', writable = false
   return { url, qrDataUrl, label };
 }
 
-// Splices a path onto the URL's origin+path, ahead of its own query string
-// (a control-scope URL carries `?pair=<code>`, which must stay last so the
-// pairing code is still read on the far side).
+/**
+ * Splices a path onto the URL's origin+path, ahead of its own query string
+ * (a control-scope URL carries `?pair=<code>`, which must stay last so the
+ * pairing code is still read on the far side).
+ * @param {string} url The base URL.
+ * @param {string} deepLink The path to append.
+ * @returns {string} The combined URL.
+ */
 function insertDeepLink(url, deepLink) {
   const parsed = new URL(url);
   parsed.pathname = `${parsed.pathname.replace(/\/$/, '')}${deepLink}`;

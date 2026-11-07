@@ -28,6 +28,10 @@ const http = require('http');
 const { serveMediaRef, pipeWebResponse } = require('./protocol');
 const { createViewerProjection } = require('../lan/viewer-projection');
 
+/**
+ * Starts the loopback-only media bridge server on an ephemeral port.
+ * @returns {Promise<object>} `{ server, port, projection }` once listening; rejects if it cannot bind.
+ */
 function startMediaBridge() {
   const projection = createViewerProjection();
   const server = http.createServer(async (req, res) => {

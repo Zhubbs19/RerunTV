@@ -25,6 +25,13 @@ const FIT_FIELDS = SETTINGS.filter((entry) => entry.fit).map((entry) => ({
   credits: entry.home === 'programming/credits',
 }));
 
+/**
+ * How a field's value reads in a "Box default (…)" choice: its option's label, On/Off, a quoted
+ * text, or the number with its unit.
+ * @param {object} field The FIT_FIELDS entry.
+ * @param {*} value The value.
+ * @returns {string} The label.
+ */
 function optionLabel(field, value) {
   const hit = (field.options || []).find(([v]) => String(v) === String(value));
   if (hit) return hit[1];
@@ -33,6 +40,12 @@ function optionLabel(field, value) {
   return `${value}${field.unit ? ` ${field.unit}` : ''}`;
 }
 
+/**
+ * Reads a field's value from its control; a number is clamped to the field's range.
+ * @param {object} field The FIT_FIELDS entry.
+ * @param {HTMLInputElement|HTMLSelectElement} el The control.
+ * @returns {*} The value, or undefined for a blank or invalid number.
+ */
 function readControl(field, el) {
   if (field.type === 'checkbox') return el.checked;
   if (field.type === 'number') {
@@ -44,6 +57,12 @@ function readControl(field, el) {
   return el.value;
 }
 
+/**
+ * Builds a field's control: a select for a choice, else an input of the field's type.
+ * @param {object} field The FIT_FIELDS entry.
+ * @param {string} id The control's element id.
+ * @returns {HTMLElement} The control.
+ */
 function makeControl(field, id) {
   let el;
   if (field.type === 'select') {
@@ -58,6 +77,12 @@ function makeControl(field, id) {
   return el;
 }
 
+/**
+ * Puts a field's unit after its control, when it has one.
+ * @param {object} field The FIT_FIELDS entry.
+ * @param {HTMLElement} el The control.
+ * @returns {HTMLElement|Array<HTMLElement>} The control, or the control and its unit label.
+ */
 function withUnit(field, el) {
   if (!field.unit) return el;
   const unit = document.createElement('span');
@@ -71,10 +96,20 @@ const BOX_ENABLED_ID = 'program-fit-enabled';
 const boxControls = new Map();
 let boxRowsBuilt = false;
 
+/**
+ * The box-wide fit settings as saved.
+ * @returns {object} `S.config.programFit`, or `{}`.
+ */
 function boxSettings() {
   return (S.config && S.config.programFit) || {};
 }
 
+/**
+ * Builds the box-wide panel's rows once: the on/off switch, then a row per field (the credits
+ * fields go to the END CREDITS panel when it exists).
+ * @param {HTMLElement} host The FIT TO TIME SLOTS rows container.
+ * @param {?HTMLElement} creditsHost The END CREDITS rows container, or null.
+ */
 function buildBoxRows(host, creditsHost) {
   const enabledEl = document.createElement('input');
   enabledEl.type = 'checkbox';
@@ -108,6 +143,10 @@ function buildBoxRows(host, creditsHost) {
   boxRowsBuilt = true;
 }
 
+/**
+ * Renders the box-wide FIT TO TIME SLOTS panel (and its END CREDITS rows) from the saved settings,
+ * building the rows the first time.
+ */
 export function renderProgramFitPanel() {
   const host = document.getElementById('program-fit-rows');
   if (!host) return;
@@ -127,8 +166,13 @@ export function renderProgramFitPanel() {
 }
 
 // ---------- Per-channel panel ----------
-// The next few programs as they air with the channel's fit, so the effect of
-// a setting is visible before tuning in.
+
+/**
+ * The next few programs as they air with the channel's fit, so the effect of
+ * a setting is visible before tuning in.
+ * @param {object} ch The channel config.
+ * @returns {HTMLElement} The preview element.
+ */
 function previewList(ch) {
   const wrap = document.createElement('div');
   wrap.className = 'panel-status';
@@ -162,6 +206,12 @@ function previewList(ch) {
   return wrap;
 }
 
+/**
+ * Builds a channel's own BREAKS › FIT TO TIME SLOTS page (ch.programFit): its on/off choice, every
+ * field (each can follow the box), and a preview of the next programs. Redraws after each edit.
+ * @param {object} ch The channel config.
+ * @param {HTMLElement} panelEl The panel element to fill.
+ */
 export function buildProgramFitChannelPanel(ch, panelEl) {
   const save = () => commitOwnerFields(ch, ['programFit']);
   function render() {

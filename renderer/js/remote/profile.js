@@ -9,11 +9,21 @@ import { REMOTE_KEYS } from './input.js';
 export const PROFILE_STORAGE_KEY = 'reruntv.remoteProfile';
 export const PROFILE_VERSION = 1;
 
+/**
+ * Returns a blank profile with no seen keys and no overrides.
+ * @returns {object} `{ version, seen, overrides }`.
+ */
 function emptyProfile() {
   return { version: PROFILE_VERSION, seen: {}, overrides: {} };
 }
 
-// storage: { getItem(key), setItem(key, value) } — window.localStorage or a fake.
+/**
+ * Loads this device's remote profile from storage and returns an API for reading and changing it.
+ *
+ * storage: { getItem(key), setItem(key, value) } — window.localStorage or a fake.
+ * @param {?object} storage The storage adapter, or null to keep the profile in memory only.
+ * @returns {object} The profile API (`note`, `has`, `seenKeys`, overrides, `reset`, `toJSON`).
+ */
 export function createRemoteProfile(storage) {
   let data = emptyProfile();
   try {

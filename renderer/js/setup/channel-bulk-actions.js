@@ -21,6 +21,12 @@ import { selectSetupChannel } from './channel-row-actions.js';
 // Asks before moving channels' anchors, showing how many programs in the next
 // three days the move changes (the same previewed-edit path ON AIR uses).
 const SHIFT_PREVIEW_DAYS = 3;
+/**
+ * Shows the run behind / ahead confirmation for a set of channels, with a count of programs that would move.
+ * @param {Array<object>} targets The channel configs whose anchors would shift.
+ * @param {number} hours Signed shift in hours.
+ * @returns {Promise<boolean>} True when the user confirmed.
+ */
 async function confirmAnchorShift(targets, hours) {
   const from = viewNow();
   const to = from + SHIFT_PREVIEW_DAYS * 86400000;
@@ -39,6 +45,11 @@ async function confirmAnchorShift(targets, hours) {
   });
 }
 
+/**
+ * Shifts every selected channel's anchor by `hours` as one undo step, after confirmation.
+ * @param {number} hours Signed shift in hours.
+ * @returns {Promise<void>}
+ */
 async function shiftSelectedChannels(hours) {
   const targets = selectedChannels();
   if (!targets.length || !(await confirmAnchorShift(targets, hours))) return;
@@ -59,13 +70,23 @@ bulkSelectAllBtn.addEventListener('click', () => {
   renderChannelList();
 });
 
-// Bulk actions: one undo step for however many channels are selected.
+/**
+ * Bulk actions: one undo step for however many channels are selected.
+ * @param {string} field The channel field to set.
+ * @param {*} value The value to store (null clears an override).
+ * @param {string} label Undo label prefix, e.g. "Set rating".
+ */
 function setOnSelected(field, value, label) {
   const targets = selectedChannels();
   if (!targets.length) return;
   dispatch(targets.map((c) => ({ type: 'channel.set', channel: c.number, field, value })),
     { label: `${label} on ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
 }
+/**
+ * Marks or unmarks every selected channel as a favorite, then redraws the list.
+ * @param {boolean} value True to add to favorites, false to remove.
+ * @returns {Promise<void>}
+ */
 async function setFavoriteOnSelected(value) {
   await Promise.all(selectedChannels().map((channel) => setFavorite(channel.number, value)));
   renderChannelList();

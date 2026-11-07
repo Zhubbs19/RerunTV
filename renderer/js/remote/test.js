@@ -39,6 +39,11 @@ const KEY_NAMES = {
   search: 'SEARCH', home: 'HOME',
 };
 
+/**
+ * How the remote test shows a button: its symbol or label, a digit's number, else the key in capitals.
+ * @param {string} key The RemoteKey name.
+ * @returns {string} The text shown.
+ */
 function keyName(key) {
   if (KEY_NAMES[key]) return KEY_NAMES[key];
   return /^digit\d$/.test(key) ? key.slice(5) : String(key).toUpperCase();
@@ -53,6 +58,13 @@ let events = [];
 let stopSink = null;
 let backPresses = [];
 
+/**
+ * Creates an element with an optional class name and text.
+ * @param {string} tag Tag name.
+ * @param {string} [className] Class attribute.
+ * @param {?string} [text] Text content.
+ * @returns {HTMLElement} The new element.
+ */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -60,6 +72,9 @@ function el(tag, className, text) {
   return node;
 }
 
+/**
+ * Closes the remote test overlay, detaches the input sink and drops the capture.
+ */
 function close() {
   setRemoteInputSink(null);
   stopSink = null;
@@ -68,16 +83,28 @@ function close() {
   backPresses = [];
 }
 
+/**
+ * Whether the remote test overlay is showing.
+ * @returns {boolean} True while it is open.
+ */
 export function remoteTestOpen() {
   return !!overlay;
 }
 
+/**
+ * Formats one captured button press as a line for the event list.
+ * @param {object} info The press as the remote input sink received it.
+ * @returns {string} Source key, hold info and the key it mapped to.
+ */
 function describe(info) {
   const source = info.source === 'android' ? `android ${info.keyCode}` : (info.key || info.keyCode || info.source);
   const held = info.longPress ? ' · HELD' : (info.holdMs ? ` · ${Math.round(info.holdMs)}ms` : '');
   return `${source}${held}  →  ${info.remoteKey ? keyName(info.remoteKey) : 'not mapped'}`;
 }
 
+/**
+ * Redraws the recent-press list, the wanted-buttons grid and the counter.
+ */
 function render() {
   if (!overlay) return;
   const list = overlay.querySelector('.remote-test-events');
@@ -94,6 +121,10 @@ function render() {
   overlay.querySelector('.remote-test-count').textContent = `${seen.size} of ${WANTED.length} buttons seen · ${events.length} presses`;
 }
 
+/**
+ * Saves the capture on the host as a remote profile fixture, shows the result, then closes.
+ * @returns {Promise<void>} Resolves once the save attempt is reported.
+ */
 async function finish() {
   const seen = {};
   events.forEach((info) => { if (info.remoteKey) seen[info.remoteKey] = (seen[info.remoteKey] || 0) + 1; });
@@ -124,6 +155,9 @@ async function finish() {
   setTimeout(close, result && result.ok ? 2200 : 4000);
 }
 
+/**
+ * Opens the remote test overlay and routes every button press into it until Back is pressed three times quickly.
+ */
 export function openRemoteTest() {
   if (overlay) return;
   overlay = el('div', 'remote-test');
@@ -159,14 +193,22 @@ export function openRemoteTest() {
 
 // ---------- Learn mode ----------
 
+// Learn-mode state: the panel element, the pending capture's cancel function and its modal surface.
 let learnOverlay = null;
 let cancelCapture = null;
 let learnSurface = null;
 
+/**
+ * Whether the learn-mode (customize buttons) panel is showing.
+ * @returns {boolean} True while it is open.
+ */
 export function learnModeOpen() {
   return !!learnOverlay;
 }
 
+/**
+ * Closes learn mode, cancelling any capture in progress.
+ */
 export function closeLearnMode() {
   clearInterval(captureTicker);
   captureTicker = null;
@@ -175,6 +217,10 @@ export function closeLearnMode() {
   learnOverlay = null;
 }
 
+/**
+ * Redraws the list of assignable buttons with each one's current binding.
+ * @param {string} [focusKey] Remote key whose row should get focus after the rebuild.
+ */
 function renderLearn(focusKey) {
   if (!learnOverlay) return;
   const profile = remoteProfile();
@@ -203,6 +249,11 @@ function renderLearn(focusKey) {
 const CAPTURE_TIMEOUT_S = 8;
 let captureTicker = null;
 
+/**
+ * Waits for the next button press and saves it as this device's override for a remote key.
+ * Gives up after `CAPTURE_TIMEOUT_S` seconds.
+ * @param {string} remoteKey The remote key being reassigned.
+ */
 function startCapture(remoteKey) {
   if (!learnOverlay) return;
   const status = learnOverlay.querySelector('.remote-learn-status');
@@ -231,6 +282,9 @@ function startCapture(remoteKey) {
   });
 }
 
+/**
+ * Opens the learn-mode panel for reassigning buttons on this device.
+ */
 export function openLearnMode() {
   if (learnOverlay) return;
   learnSurface = ModalSurface({ className: 'remote-learn', label: 'Customize buttons', host: () => tvScreen.querySelector('.crt') || tvScreen, onCancel: closeLearnMode });
@@ -252,6 +306,9 @@ export function openLearnMode() {
   learnSurface.open();
 }
 
+/**
+ * Closes the remote test overlay without saving.
+ */
 export function closeRemoteTest() {
   close();
 }

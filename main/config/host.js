@@ -43,6 +43,7 @@
 // rejection object back instead, because it has to survive an IPC or HTTP
 // boundary and be shown to somebody.
 
+// How many applied batches (and resets) the host keeps for replay and conflict checks.
 const RING_SIZE = 200;
 
 // ---------- What a remote client may not do (docs/design/06 §4) ----------
@@ -77,7 +78,11 @@ const REMOTE_DENIED_SETTINGS = {
   pcPower: 'PC power can only be changed on the host.',
 };
 
-// The reason a remote client may not send this command, or null.
+/**
+ * The reason a remote client may not send this command, or null.
+ * @param {object} cmd A config command (`{ type, ... }`).
+ * @returns {?string} The user-facing refusal message, or null when allowed.
+ */
 function remoteDenial(cmd) {
   if (!cmd || typeof cmd.type !== 'string') return null;
   if (REMOTE_DENIED_COMMANDS[cmd.type]) return REMOTE_DENIED_COMMANDS[cmd.type];
@@ -97,6 +102,15 @@ function remoteDenial(cmd) {
 // the ring so an id is forgotten no later than the batch it identifies.
 const SEEN_IDS = RING_SIZE;
 
+/**
+ * Creates the single config writer: applies command batches (host or client origin), reconciles whole-config saves by replaying host commands, and tracks revisions and resets.
+ * @param {object} deps Injected dependencies.
+ * @param {Function} deps.load Returns a fresh config object from disk (`loadConfig`).
+ * @param {Function} deps.save Writes a config object to disk (`saveConfig`).
+ * @param {Function} [deps.broadcast] Called with each applied update.
+ * @param {Function} deps.loadCommands Resolves to the shared commands module (`applyCommand`, `cloneJson`, `batchTouches`, `touchesConflict`).
+ * @returns {object} `{ applyCommands, reconcileSave, noteReset, getRevision, snapshot, describeState }`.
+ */
 function createConfigHost({ load, save, broadcast = () => {}, loadCommands }) {
   let revision = 0;
   // { revision, commands, touches, origin, client } for an applied batch, or
@@ -338,6 +352,12 @@ const HOST_LOCAL_DISPLAY_FIELDS = ['hintBar'];
 const HOST_LOCAL_LIBRARY_SYNC_FIELDS = ['lastRunAt', 'lastReason', 'lastSummary'];
 const HOST_LOCAL_CURATION_PROFILE_FIELDS = ['lastRunAt'];
 
+/**
+ * Hash of a config with host-local watching state removed, so two configs that differ only in that state compare equal.
+ * @param {object} config The config.
+ * @param {Function} hash Maps a string to a digest.
+ * @returns {string} The digest.
+ */
 function viewerRelevantKey(config, hash) {
   const rest = { ...config };
   HOST_LOCAL_FIELDS.forEach((key) => { delete rest[key]; });
@@ -360,7 +380,14 @@ function viewerRelevantKey(config, hash) {
   return hash(JSON.stringify(rest));
 }
 
-// notify() is called only when a write changed something viewer-relevant.
+/**
+ * notify() is called only when a write changed something viewer-relevant.
+ * Creates the announcer that tells LAN viewers about config writes.
+ * @param {object} deps Injected dependencies.
+ * @param {Function} deps.hash Maps a string to a digest.
+ * @param {Function} deps.notify Called with no arguments after a viewer-relevant change.
+ * @returns {object} `{ prime(config), written(config) }`; `written` returns true when it announced.
+ */
 function createChangeAnnouncer({ hash, notify }) {
   let lastKey = null;
   return {

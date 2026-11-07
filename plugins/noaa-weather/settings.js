@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the NOAA weather plugin: real-alert interrupts and
+// lat/lon, signal degradation with its level previews, and the routine crawl.
 import {
   lastStatusText,
   scheduleNextNoaaPoll,

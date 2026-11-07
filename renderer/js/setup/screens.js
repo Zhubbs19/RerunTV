@@ -11,6 +11,9 @@ import { applyLeveler } from '../playback/leveler.js';
 // living-room box sharing one channels.json can be in different modes.
 const usageModeSelectEl = document.getElementById('usage-mode-select');
 const usageModeStatusEl = document.getElementById('usage-mode-status');
+/**
+ * Shows this device's usage-mode preference in its select and the resolved mode and its source beside it.
+ */
 export function renderUsageModeSetting() {
   if (!usageModeSelectEl) return;
   usageModeSelectEl.value = getUsageModePreference();
@@ -41,11 +44,22 @@ const AUDIO_HELP = 'Play through the TV’s speakers without changing the Window
 let screenOptions = [];
 let audioOptions = [];
 
+/**
+ * Builds the upper-case display name for a screen, with its resolution.
+ * @param {object} screen A screen entry from `window.api.listScreens()` (`label`, `primary`, `width`, `height`).
+ * @returns {string} The name shown in the screen pickers.
+ */
 function screenName(screen) {
   const name = screen.label || (screen.primary ? 'Main screen' : 'Screen');
   return `${name.toUpperCase()} — ${screen.width}×${screen.height}`;
 }
 
+/**
+ * Replaces a select's options and selects a value.
+ * @param {HTMLSelectElement} select The select to fill.
+ * @param {Array<object>} options Options as `{ value, text }`.
+ * @param {string} value The option value to select.
+ */
 function fillSelect(select, options, value) {
   select.replaceChildren(...options.map((option) => {
     const el = document.createElement('option');
@@ -56,6 +70,10 @@ function fillSelect(select, options, value) {
   select.value = value;
 }
 
+/**
+ * Fills the "open on this screen" picker from the connected screens and the saved preference, and hides the row when there is no host window.
+ * @returns {Promise<void>} Resolves once the row is rendered.
+ */
 async function renderScreenTarget() {
   const row = screenTargetSelect && screenTargetSelect.closest('.setting-row');
   if (!row) return;
@@ -84,6 +102,10 @@ async function renderScreenTarget() {
   }
 }
 
+/**
+ * Fills the audio output picker from the available devices, keeping a saved but disconnected output listed. Hidden on a LAN viewer.
+ * @returns {Promise<void>} Resolves once the row is rendered.
+ */
 async function renderAudioOutput() {
   const row = audioOutputSelect && audioOutputSelect.closest('.setting-row');
   if (!row) return;
@@ -113,6 +135,10 @@ const tvModeScreenHelp = document.getElementById('tv-mode-screen-help');
 const TV_SCREEN_HELP = 'Use the remote-friendly TV layout while the window is on this screen, and the desktop layout everywhere else.';
 let tvScreenOptions = [];
 
+/**
+ * Fills the "TV mode on this screen" picker and explains when the usage-mode preference overrides it.
+ * @returns {Promise<void>} Resolves once the row is rendered.
+ */
 async function renderTvModeScreen() {
   const row = tvModeScreenSelect && tvModeScreenSelect.closest('.setting-row');
   if (!row) return;
@@ -152,6 +178,9 @@ const screenEdgeValue = document.getElementById('screen-edge-value');
 const screenEdgeHelp = document.getElementById('screen-edge-help');
 const SCREEN_EDGE_HELP = 'If the TV cuts off the clock or banners, pull everything in until the white frame shows on all four sides. Saved for this screen only.';
 
+/**
+ * Shows the screen-off action and screen edge controls for the current screen. Hidden without a host window.
+ */
 function renderScreenPowerAndEdges() {
   const hostWindow = !!(window.api && window.api.listScreens);
   [screenOffActionSelect, screenEdgeSlider].forEach((el) => {
@@ -189,6 +218,10 @@ audioLevelerSelect?.addEventListener('change', () => {
 
 const LEVELER_HELP = 'Evens out loud and quiet shows and commercials. Each file is measured once in the background. CONSISTENT plays everything a little quieter so quiet shows never fall short at high volume.';
 
+/**
+ * Shows the audio leveler choice and a help line with ffmpeg availability and measuring progress.
+ * @returns {Promise<void>} Resolves once the help line is set.
+ */
 async function renderAudioLeveler() {
   if (!audioLevelerSelect) return;
   audioLevelerSelect.value = S.config.audioLeveler || 'off';
@@ -206,6 +239,9 @@ async function renderAudioLeveler() {
   }
 }
 
+/**
+ * Renders every row of the Screen & speakers panel, and hides the panel when none of its rows apply.
+ */
 export function renderScreenSpeakersSettings() {
   renderScreenPowerAndEdges();
   renderAudioLeveler();

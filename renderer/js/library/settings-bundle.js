@@ -4,6 +4,11 @@
 // The list is explicit: a key that isn't named here never leaves the box, and
 // an imported file can only ever write the keys named here.
 // Kept free of imports so it loads anywhere (the tests load it bare).
+/**
+ * Deep-copies a JSON value.
+ * @param {*} value The value.
+ * @returns {*} The copy.
+ */
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
 export const SETTINGS_BUNDLE_KEYS = [
@@ -18,6 +23,13 @@ export const SETTINGS_BUNDLE_KEYS = [
 // than the setup, so they stay behind.
 const MACHINE_FIELDS = { display: ['logoBugAuthoredHeight'] };
 
+/**
+ * Builds a settings-only bundle from a config.
+ * Copies only `SETTINGS_BUNDLE_KEYS`, minus this machine's own fields.
+ * @param {object} config The box config.
+ * @param {Date} [now] The export time.
+ * @returns {object} `{ kind, version, exportedAt, settings }`.
+ */
 export function buildSettingsBundle(config, now = new Date()) {
   const settings = {};
   SETTINGS_BUNDLE_KEYS.forEach((key) => {
@@ -29,7 +41,11 @@ export function buildSettingsBundle(config, now = new Date()) {
   return { kind: 'reruntv-settings', version: 1, exportedAt: now.toISOString(), settings };
 }
 
-// The keys of a bundle that may be applied, or null when the file isn't one.
+/**
+ * The keys of a bundle that may be applied, or null when the file isn't one.
+ * @param {*} imported The parsed import file.
+ * @returns {?object} The settings to apply, keyed by section.
+ */
 export function readSettingsBundle(imported) {
   if (!imported || imported.kind !== 'reruntv-settings' || !imported.settings || typeof imported.settings !== 'object') return null;
   const settings = {};
@@ -39,8 +55,13 @@ export function readSettingsBundle(imported) {
   return Object.keys(settings).length ? settings : null;
 }
 
-// Writes the bundle's sections over `config` in place, keeping this machine's
-// own fields. Returns the keys written.
+/**
+ * Writes the bundle's sections over `config` in place, keeping this machine's
+ * own fields. Returns the keys written.
+ * @param {object} config The box config, changed in place.
+ * @param {object} settings Sections from `readSettingsBundle`.
+ * @returns {string[]} The keys written.
+ */
 export function applySettingsBundle(config, settings) {
   const written = [];
   Object.entries(settings).forEach(([key, value]) => {

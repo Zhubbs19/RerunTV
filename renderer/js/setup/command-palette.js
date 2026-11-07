@@ -11,18 +11,34 @@
 import { canUndo, canRedo, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
 import { confirmPcShutdown, pcShutdownEnabled } from '../playback/pc-power.js';
 
-// Set by setup-keyboard.js after undo/redo runs, so undo/redo chosen from the
-// search still re-renders the setup screen the same way the toolbar buttons
-// do — an injected callback instead of importing setup-keyboard.js, which
-// imports this file.
+/**
+ * Set by setup-keyboard.js after undo/redo runs, so undo/redo chosen from the
+ * search still re-renders the setup screen the same way the toolbar buttons
+ * do — an injected callback instead of importing setup-keyboard.js, which
+ * imports this file.
+ */
 let onUndoRedo = () => {};
+/**
+ * Installs the callback run after undo or redo is chosen from the search.
+ * @param {Function} fn The re-render callback.
+ */
 export function setUndoRedoHook(fn) { onUndoRedo = fn; }
 
+/**
+ * Builds an action that clicks the element with this id, if it exists.
+ * @param {string} id The element id.
+ * @returns {Function} The action's `run` function.
+ */
 function click(id) {
   return () => { const el = document.getElementById(id); if (el) el.click(); };
 }
 
-// Clicks a top-level tab, then (if given) a sub-tab button within it.
+/**
+ * Clicks a top-level tab, then (if given) a sub-tab button within it.
+ * @param {string} tabId The tab's `data-tab` id.
+ * @param {?HTMLElement} [subtabBtn] A sub-tab button to click after the tab opens.
+ * @returns {Function} The action's `run` function.
+ */
 function goToTab(tabId, subtabBtn) {
   return () => {
     const tabBtn = document.querySelector(`.setup-tab-btn[data-tab="${tabId}"]`);
@@ -31,7 +47,11 @@ function goToTab(tabId, subtabBtn) {
   };
 }
 
-// { label, hint, run, disabled?, keywords? } — hint names where it happens.
+/**
+ * Builds the list of setup actions the header search offers.
+ * { label, hint, run, disabled?, keywords? } — hint names where it happens.
+ * @returns {Array<object>} The setup actions the header search lists.
+ */
 export function searchActions() {
   const actions = [
     { label: 'Add channel', hint: 'CHANNELS', run: click('add-channel-btn') },
@@ -80,16 +100,24 @@ export function searchActions() {
   return actions;
 }
 
-// Ctrl+K and the status bar's SEARCH button: focus the header search, which
-// lists actions until something is typed (setup-settings.js).
+/**
+ * Ctrl+K and the status bar's SEARCH button: focus the header search, which
+ * lists actions until something is typed (setup-settings.js).
+ */
 export function openCommandPalette() {
   window.dispatchEvent(new CustomEvent('reruntv:open-setup-search'));
 }
 
-// Kept for setup-keyboard.js: there is no separate overlay any more.
+/**
+ * Kept for setup-keyboard.js: there is no separate overlay any more.
+ * @returns {boolean} Always false.
+ */
 export function isCommandPaletteOpen() {
   return false;
 }
+/**
+ * No-op, kept for setup-keyboard.js callers.
+ */
 export function closeCommandPalette() {}
 
 document.getElementById('setup-command-palette-btn')?.addEventListener('click', openCommandPalette);

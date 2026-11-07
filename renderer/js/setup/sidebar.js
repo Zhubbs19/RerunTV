@@ -7,12 +7,18 @@ import { S } from '../core/state.js';
 
 let pluginAttention = 0;
 
-// Channels with nothing to play: no folder yet, or a folder with no videos.
+/**
+ * Channels with nothing to play: no folder yet, or a folder with no videos.
+ * @returns {number} How many channels have no files.
+ */
 function emptyChannelCount() {
   return (S.config?.channels || []).filter((ch) => !(ch.files || []).length).length;
 }
 
-// The last library sync's missing files and folder errors, until the next run.
+/**
+ * The last library sync's missing files and folder errors, until the next run.
+ * @returns {number} Missing files plus folder errors from the last library sync, or 0 when none has run.
+ */
 function librarySyncWarnings() {
   const summary = S.config?.librarySync?.lastSummary;
   return summary ? (summary.missing || 0) + (summary.errors || 0) : 0;
@@ -23,6 +29,10 @@ function librarySyncWarnings() {
 // check on the CHANNELS page lists them and offers the relink.
 let missingFiles = 0;
 let missingCheckRunning = false;
+/**
+ * Checks every local channel and block file for existence in the background and updates the Channels badge with the missing count. Skips when a check is already running or the host API is absent.
+ * @returns {Promise<void>} Resolves once the badges are refreshed.
+ */
 export async function refreshMissingFileBadge() {
   if (missingCheckRunning || !window.api || typeof window.api.checkPathsExist !== 'function') return;
   missingCheckRunning = true;
@@ -44,12 +54,16 @@ export async function refreshMissingFileBadge() {
   refreshSidebarBadges();
 }
 
+// Per section: its attention count and what the count means, for the spoken label.
 const BADGES = {
   channels: () => [emptyChannelCount() + missingFiles, 'needing a look (empty, or files not found)'],
   library: () => [librarySyncWarnings(), 'sync warnings'],
   plugins: () => [pluginAttention, 'need attention'],
 };
 
+/**
+ * Sets or clears the attention badge and its spoken label on each sidebar section button.
+ */
 export function refreshSidebarBadges() {
   document.querySelectorAll('#setup-tabs .setup-tab-btn').forEach((btn) => {
     const badge = BADGES[btn.dataset.tab];

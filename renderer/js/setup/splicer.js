@@ -73,6 +73,7 @@ const OPTION_FIELDS = [
   { key: 'reencode', label: 'Re-encode whole clips', type: 'check', value: false,
     help: 'Slowest. Use it if clips still glitch at the start. Always saves .mp4 (or .mkv/.mov).' },
 ];
+// Options that still matter when splitting an edited plan, where the cuts are already decided.
 const WRITE_KEYS = ['trimGaps', 'exactStart', 'reencode', 'bumperMax', 'commercialMax'];
 
 // Starting points per kind of recording, from testing on real files (see
@@ -88,6 +89,7 @@ const PRESETS = [
     help: 'Leaves the settings as you set them.' },
 ];
 
+// Where a clip can go, with its label and badge tone.
 const CATEGORY = {
   episodes: { label: 'Episode', tone: 'default' },
   commercials: { label: 'Commercial', tone: 'warning' },
@@ -107,6 +109,11 @@ const POOL_TYPES = [
 
 // ---------- Pure helpers ----------
 
+/**
+ * Formats seconds as `m:ss`, or `h:mm:ss` from an hour up.
+ * @param {number} sec Seconds; negative or non-numeric counts as 0.
+ * @returns {string} The formatted duration.
+ */
 export function formatDuration(sec) {
   const total = Math.max(0, Math.floor(Number(sec) || 0));
   const hh = Math.floor(total / 3600);
@@ -115,13 +122,21 @@ export function formatDuration(sec) {
   return hh ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}` : `${mm}:${String(ss).padStart(2, '0')}`;
 }
 
-// With tenths, for cut positions a frame or two apart.
+/**
+ * With tenths, for cut positions a frame or two apart.
+ * @param {number} sec Seconds; negative or non-numeric counts as 0.
+ * @returns {string} The time as `formatDuration` plus a tenths digit.
+ */
 export function formatTime(sec) {
   const t = Math.max(0, Number(sec) || 0);
   return `${formatDuration(t)}.${Math.floor((t % 1) * 10)}`;
 }
 
-// Option values as shown -> what service.js takes.
+/**
+ * Option values as shown -> what service.js takes.
+ * @param {object} values Option values keyed by `OPTION_FIELDS` key.
+ * @returns {object} The detector options: inverted flags for unchecked switches, trimmed strings for filled-in values.
+ */
 export function requestOptions(values) {
   const opts = {};
   OPTION_FIELDS.forEach((field) => {
@@ -135,14 +150,29 @@ export function requestOptions(values) {
   return opts;
 }
 
+/**
+ * Counts manifest entries by where they went.
+ * @param {Array<object>} segments Split manifest entries, each with a `category`.
+ * @returns {object} Counts as `{ episodes, commercials, bumpers }`.
+ */
 export function countByCategory(segments) {
   const out = { episodes: 0, commercials: 0, bumpers: 0 };
   segments.forEach((s) => { if (out[s.category] !== undefined) out[s.category] += 1; });
   return out;
 }
 
+/**
+ * Strips the last path segment, for either slash style.
+ * @param {string} p A file path.
+ * @returns {string} The containing folder.
+ */
 const dirname = (p) => String(p || '').replace(/[\\/][^\\/]*$/, '');
 
+/**
+ * Words a category count, e.g. "3 episodes, 2 commercials".
+ * @param {object} c Counts with `episodes`, `commercials` and `bumpers`.
+ * @returns {string} The summary; empty when every count is 0.
+ */
 function categorySummary(c) {
   const parts = [];
   if (c.episodes) parts.push(plural(c.episodes, 'episode'));
@@ -153,6 +183,7 @@ function categorySummary(c) {
 
 // ---------- State ----------
 
+// The splicer page's state: host availability, settings, option values, runs, the open editor and the combine queue.
 const V = {
   available: typeof window !== 'undefined' && !!(window.api && typeof window.api.splicerCall === 'function'),
   loaded: false,
@@ -166,30 +197,61 @@ const V = {
   dragFrom: null,
 };
 
+/**
+ * Shorthand for `document.getElementById`.
+ * @param {string} id The element id.
+ * @returns {?HTMLElement} The element.
+ */
 const $ = (id) => document.getElementById(id);
 
+/**
+ * Calls a method on the host splicer service.
+ * @param {string} method The service method name.
+ * @param {object} [payload={}] The method's arguments.
+ * @returns {Promise<*>} The method's result.
+ * @throws {Error} When the host reports failure or does not answer.
+ */
 async function call(method, payload = {}) {
   const response = await window.api.splicerCall(method, payload);
   if (!response || !response.ok) throw new Error((response && response.error) || 'The splicer did not answer.');
   return response.result;
 }
 
+/**
+ * Builds a status paragraph.
+ * @param {string} text The message.
+ * @param {string} [tone=''] An optional tone (`error`, `warning`, `success`) added as a `text-<tone>` class.
+ * @returns {HTMLElement} The paragraph.
+ */
 function note(text, tone = '') {
   return h('p', { className: `panel-status library-note${tone ? ` text-${tone}` : ''}`, text, attrs: { role: 'status' } });
 }
 
+/**
+ * Shows an error in a panel's results area.
+ * @param {string} panel The panel name, `split` or `combine`.
+ * @param {Error|string} error The error to show.
+ */
 function showError(panel, error) {
   const results = $(`splicer-${panel}-results`);
   if (results) results.replaceChildren(note(error.message || String(error), 'error'));
 }
 
 let saveTimer = null;
+/**
+ * Merges a patch into the splicer settings and saves them on the host after a short pause, so bursts of edits are one write.
+ * @param {object} patch The settings fields to change.
+ */
 function saveSettingsSoon(patch) {
   Object.assign(V.settings, patch);
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { call('saveSettings', V.settings).catch(() => {}); }, 400);
 }
 
+/**
+ * Picks the options a split of an edited plan uses.
+ * @returns {object} Only the write-side options (gaps, exact start, re-encode, category lengths) from the current values, for a split of an edited plan.
+ */
 function writeOptions() {
   const opts = requestOptions(V.values);
   const out = {};
@@ -201,16 +263,30 @@ function writeOptions() {
   return out;
 }
 
+/**
+ * Reads the clip options from the current values.
+ * @returns {object} The clip options the editor's model functions take: `trimGaps`, `bumperMax`, `commercialMax`.
+ */
 const editOpts = () => ({ trimGaps: V.values.trimGaps !== false, bumperMax: Number(V.values.bumperMax) || 20, commercialMax: Number(V.values.commercialMax) || 120 });
 
 // ---------- SPLIT: inputs, presets and options ----------
 
+/**
+ * Builds the request for the chosen source.
+ * @returns {object} The detect or split request for the chosen source: `input` or `folder`, `out` and the detector `opts`.
+ */
 function sourceRequest() {
   const source = $('splicer-source').value.trim();
   const out = $('splicer-out').value.trim();
   return { ...(V.sourceIsFolder ? { folder: source } : { input: source }), out, opts: requestOptions(V.values) };
 }
 
+/**
+ * Sets the source path and its help line.
+ * @param {string} path The file or folder path.
+ * @param {boolean} isFolder True when the path is a folder of recordings.
+ * @param {boolean} [missing=false] True when nothing exists at the path.
+ */
 function setSource(path, isFolder, missing = false) {
   $('splicer-source').value = path;
   V.sourceIsFolder = !!isFolder;
@@ -220,8 +296,15 @@ function setSource(path, isFolder, missing = false) {
   $('splicer-source-help').classList.toggle('text-error', missing);
 }
 
+/**
+ * Lists every preset in menu order.
+ * @returns {Array<object>} The built-in presets, then the saved ones, then "My own settings".
+ */
 const allPresets = () => [...PRESETS.filter((p) => p.key !== 'custom'), ...(V.settings.customPresets || []), PRESETS.find((p) => p.key === 'custom')];
 
+/**
+ * Rebuilds the preset select, with saved presets in their own group, and selects the saved choice.
+ */
 function renderPresetSelect() {
   const select = $('splicer-preset');
   const mine = V.settings.customPresets || [];
@@ -235,12 +318,19 @@ function renderPresetSelect() {
   paintPresetHelp();
 }
 
+/**
+ * Shows the selected preset's help and offers DELETE only for a saved preset.
+ */
 function paintPresetHelp() {
   const preset = allPresets().find((p) => p.key === $('splicer-preset').value);
   $('splicer-preset-help').textContent = preset ? (preset.help || 'Your saved settings.') : '';
   $('splicer-preset-delete-btn').hidden = !(preset && preset.key.startsWith('user-'));
 }
 
+/**
+ * Applies a preset's values to the options, saves the choice and re-renders the options and the open editor.
+ * @param {string} key The preset key.
+ */
 function applyPreset(key) {
   const preset = allPresets().find((p) => p.key === key);
   if (!preset) return;
@@ -251,6 +341,10 @@ function applyPreset(key) {
   if (V.edit) renderEditor({ keepVideo: true });
 }
 
+/**
+ * Asks for a name and saves the current options as a preset (at most 30 are kept; a same-named one is replaced).
+ * @returns {Promise<void>} Resolves once saved or cancelled.
+ */
 async function savePreset() {
   const label = await promptDialog({ title: 'SAVE AS A PRESET', message: 'A name for these settings, like “My VHS tapes”.', placeholder: 'Preset name' });
   if (!label) return;
@@ -260,6 +354,10 @@ async function savePreset() {
   renderPresetSelect();
 }
 
+/**
+ * Deletes the selected saved preset after confirming.
+ * @returns {Promise<void>} Resolves once deleted or cancelled.
+ */
 async function deletePreset() {
   const key = $('splicer-preset').value;
   const preset = (V.settings.customPresets || []).find((p) => p.key === key);
@@ -268,6 +366,9 @@ async function deletePreset() {
   renderPresetSelect();
 }
 
+/**
+ * Builds the detector option fields. Changing one by hand switches the preset to "My own settings" and saves.
+ */
 function renderOptions() {
   const root = $('splicer-options-root');
   root.replaceChildren(...OPTION_FIELDS.map((field) => {
@@ -315,16 +416,25 @@ function renderOptions() {
 
 // ---------- RUNS: the queue ----------
 
+// Status wording for each kind of run.
 const RUN_VERBS = {
   detect: 'Finding cuts', review: 'Making cut pictures', split: 'Splitting', splitPlan: 'Splitting', findRepeats: 'Looking for repeats', combine: 'Combining',
 };
 
+/**
+ * Words a run's state for the RUNS list.
+ * @param {object} run A run record from `V.runs`.
+ * @returns {string} The run's status line: waiting with its queue place, done, failed, cancelled or its live status.
+ */
 function runStatus(run) {
   if (run.state === 'waiting') return run.ahead ? `Waiting · ${plural(run.ahead, 'run')} ahead` : 'Waiting';
   if (run.state === 'done') return run.error ? (run.cancelled ? 'Cancelled' : `Failed: ${run.error}`) : 'Done';
   return run.status || `${RUN_VERBS[run.kind] || 'Working'}…`;
 }
 
+/**
+ * Renders the RUNS list: each run's label, status, progress bar, CANCEL or OPEN FOLDER, and its log.
+ */
 function renderRuns() {
   const panel = $('splicer-runs-panel');
   const list = $('splicer-runs');
@@ -358,13 +468,21 @@ function renderRuns() {
 }
 
 let renderQueued = false;
+/**
+ * Renders the RUNS list on the next animation frame, once however many events arrive before it.
+ */
 function renderRunsSoon() {
   if (renderQueued) return;
   renderQueued = true;
   requestAnimationFrame(() => { renderQueued = false; renderRuns(); });
 }
 
-// Queues a host job; resolves with its done event.
+/**
+ * Queues a host job; resolves with its done event.
+ * @param {object} request The job request; `kind` names the job.
+ * @param {string} label The run's label in RUNS.
+ * @returns {Promise<object>} The job's done event. Rejects when the job fails or is cancelled.
+ */
 function startRun(request, label) {
   return new Promise((resolve, reject) => {
     call('startJob', { ...request, label }).then(({ jobId, ahead }) => {
@@ -379,6 +497,11 @@ function startRun(request, label) {
   });
 }
 
+/**
+ * Resolves or rejects a run's promise from its done event, or keeps the event until `startJob` has replied.
+ * @param {object} run The run record.
+ * @param {object} event The done event.
+ */
 function settle(run, event) {
   if (!run.resolve) { run.doneEvent = event; return; }
   if (event.cancelled) run.reject(Object.assign(new Error('Cancelled.'), { cancelled: true }));
@@ -387,7 +510,10 @@ function settle(run, event) {
   run.resolve = null;
 }
 
-// One event from main/splicer/service.js.
+/**
+ * One event from main/splicer/service.js.
+ * @param {object} event A `splicer:job` event: `queued`, `start`, `log`, `progress` or `done`, with its `jobId`.
+ */
 function onJobEvent(event) {
   let run = V.runs.get(event.jobId);
   if (!run) {
@@ -424,6 +550,11 @@ function onJobEvent(event) {
   renderRunsSoon();
 }
 
+/**
+ * Asks the host to cancel a run and marks it as stopping.
+ * @param {string} jobId The run's job id.
+ * @returns {Promise<void>} Resolves once the host has answered.
+ */
 async function cancelRun(jobId) {
   const run = V.runs.get(jobId);
   if (!run) return;
@@ -433,6 +564,12 @@ async function cancelRun(jobId) {
   await call('cancelJob', { jobId }).catch(() => {});
 }
 
+/**
+ * Runs a panel action, showing a cancellation or error in that panel's results.
+ * @param {string} panel The panel name, `split` or `combine`.
+ * @param {() => Promise<void>} fn The action.
+ * @returns {Promise<void>} Resolves when the action ends.
+ */
 async function runAction(panel, fn) {
   try {
     await fn();
@@ -442,10 +579,21 @@ async function runAction(panel, fn) {
   }
 }
 
+/**
+ * Builds a button that shows a path in the system file manager.
+ * @param {string} target The file or folder path.
+ * @param {string} [label='SHOW IN FOLDER'] The button text.
+ * @returns {HTMLElement} The button.
+ */
 function openFolderButton(target, label = 'SHOW IN FOLDER') {
   return Button({ label, onPress: () => call('showInFolder', { path: target }).catch((e) => showError('split', e)) });
 }
 
+/**
+ * Builds the list of recordings that could not be read.
+ * @param {?Array<object>} failures Failures as `{ input, error }`.
+ * @returns {?HTMLElement} The block, or null when there are none.
+ */
 function failuresBlock(failures) {
   if (!failures || !failures.length) return null;
   return h('div', { className: 'library-root' },
@@ -453,10 +601,19 @@ function failuresBlock(failures) {
     h('ul', { className: 'library-item-list' }, failures.map((f) => h('li', {}, h('span', { className: 'library-ref', text: basename(f.input) }), h('span', { className: 'library-reason', text: f.error })))));
 }
 
+/**
+ * Names the chosen source for run labels.
+ * @returns {string} The chosen source's file name, or "recording".
+ */
 const sourceLabel = () => basename($('splicer-source').value.trim()) || 'recording';
 
 // ---------- SPLIT: find cuts, then edit ----------
 
+/**
+ * Finds the cuts in the chosen source and opens them in the editor.
+ * @param {boolean} review Also make a before/after picture of every cut.
+ * @returns {Promise<void>} Resolves once the editor is shown or the run ends.
+ */
 async function findCuts(review) {
   await runAction('split', async () => {
     const request = { kind: review ? 'review' : 'detect', ...sourceRequest() };
@@ -472,14 +629,32 @@ async function findCuts(review) {
   });
 }
 
+/**
+ * Gets the model being edited.
+ * @returns {?object} The splice model of the recording open in the editor.
+ */
 const currentModel = () => V.edit && V.edit.models[V.edit.current];
+/**
+ * Finds the editor's video element.
+ * @returns {?HTMLVideoElement} The editor's player.
+ */
 const editorVideo = () => document.getElementById('splicer-edit-video');
 
+/**
+ * Moves the editor's player.
+ * @param {number} t The time in seconds; clamped at 0.
+ */
 function seek(t) {
   const video = editorVideo();
   if (video) video.currentTime = Math.max(0, t);
 }
 
+/**
+ * Selects a cut in the editor and re-renders it with that cut focused.
+ * @param {string} id The cut id.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.seekTo=true] Move the player to just before the cut.
+ */
 function selectCut(id, { seekTo = true } = {}) {
   V.edit.selected = id;
   const cut = currentModel().cuts.find((c) => c.id === id);
@@ -487,10 +662,20 @@ function selectCut(id, { seekTo = true } = {}) {
   renderEditor({ keepVideo: true, focusCut: id });
 }
 
+/**
+ * Gets one frame's length for nudging a cut.
+ * @param {object} model A splice model.
+ * @returns {number} One frame in seconds (30 fps when unknown).
+ */
 const frameStep = (model) => 1 / (model.fps || 30);
 
-// The recording as a strip: clips coloured by where they go, gaps dark,
-// cuts as focusable markers; the playhead follows the player.
+/**
+ * The recording as a strip: clips coloured by where they go, gaps dark,
+ * cuts as focusable markers; the playhead follows the player.
+ * @param {object} model The splice model.
+ * @param {Array<object>} clips The model's clips from `clipsOf`.
+ * @returns {object} `{ strip, head }`: the timeline element and its playhead.
+ */
 function timeline(model, clips) {
   const pct = (t) => `${(t / model.duration) * 100}%`;
   const strip = h('div', { className: 'splicer-timeline', attrs: { role: 'group', 'aria-label': 'Recording timeline. Click to move the player; a selected cut moves with the arrow keys (Shift for a second), Delete removes it.' } });
@@ -534,6 +719,11 @@ function timeline(model, clips) {
   return { strip, head };
 }
 
+/**
+ * Builds the toolbar under the timeline: add a cut, use the frame as a logo time, and, for a selected cut, nudge, play across, remove or restore it.
+ * @param {object} model The splice model.
+ * @returns {HTMLElement} The toolbar.
+ */
 function cutToolbar(model) {
   const bar = h('div', { className: 'library-actions splicer-cut-tools' });
   bar.append(
@@ -571,10 +761,20 @@ function cutToolbar(model) {
   return bar;
 }
 
+/**
+ * Turns a local path into a loadable URL.
+ * @param {string} path A local file path.
+ * @returns {Promise<string>} A URL the page can load it from, or an empty string.
+ */
 async function thumbUrl(path) {
   try { return await window.api.toFileUrl(path); } catch (e) { return ''; }
 }
 
+/**
+ * Builds the grid of before/after cut pictures, each with a keep checkbox and a larger view that can keep or remove the cut.
+ * @param {object} model The splice model.
+ * @returns {Promise<?HTMLElement>} The grid, or null when no cut has a picture.
+ */
 async function pictureGrid(model) {
   const withPictures = model.cuts.filter((c) => c.thumbPath);
   if (!withPictures.length) return null;
@@ -609,6 +809,13 @@ async function pictureGrid(model) {
   return grid;
 }
 
+/**
+ * Builds the clips table: start, length, name, where it goes, repeat marks, play and merge.
+ * @param {object} model The splice model.
+ * @param {Array<object>} clips The model's clips from `clipsOf`.
+ * @param {number} fileIndex The recording's index in the editor, for repeat lookups.
+ * @returns {HTMLElement} The table.
+ */
 function clipsTable(model, clips, fileIndex) {
   const repeatOf = (clip) => V.edit.repeats[`${fileIndex}:${clip.index - 1}`];
   const rows = clips.map((clip) => {
@@ -634,6 +841,11 @@ function clipsTable(model, clips, fileIndex) {
     h('tbody', {}, rows));
 }
 
+/**
+ * Builds the row that numbers the episode clips from a series name, season and first episode.
+ * @param {object} model The splice model.
+ * @returns {HTMLElement} The row.
+ */
 function namingRow(model) {
   const series = h('input', { type: 'text', className: 'title-row-input', placeholder: 'Series name', spellcheck: false, attrs: { 'aria-label': 'Series name' } });
   const season = h('input', { type: 'number', className: 'title-row-input splicer-num', value: 1, min: 0, attrs: { 'aria-label': 'Season' } });
@@ -649,6 +861,13 @@ function namingRow(model) {
 }
 
 let editorRender = 0;
+/**
+ * Renders the cut editor for the current recording. A newer render started while this one awaits wins.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.keepVideo=false] Reuse the existing player so playback is not interrupted.
+ * @param {?string} [opts.focusCut=null] A cut id to focus afterwards.
+ * @returns {Promise<void>} Resolves once rendered.
+ */
 async function renderEditor({ keepVideo = false, focusCut = null } = {}) {
   const results = $('splicer-split-results');
   if (!V.edit) return;
@@ -701,9 +920,21 @@ async function renderEditor({ keepVideo = false, focusCut = null } = {}) {
   if (focusCut) results.querySelector(`.splicer-tl-cut[data-cut-id="${focusCut}"]`)?.focus();
 }
 
+/**
+ * Builds the split plan from the editor.
+ * @returns {object} The split plan for every recording open in the editor.
+ */
 const planForEdit = () => planFor(V.edit.models, editOpts());
+/**
+ * Names what the editor holds, for run labels.
+ * @returns {string} The edited recording's name, or a count of recordings.
+ */
 const editLabel = () => (V.edit.models.length === 1 ? V.edit.models[0].sourceFile : plural(V.edit.models.length, 'recording'));
 
+/**
+ * Runs the repeat finder on the edited plan and marks clips that aired earlier on the same tape.
+ * @returns {Promise<void>} Resolves when the run ends.
+ */
 async function findRepeatsNow() {
   await runAction('split', async () => {
     const { result } = await startRun({ kind: 'findRepeats', plan: planForEdit() }, `Find repeats in ${editLabel()}`);
@@ -715,6 +946,9 @@ async function findRepeatsNow() {
   });
 }
 
+/**
+ * Sets every clip marked as a repeat to "Don't save".
+ */
 function skipRepeats() {
   V.edit.models.forEach((model, fileIndex) => {
     clipsOf(model, editOpts()).forEach((clip) => {
@@ -724,6 +958,10 @@ function skipRepeats() {
   renderEditor({ keepVideo: true });
 }
 
+/**
+ * Closes the editor and splits exactly the edited clips.
+ * @returns {Promise<void>} Resolves when the run ends.
+ */
 async function splitEdited() {
   const plan = planForEdit();
   const label = `Split ${editLabel()}`;
@@ -739,6 +977,10 @@ async function splitEdited() {
 
 // ---------- SPLIT: straight away ----------
 
+/**
+ * Splits the chosen source straight away, without the editor.
+ * @returns {Promise<void>} Resolves when the run ends.
+ */
 async function splitNow() {
   await runAction('split', async () => {
     const { result } = await startRun({ kind: 'split', ...sourceRequest() }, `Split ${sourceLabel()}`);
@@ -747,6 +989,10 @@ async function splitNow() {
   });
 }
 
+/**
+ * Shows a finished split: what was written, OPEN CLIPS FOLDER, the SEND TO RERUNTV card and any failures.
+ * @param {object} result The split result (`manifest`, `out`, `failures`).
+ */
 function splitDone(result) {
   const results = $('splicer-split-results');
   const manifest = result.manifest || [];
@@ -764,6 +1010,11 @@ function splitDone(result) {
 
 // ---------- Sending clips into RerunTV ----------
 
+/**
+ * Builds the channel choices for sending episodes.
+ * @param {string|number} selected `'new'` or the channel number to select.
+ * @returns {HTMLOptionElement[]} "A new channel" plus one option per channel.
+ */
 function channelOptions(selected) {
   return [
     h('option', { value: 'new', text: 'A new channel', selected: selected === 'new' }),
@@ -771,8 +1022,12 @@ function channelOptions(selected) {
   ];
 }
 
-// Durations are read from the files themselves: a channel's schedule is
-// built from them, so the splice plan's times aren't good enough.
+/**
+ * Durations are read from the files themselves: a channel's schedule is
+ * built from them, so the splice plan's times aren't good enough.
+ * @param {Array<object>} items Clips as `{ path, duration }`.
+ * @returns {Promise<Array<object>>} The clips as `{ path, duration }` with probed durations, falling back to the plan's.
+ */
 async function probeAll(items) {
   const files = [];
   for (const item of items) {
@@ -783,6 +1038,14 @@ async function probeAll(items) {
   return files;
 }
 
+/**
+ * Adds episode clips to a new channel or appends them to an existing one, re-anchored so what is airing keeps airing.
+ * @param {Array<object>} items Episode manifest entries with `path` and `duration`.
+ * @param {string} target `'new'` or a channel number.
+ * @param {string} suggestedName The new channel's name.
+ * @returns {Promise<string>} A message saying what was done.
+ * @throws {Error} When the target channel no longer exists.
+ */
 async function addEpisodesToChannel(items, target, suggestedName) {
   const folder = dirname(items[0].path);
   const entry = { id: mediaRefId('local', folder), source: 'local', ref: folder, label: null };
@@ -814,6 +1077,13 @@ async function addEpisodesToChannel(items, target, suggestedName) {
   return `Added ${plural(fresh.length, 'episode')} to CH ${ch.number} · ${ch.name || 'Untitled'}.`;
 }
 
+/**
+ * Adds clips not already there to the ad pool.
+ * @param {Array<object>} items Manifest entries with `path` and `duration`.
+ * @param {string} type The pool type id from `POOL_TYPES`.
+ * @param {string|number} channelAffinity `'any'` or a channel number.
+ * @returns {Promise<string>} A message saying what was done.
+ */
 async function addToAdPool(items, type, channelAffinity) {
   const known = new Set((S.config.interstitials?.pool || []).map((e) => e.file && e.file.path));
   const fresh = await probeAll(items.filter((item) => !known.has(item.path)));
@@ -825,6 +1095,11 @@ async function addToAdPool(items, type, channelAffinity) {
   return `Added ${plural(fresh.length, 'clip')} to the ad pool as ${POOL_TYPES.find((t) => t.id === type).label.toLowerCase()}s.`;
 }
 
+/**
+ * Builds the SEND TO RERUNTV card for a finished split: episodes onto a channel, commercials and bumpers into the ad pool.
+ * @param {Array<object>} manifest The split manifest.
+ * @returns {?HTMLElement} The card, or null when there is nothing to send.
+ */
 function sendPanel(manifest) {
   if (!manifest.length || !S.config) return null;
   const targets = V.settings.sendTargets || {};
@@ -878,12 +1153,22 @@ function sendPanel(manifest) {
 
 // ---------- COMBINE ----------
 
+/**
+ * Plays a combine clip in the preview player.
+ * @param {string} path The clip's file path.
+ * @returns {Promise<void>} Resolves once the source is set.
+ */
 async function previewClip(path) {
   const video = $('splicer-preview');
   video.src = await thumbUrl(path);
   video.hidden = false;
 }
 
+/**
+ * Moves a clip in the combine queue.
+ * @param {number} from The clip's index.
+ * @param {number} to Its new index; out of range does nothing.
+ */
 function moveClip(from, to) {
   if (to < 0 || to >= V.queue.length || from === to) return;
   const [moved] = V.queue.splice(from, 1);
@@ -891,6 +1176,9 @@ function moveClip(from, to) {
   renderQueue();
 }
 
+/**
+ * Renders the combine queue with preview, move, remove and drag-to-reorder.
+ */
 function renderQueue() {
   const list = $('splicer-queue');
   if (!V.queue.length) {
@@ -918,8 +1206,11 @@ function renderQueue() {
   }));
 }
 
-// Exported for tests/ui/verify-splicer.mjs: native pickers can't be driven
-// over CDP, and window.api is frozen by the context bridge.
+/**
+ * Exported for tests/ui/verify-splicer.mjs: native pickers can't be driven
+ * over CDP, and window.api is frozen by the context bridge.
+ * @param {string[]} paths Clip paths to append; ones already queued are skipped.
+ */
 export function addClips(paths) {
   const known = new Set(V.queue);
   const fresh = (paths || []).filter((p) => !known.has(p));
@@ -928,6 +1219,10 @@ export function addClips(paths) {
   renderQueue();
 }
 
+/**
+ * Combines the queued clips into one file.
+ * @returns {Promise<void>} Resolves when the run ends.
+ */
 async function combine() {
   await runAction('combine', async () => {
     $('splicer-combine-results').replaceChildren();
@@ -946,6 +1241,10 @@ async function combine() {
 
 // ---------- Wiring ----------
 
+/**
+ * Loads ffmpeg status, saved settings (first time only) and host runs, then enables or disables the run buttons.
+ * @returns {Promise<void>} Resolves once refreshed.
+ */
 async function refresh() {
   if (!V.available) return;
   try {
@@ -977,6 +1276,9 @@ async function refresh() {
   renderRuns();
 }
 
+/**
+ * Wires the splicer page's controls once at load. On a LAN viewer it replaces the page with a note instead.
+ */
 function wire() {
   const panel = document.querySelector('[data-subtab-panel="librarysplicer"]');
   if (!panel) return;
@@ -1048,7 +1350,9 @@ function wire() {
   document.querySelector('.setup-subtab-btn[data-subtab="librarysplicer"]')?.addEventListener('click', refresh);
 }
 
-// Called from renderSettingsPanels whenever the setup screen opens.
+/**
+ * Called from renderSettingsPanels whenever the setup screen opens.
+ */
 export function renderSplicerPanels() {
   refresh();
 }

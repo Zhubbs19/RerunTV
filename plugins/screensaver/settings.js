@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the idle screensaver: on/off, idle minutes,
+// variant, custom text and whether plugin channels are skipped.
 import { rearmScreensaverTimer, applyScreensaverVariant } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('screensaver', {

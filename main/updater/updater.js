@@ -1,3 +1,5 @@
+// Auto-update: electron-updater wiring, the startup and background checks,
+// the update-progress popup window, release notes and the post-update notice.
 const { app, ipcMain, BrowserWindow } = require('electron');
 const fs = require('fs');
 const { atomicWriteFileSync } = require('../util/atomic-write');
@@ -55,6 +57,7 @@ let progressCloseTimer = null;
 let startupUpdateActive = false;
 let startupUpdateResolve = null;
 let startupCheckTimer = null;
+// Set while a CHECK NOW request is in flight, so its result is shown even under a quiet strategy.
 let manualCheckRequested = false;
 // The renderer-only theme-pack registry (registerThemePack, plugins.js),
 // pushed here after every plugin (re)load — see preload.js's
@@ -64,12 +67,24 @@ let manualCheckRequested = false;
 // here rather than in main.js since setThemeColors (the sibling "renderer
 // reported something live" report) already lives in this file.
 let latestThemeList = [];
+/**
+ * Returns the theme packs the renderer last reported as installed.
+ * @returns {Array} The reported list.
+ */
 function getLatestThemeList() { return latestThemeList; }
 
+/**
+ * Returns where the update state is kept.
+ * @returns {string} `<userData>/update-state.json`.
+ */
 function updateStatePath() {
   return path.join(app.getPath('userData'), 'update-state.json');
 }
 
+/**
+ * Reads the update state; a missing or corrupt file reads as empty.
+ * @returns {object} The state.
+ */
 function readUpdateState() {
   try {
     return JSON.parse(fs.readFileSync(updateStatePath(), 'utf8'));
@@ -78,6 +93,10 @@ function readUpdateState() {
   }
 }
 
+/**
+ * Writes the update state atomically, logging rather than throwing on failure.
+ * @param {object} state The state.
+ */
 function writeUpdateState(state) {
   try {
     const file = updateStatePath();
@@ -103,14 +122,24 @@ const THEME_COLOR_VARS = [
   '--guide-layout',
 ];
 
+/**
+ * Escapes text for use inside a regular expression.
+ * @param {string} text The text.
+ * @returns {string} The escaped text.
+ */
 function escapeRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// Pulls the resolved values straight out of a `html[data-theme="X"] { ... }`
-// block's source text — a plain balanced-brace scan from the first `{` after
-// the selector, not a real CSS parser, but these blocks are hand-authored
-// and flat (no nested rules), so this is reliable in practice.
+/**
+ * Pulls the resolved values straight out of a `html[data-theme="X"] { ... }`
+ * block's source text — a plain balanced-brace scan from the first `{` after
+ * the selector, not a real CSS parser, but these blocks are hand-authored
+ * and flat (no nested rules), so this is reliable in practice.
+ * @param {string} css A theme pack's stylesheet.
+ * @param {string} themeId The theme id.
+ * @returns {?object} Custom property to value, or null when the block or its colours are missing.
+ */
 function extractThemeVarsFromCss(css, themeId) {
   const markerIndex = css.indexOf(`[data-theme="${themeId}"]`);
   if (markerIndex === -1) return null;
@@ -132,19 +161,23 @@ function extractThemeVarsFromCss(css, themeId) {
   return Object.keys(colors).length ? colors : null;
 }
 
-// Best-effort resolution of a theme's actual palette straight off disk, with
-// no renderer involved at all — lets the startup-auto "CHECKING FOR UPDATES"
-// progress window (shown before the main window, let alone its renderer,
-// exists — see initAutoUpdater below) match the configured theme on the
-// very first launch, not just from the second launch onward (the
-// live-reported latestThemeColors above only exists once a renderer has
-// actually run applyTheme() once and this process has persisted it).
-// 'digital-2000s' has no plugin — it IS core's own :root palette, already
-// this window's CSS fallback, so null (== "keep the fallback") is correct
-// for it. Scans every installed plugin's renderer.js for the
-// `registerThemePack('<themeId>', ...)` call that names it, rather than
-// assuming the bundled packs' `theme-<id>` folder-naming convention, since a
-// third-party pack isn't guaranteed to follow it.
+/**
+ * Best-effort resolution of a theme's actual palette straight off disk, with
+ * no renderer involved at all — lets the startup-auto "CHECKING FOR UPDATES"
+ * progress window (shown before the main window, let alone its renderer,
+ * exists — see initAutoUpdater below) match the configured theme on the
+ * very first launch, not just from the second launch onward (the
+ * live-reported latestThemeColors above only exists once a renderer has
+ * actually run applyTheme() once and this process has persisted it).
+ * 'digital-2000s' has no plugin — it IS core's own :root palette, already
+ * this window's CSS fallback, so null (== "keep the fallback") is correct
+ * for it. Scans every installed plugin's renderer.js for the
+ * `registerThemePack('<themeId>', ...)` call that names it, rather than
+ * assuming the bundled packs' `theme-<id>` folder-naming convention, since a
+ * third-party pack isn't guaranteed to follow it.
+ * @param {?string} themeId The configured theme id.
+ * @returns {?object} Custom property to value, or null to keep the fallback palette.
+ */
 function resolveThemeColorsFromDisk(themeId) {
   if (!themeId || themeId === 'digital-2000s') return null;
   let entries;
@@ -179,9 +212,11 @@ function resolveThemeColorsFromDisk(themeId) {
   return null;
 }
 
-// Called after userData restoration and before the renderer asks for its
-// one-time notice. A brand-new install establishes a baseline silently;
-// only a later version transition creates a pending changelog.
+/**
+ * Called after userData restoration and before the renderer asks for its
+ * one-time notice. A brand-new install establishes a baseline silently;
+ * only a later version transition creates a pending changelog.
+ */
 function preparePostUpdateNotice() {
   const currentVersion = app.getVersion();
   const state = readUpdateState();
@@ -190,12 +225,21 @@ function preparePostUpdateNotice() {
   if (JSON.stringify(state) !== before) writeUpdateState(state);
 }
 
+/**
+ * Saves a downloaded release's details to the update state.
+ * @param {object} info electron-updater's update info.
+ */
 function rememberDownloadedRelease(info) {
   const state = readUpdateState();
   recordDownloadedRelease(state, info);
   writeUpdateState(state);
 }
 
+/**
+ * Formats download progress as a size and speed line.
+ * @param {object} progress electron-updater's progress (`transferred`, `total`, `bytesPerSecond`).
+ * @returns {string} The line shown under the progress bar.
+ */
 function progressDetail(progress) {
   const transferredMb = Number(progress.transferred || 0) / (1024 * 1024);
   const totalMb = Number(progress.total || 0) / (1024 * 1024);
@@ -205,6 +249,10 @@ function progressDetail(progress) {
   return [size, speed].filter(Boolean).join('  •  ') || 'Downloading the update package…';
 }
 
+/**
+ * Stores the progress state and sends it to the popup once it has loaded.
+ * @param {object} state The progress state.
+ */
 function sendProgressState(state) {
   latestProgressState = state;
   if (progressWindowReady && progressWindow && !progressWindow.isDestroyed()) {
@@ -212,23 +260,23 @@ function sendProgressState(state) {
   }
 }
 
+/**
+ * Sends the latest theme colours to the popup once it has loaded.
+ */
 function sendThemeColors() {
   if (progressWindowReady && progressWindow && !progressWindow.isDestroyed()) {
     progressWindow.webContents.send('update-progress:theme', latestThemeColors);
   }
 }
 
-// Called from main.js's 'theme:colors' listener whenever the renderer's
-// active theme pack changes (themes.js's applyTheme) — cached here (not just
-// forwarded) so a progress window created later, or already open, always has
-// the latest report to draw from, same as latestProgressState above. Also
-// persisted to update-state.json so the NEXT launch's startup-auto "CHECKING
-// FOR UPDATES" box (shown before the renderer has loaded) has something
-// besides the hardcoded fallback to start from — see latestThemeColors above.
-// The report arrives over an unauthenticated IPC send and is written into the
-// progress window's styles, so only the known custom properties are kept and a
-// value may be a colour or gradient, never something that can escape a
-// declaration (no braces, semicolons, angle brackets, url() or @import).
+/**
+ * The report arrives over an unauthenticated IPC send and is written into the
+ * progress window's styles, so only the known custom properties are kept and a
+ * value may be a colour or gradient, never something that can escape a
+ * declaration (no braces, semicolons, angle brackets, url() or @import).
+ * @param {*} colors The reported custom-property map.
+ * @returns {?object} The safe subset, or null when nothing is usable.
+ */
 function sanitizeThemeColors(colors) {
   if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return null;
   const out = {};
@@ -243,6 +291,16 @@ function sanitizeThemeColors(colors) {
   return Object.keys(out).length ? out : null;
 }
 
+/**
+ * Called from main.js's 'theme:colors' listener whenever the renderer's
+ * active theme pack changes (themes.js's applyTheme) — cached here (not just
+ * forwarded) so a progress window created later, or already open, always has
+ * the latest report to draw from, same as latestProgressState above. Also
+ * persisted to update-state.json so the NEXT launch's startup-auto "CHECKING
+ * FOR UPDATES" box (shown before the renderer has loaded) has something
+ * besides the hardcoded fallback to start from — see latestThemeColors above.
+ * @param {*} colors The reported custom-property map; sanitized before use.
+ */
 function setThemeColors(colors) {
   latestThemeColors = sanitizeThemeColors(colors);
   const state = readUpdateState();
@@ -251,6 +309,11 @@ function setThemeColors(colors) {
   sendThemeColors();
 }
 
+/**
+ * Opens the update-progress popup over the main window if needed, scaled to match, and shows a state.
+ * @param {Function} getMainWindow Returns the main window, or null.
+ * @param {object} state The progress state to show.
+ */
 function showProgressWindow(getMainWindow, state) {
   clearTimeout(progressCloseTimer);
   if (!progressWindow || progressWindow.isDestroyed()) {
@@ -302,12 +365,20 @@ function showProgressWindow(getMainWindow, state) {
   sendProgressState(state);
 }
 
+/**
+ * Closes the popup after a delay.
+ * @param {number} [delayMs=0] How long to wait.
+ */
 function closeProgressWindow(delayMs = 0) {
   clearTimeout(progressCloseTimer);
   progressCloseTimer = setTimeout(() => {
     if (progressWindow && !progressWindow.isDestroyed()) progressWindow.close();
   }, delayMs);
 }
+/**
+ * Loads and configures electron-updater on first use.
+ * @returns {object} The `autoUpdater`.
+ */
 function getAutoUpdater() {
   if (!autoUpdater) {
     ({ autoUpdater } = require('electron-updater'));
@@ -326,6 +397,10 @@ function getAutoUpdater() {
   return autoUpdater;
 }
 
+/**
+ * Reads the update settings fresh from config.
+ * @returns {object} `{ strategy }`.
+ */
 function updatesConfig() {
   const cfg = loadConfig();
   // SYSTEM › UPDATES › "Check for updates every" (0 = only at start-up, default 12 h).
@@ -333,11 +408,14 @@ function updatesConfig() {
   return { strategy: normalizeUpdateStrategy(cfg.updates), checkEveryHours: Number.isFinite(hours) && hours > 0 ? Math.min(168, hours) : 0 };
 }
 
-// A box left running checks again on the "Check for updates every" schedule,
-// for the background policies only (startup-auto checks before each launch).
-// Re-reads the config each time, so a changed interval or policy takes effect
-// at the next tick. Real time: this is wall-clock housekeeping, not schedule.
 let periodicCheckTimer = null;
+/**
+ * A box left running checks again on the "Check for updates every" schedule,
+ * for the background policies only (startup-auto checks before each launch).
+ * Re-reads the config each time, so a changed interval or policy takes effect
+ * at the next tick. Real time: this is wall-clock housekeeping, not schedule.
+ * @param {object} updater The electron-updater autoUpdater.
+ */
 function schedulePeriodicChecks(updater) {
   clearTimeout(periodicCheckTimer);
   const { checkEveryHours } = updatesConfig();
@@ -351,6 +429,10 @@ function schedulePeriodicChecks(updater) {
   }, waitMs);
 }
 
+/**
+ * Ends the startup update gate and lets the launch continue.
+ * @param {boolean} installing Whether an install is about to restart the app (the popup stays up).
+ */
 function finishStartupUpdate(installing) {
   if (!startupUpdateActive) return;
   startupUpdateActive = false;
@@ -362,6 +444,11 @@ function finishStartupUpdate(installing) {
   if (resolve) resolve(!!installing);
 }
 
+/**
+ * Sends an `updates:status` event to the main window.
+ * @param {Function} getMainWindow Returns the main window, or null.
+ * @param {object} payload The status.
+ */
 function sendStatus(getMainWindow, payload) {
   const win = getMainWindow();
   if (win && !win.isDestroyed()) win.webContents.send('updates:status', payload);
@@ -377,6 +464,10 @@ const GITHUB_REPO = 'RerunTV';
 // behavior, for free.
 const RELEASE_NOTES_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Fetches the latest GitHub releases, cached for an hour.
+ * @returns {Promise<Array<object>>} `{ tag, name, body, publishedAt, prerelease, url }` per release; empty on failure.
+ */
 async function fetchReleaseNotes() {
   try {
     const headers = { 'User-Agent': 'RerunTV', Accept: 'application/vnd.github+json' };
@@ -402,6 +493,9 @@ async function fetchReleaseNotes() {
   }
 }
 
+/**
+ * Registers the release-notes and post-update-notice IPC handlers.
+ */
 function registerReleaseNotesHandler() {
   ipcMain.handle('updates:getReleaseNotes', async () => {
     return fetchReleaseNotes();
@@ -435,12 +529,18 @@ function registerReleaseNotesHandler() {
   });
 }
 
-// Registers update IPC/events, optionally runs the startup gate, and starts
-// a delayed background check for policies that request one. The startup
-// gate runs before the full app window/plugin boot: only this small progress
-// window is visible while a found release downloads and installs. A fresh
-// install skips that gate once so onboarding can explain and save the choice
-// first. Headless mode never calls this function.
+/**
+ * Registers update IPC/events, optionally runs the startup gate, and starts
+ * a delayed background check for policies that request one. The startup
+ * gate runs before the full app window/plugin boot: only this small progress
+ * window is visible while a found release downloads and installs. A fresh
+ * install skips that gate once so onboarding can explain and save the choice
+ * first. Headless mode never calls this function.
+ * @param {Function} getMainWindow Returns the main window, or null.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.skipStartupCheck=false] Whether to skip the startup gate (a fresh install).
+ * @returns {Promise<boolean>} Resolves true when an update is installing and the launch should stop.
+ */
 async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {}) {
   preparePostUpdateNotice();
   registerReleaseNotesHandler();
@@ -620,13 +720,16 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   return false;
 }
 
-// Fire-and-forget report of the renderer's active theme pack preview colors
-// (themes.js's applyTheme) — cached here (setThemeColors) so the frameless
-// update-progress popup, a separate BrowserWindow with no access to the
-// renderer's plugin registry, can re-skin to match instead of always
-// showing its hardcoded fallback palette. themes:list is the sibling report
-// of which theme packs are currently installed at all (see latestThemeList
-// above).
+/**
+ * Fire-and-forget report of the renderer's active theme pack preview colors
+ * (themes.js's applyTheme) — cached here (setThemeColors) so the frameless
+ * update-progress popup, a separate BrowserWindow with no access to the
+ * renderer's plugin registry, can re-skin to match instead of always
+ * showing its hardcoded fallback palette. themes:list is the sibling report
+ * of which theme packs are currently installed at all (see latestThemeList
+ * above).
+ * @param {object} ipcMain Electron's `ipcMain`.
+ */
 function registerThemeIpc(ipcMain) {
   ipcMain.on('theme:colors', (event, colors) => {
     setThemeColors(colors);

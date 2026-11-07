@@ -41,11 +41,13 @@ const { installNetGuard, createActivityBatcher } = require('./net-guard');
 const QRCode = require('qrcode');
 const busboy = require('busboy');
 
+// The RPC channel to the host over this utility process's parent port.
 const rpc = createRpc(
   (msg) => process.parentPort.postMessage(msg),
   (cb) => process.parentPort.on('message', (e) => cb(e.data)),
 );
 
+// The plugin's own `ctx.ipcMain` handlers and listeners, by channel, and its before-quit callbacks.
 const ipcHandleFns = new Map();
 const ipcOnFns = new Map();
 const beforeQuitListeners = [];
@@ -78,15 +80,21 @@ rpc.handle('party:invokeRoute', async (reqDescriptor) => {
   return route.handler(reqDescriptor);
 });
 
-// The spawn/createServer/fs capability-checking below is shared with
-// buildCheckedCtx() in main-plugins.js (the same-process path used by
-// non-isolated plugins) via main-plugin-capabilities.js — see that file's
-// header comment. The JS-level check is still worth doing here even though
-// --experimental-permission (main-plugin-isolation.js's execArgv) also
-// enforces fs-read/fs-write/child-process at the OS level, because the
-// permission model's granularity stops at "can spawn a child process at
-// all," not "can spawn THIS specific binary" — the per-binary check still
-// matters and can only happen here.
+/**
+ * The spawn/createServer/fs capability-checking below is shared with
+ * buildCheckedCtx() in main-plugins.js (the same-process path used by
+ * non-isolated plugins) via main-plugin-capabilities.js — see that file's
+ * header comment. The JS-level check is still worth doing here even though
+ * --experimental-permission (main-plugin-isolation.js's execArgv) also
+ * enforces fs-read/fs-write/child-process at the OS level, because the
+ * permission model's granularity stops at "can spawn a child process at
+ * all," not "can spawn THIS specific binary" — the per-binary check still
+ * matters and can only happen here.
+ * @param {object} manifest The plugin's manifest.
+ * @param {string} pluginDir The plugin's install folder.
+ * @param {object} init The host's init payload (dataDir, services snapshot, ports, user folders and so on).
+ * @returns {object} The plugin's `ctx`, with Electron-backed parts proxied over RPC.
+ */
 function buildCtx(manifest, pluginDir, init) {
   const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
   const dataDir = init.dataDir || null;
@@ -173,6 +181,10 @@ function buildCtx(manifest, pluginDir, init) {
   };
 }
 
+/**
+ * Waits for the host's init payload, installs the network guard, loads and activates the plugin, then reports the result.
+ * @returns {Promise<void>} Resolves once `activate-result` has been sent.
+ */
 async function main() {
   // Register the method listener before announcing readiness. The transport
   // listener already exists after createRpc(), but that alone is not enough:

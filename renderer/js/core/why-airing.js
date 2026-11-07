@@ -3,11 +3,22 @@
 // fills its breaks. Wording only; the facts come from explainLayers
 // (core/schedule-query.js), which agrees with the real resolvers by construction.
 
+/**
+ * An item's trimmed name, or the fallback when it has none.
+ * @param {?object} item A block, flow or preset.
+ * @param {string} fallback Text to use instead.
+ * @returns {string} The name.
+ */
 function named(item, fallback) {
   const n = item && typeof item.name === 'string' ? item.name.trim() : '';
   return n || fallback;
 }
 
+/**
+ * Words the winning content and break layers of an `explainLayers` result as one line.
+ * @param {?object} explained The result of `explainLayers`.
+ * @returns {string} The line, or an empty string.
+ */
 export function describeWhyAiring(explained) {
   if (!explained || !Array.isArray(explained.layers)) return '';
   const parts = [];

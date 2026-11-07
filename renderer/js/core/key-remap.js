@@ -7,6 +7,10 @@ import { S } from './state.js';
 let cachedJson = null;
 let cachedTranslator = null;
 
+/**
+ * The key translator for the current `S.config.keyMap`, rebuilt only when the map changes.
+ * @returns {{active: boolean, translate: Function}} The translator from `buildKeyTranslator`.
+ */
 function translator() {
   const map = (S.config && S.config.keyMap) || {};
   const json = JSON.stringify(map);
@@ -17,8 +21,12 @@ function translator() {
   return cachedTranslator;
 }
 
-// Same event, with `key` swapped for what the action answers to by default.
-// Ctrl/Alt/Meta combinations are never remapped.
+/**
+ * Same event, with `key` swapped for what the action answers to by default.
+ * Ctrl/Alt/Meta combinations are never remapped.
+ * @param {KeyboardEvent} e The real keydown event.
+ * @returns {KeyboardEvent} The event itself, or a proxy of it whose `key` is translated.
+ */
 export function remapKeyboardEvent(e) {
   const t = translator();
   if (window.__remoteKeyDispatch || !t.active || e.ctrlKey || e.altKey || e.metaKey) return e;
@@ -33,7 +41,9 @@ export function remapKeyboardEvent(e) {
   });
 }
 
-// "G GUIDE" becomes "Y GUIDE" when the guide key is Y; reverts when reset.
+/**
+ * "G GUIDE" becomes "Y GUIDE" when the guide key is Y; reverts when reset.
+ */
 export function applyKeyHints() {
   const map = (S.config && S.config.keyMap) || {};
   KEY_ACTIONS.forEach((action) => {

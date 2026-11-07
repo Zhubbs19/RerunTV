@@ -1,11 +1,28 @@
+// Pure summary and diff of two configs, used by the backup restore preview.
+
+/**
+ * Deterministic JSON-like string of a value with object keys sorted, for equality checks.
+ * @param {*} value Any JSON value.
+ * @returns {string} The stable serialisation.
+ */
 function stable(value) {
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
   if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`;
   return JSON.stringify(value);
 }
 
+/**
+ * Indexes a config's channels by channel number.
+ * @param {?object} config The config.
+ * @returns {Map<number, object>} Channel number to channel.
+ */
 function channelMap(config) { return new Map(((config && config.channels) || []).map((channel) => [channel.number, channel])); }
 
+/**
+ * Counts channels, files and blocks in a config.
+ * @param {object} config The config.
+ * @returns {object} `{ channels, files, blocks }` counts.
+ */
 function configSummary(config) {
   const channels = Array.isArray(config.channels) ? config.channels : [];
   return {
@@ -15,6 +32,12 @@ function configSummary(config) {
   };
 }
 
+/**
+ * Lists what restoring `snapshot` would change relative to `current`: channels added, removed or renamed, file-count and schedule changes, and changed top-level settings keys.
+ * @param {object} current The config on disk now.
+ * @param {object} snapshot The backup being previewed.
+ * @returns {object} `{ addedChannels, removedChannels, renamedChannels, fileCountChanges, scheduleChanges, settingsChanges }`.
+ */
 function compareConfigs(current, snapshot) {
   const currentChannels = channelMap(current);
   const snapshotChannels = channelMap(snapshot);

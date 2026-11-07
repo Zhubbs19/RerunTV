@@ -36,12 +36,15 @@ overlayEl.innerHTML = `
 document.querySelector('.crt').appendChild(overlayEl);
 const crawlEl = overlayEl.querySelector('[data-el="crawl"]');
 
-// The real EAS attention signal is a sustained two-tone 853Hz+960Hz sine
-// pair — distinct from every other stinger in this app (all single-
-// oscillator sweeps/chords), so this is built directly against
-// window.getAudioCtx()/window.S.sfxGain rather than the simpler playTone
-// helper (same reasoning breaking-news's playNewsStinger already used for
-// its own multi-oscillator chord).
+/**
+ * The real EAS attention signal is a sustained two-tone 853Hz+960Hz sine
+ * pair — distinct from every other stinger in this app (all single-
+ * oscillator sweeps/chords), so this is built directly against
+ * window.getAudioCtx()/window.S.sfxGain rather than the simpler playTone
+ * helper (same reasoning breaking-news's playNewsStinger already used for
+ * its own multi-oscillator chord).
+ * @param {number} durationSec How long the tone plays, in seconds.
+ */
 function playAttentionTone(durationSec) {
   const ctx = window.getAudioCtx();
   const now = ctx.currentTime;
@@ -62,6 +65,12 @@ function playAttentionTone(durationSec) {
   });
 }
 
+/**
+ * Speaks the alert text with speech synthesis at the box's current volume.
+ * Calls `onDone` straight away when speech synthesis is unavailable.
+ * @param {string} text The message to read out.
+ * @param {Function} [onDone] Called when speech ends or fails.
+ */
 function speakEasMessage(text, onDone) {
   if (!window.speechSynthesis) { if (onDone) onDone(); return; }
   window.speechSynthesis.cancel();
@@ -74,6 +83,10 @@ function speakEasMessage(text, onDone) {
   window.speechSynthesis.speak(utter);
 }
 
+/**
+ * Arms the next random self-test alert at 75-125% of the configured interval.
+ * Clears any pending one first and does nothing while random tests are off.
+ */
 export function scheduleNextEasAlert() {
   const S = window.S;
   clearTimeout(S.easScheduleTimer);
@@ -85,6 +98,16 @@ export function scheduleNextEasAlert() {
   S.easScheduleTimer = setTimeout(runEasAlert, delayMs);
 }
 
+/**
+ * Shows the full-screen EAS slate, plays the attention tone and optionally reads the message.
+ * A manual run while an alert is up dismisses it instead. A blocked or disabled
+ * scheduled run just re-arms the schedule.
+ * @param {object} [opts] Run options.
+ * @param {boolean} [opts.manual] True when triggered by the user (hotkey or test button).
+ * @param {string} [opts.message] Text to show instead of the configured message.
+ * @param {number} [opts.toneSec] Tone length in seconds instead of the configured one.
+ * @param {boolean} [opts.silent] Skip the voiceover.
+ */
 export function runEasAlert(opts) {
   opts = opts || {};
   const S = window.S;
@@ -149,6 +172,9 @@ export function runEasAlert(opts) {
   }
 }
 
+/**
+ * Hides an active alert, stops speech and clears `S.easActive`.
+ */
 export function cancelEasAlert() {
   const S = window.S;
   if (!S.easActive && !S.easEndTimer) return;

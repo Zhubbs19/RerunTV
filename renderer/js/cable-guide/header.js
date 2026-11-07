@@ -12,10 +12,15 @@ import { guideClock } from './model.js';
 
 const ENVELOPE = '<svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 2h24v16H1zM3 4v.6l10 7 10-7V4zm0 3.1V16h20V7.1l-10 7z"/></svg>';
 
-// A channel's logo in an <img>: its icon, or the seasonal one in effect at
-// `atMs`. Hidden when the channel has none, or when its icon is a video (the
-// logo bug can play one; a still slot beside text can't). The cable-guide
-// surfaces put it beside the channel's number and call letters.
+/**
+ * Shows a channel's logo in an <img>: its icon, or the seasonal one in effect at
+ * `atMs`. Hidden when the channel has none, or when its icon is a video (the
+ * logo bug can play one; a still slot beside text can't). The cable-guide
+ * surfaces put it beside the channel's number and call letters.
+ * @param {HTMLImageElement} img The image element to fill.
+ * @param {?object} ch The channel.
+ * @param {number} [atMs=viewNow()] The instant whose seasonal icon applies, in ms.
+ */
 export function setChannelLogo(img, ch, atMs = viewNow()) {
   const icon = ch ? resolveEffectiveIcon(ch, atMs) : null;
   const show = !!icon && !isVideoMediaPath(icon);
@@ -26,6 +31,13 @@ export function setChannelLogo(img, ch, atMs = viewNow()) {
   window.api.toFileUrl(icon).then((url) => { if (img.dataset.icon === icon) img.src = url; });
 }
 
+/**
+ * Builds a page header with its own clock timer.
+ * @param {object} [opts] Header text.
+ * @param {string} [opts.logo='RERUN TV'] The logo text.
+ * @param {string} [opts.tagline='CABLE'] The small line under the logo.
+ * @returns {object} `{ el, setFocus, setProgram, setMessages, refreshClock, destroy }`; call `destroy()` to stop the clock.
+ */
 export function createGuideHeader({ logo = 'RERUN TV', tagline = 'CABLE' } = {}) {
   const el = document.createElement('header');
   el.className = 'cg-header';

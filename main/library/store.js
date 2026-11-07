@@ -29,37 +29,60 @@ const { atomicWriteFileSync } = require('../util/atomic-write');
 const { getDatabase, transaction } = require('../util/db');
 const path = require('path');
 
+// Version of the index layout this build reads and writes.
 const SCHEMA_VERSION = 1;
 
-// The three id-keyed maps have NO prototype. Item ids come from filenames and
-// from migration, so "__proto__" is a reachable key — and on an ordinary object
-// `items['__proto__']` returns Object.prototype, which is truthy. Every
-// existence check in this file would then be wrong for that one id. A
-// null-prototype map removes the whole class rather than requiring each site to
-// remember hasOwnProperty. JSON.stringify, Object.keys and Object.values all
-// work on them unchanged.
+/**
+ * The three id-keyed maps have NO prototype. Item ids come from filenames and
+ * from migration, so "__proto__" is a reachable key — and on an ordinary object
+ * `items['__proto__']` returns Object.prototype, which is truthy. Every
+ * existence check in this file would then be wrong for that one id. A
+ * null-prototype map removes the whole class rather than requiring each site to
+ * remember hasOwnProperty. JSON.stringify, Object.keys and Object.values all
+ * work on them unchanged.
+ * @param {?object} [source] Entries to copy in.
+ * @returns {object} A null-prototype map.
+ */
 function idMap(source) {
   return Object.assign(Object.create(null), source || undefined);
 }
 
+/**
+ * A fresh index with no roots, items, series, queries or presets.
+ * @returns {object} The empty index.
+ */
 function emptyIndex() {
   return { schemaVersion: SCHEMA_VERSION, roots: [], items: idMap(), series: idMap(), queries: idMap(), presets: idMap() };
 }
 
+/**
+ * Own-property check that is safe on null-prototype maps.
+ * @param {object} map The map.
+ * @param {string} key The key.
+ * @returns {boolean} True when `map` has `key` of its own.
+ */
 function has(map, key) {
   return Object.prototype.hasOwnProperty.call(map, key);
 }
 
-// Ids are random, not derived from the ref or the fingerprint. A derived id
-// would change when a file moves or is re-encoded, which is precisely when
-// every channel referencing it must keep working.
+/**
+ * Ids are random, not derived from the ref or the fingerprint. A derived id
+ * would change when a file moves or is re-encoded, which is precisely when
+ * every channel referencing it must keep working.
+ * @param {string} prefix Id prefix, such as `itm` or `root`.
+ * @returns {string} A new random id.
+ */
 function newId(prefix) {
   return `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
 }
 
-// Anything absent is filled in rather than assumed: a hand-edited or
-// partially-written index must not crash the app, and a missing section is
-// indistinguishable from an empty one.
+/**
+ * Anything absent is filled in rather than assumed: a hand-edited or
+ * partially-written index must not crash the app, and a missing section is
+ * indistinguishable from an empty one.
+ * @param {*} raw A parsed index, possibly partial.
+ * @returns {object} A complete index.
+ */
 function normalize(raw) {
   const base = emptyIndex();
   if (!raw || typeof raw !== 'object') return base;
@@ -75,8 +98,13 @@ function normalize(raw) {
   };
 }
 
-// Future schema bumps land here. v1 is the first, so there is nothing to do
-// yet; the branch exists so the next one has an obvious home and a test.
+/**
+ * Future schema bumps land here. v1 is the first, so there is nothing to do
+ * yet; the branch exists so the next one has an obvious home and a test.
+ * @param {object} index A normalised index.
+ * @returns {object} The same index, at `SCHEMA_VERSION`.
+ * @throws {Error} With code `LIBRARY_SCHEMA_TOO_NEW` when it was written by a newer build.
+ */
 function migrate(index) {
   if (index.schemaVersion > SCHEMA_VERSION) {
     // Written by a newer build. Refusing is better than silently dropping
@@ -91,17 +119,31 @@ function migrate(index) {
 
 // The id-keyed sections, each stored as one row per entry.
 const KINDS = ['items', 'series', 'queries', 'presets'];
-// Row key for the `saved` snapshot: kind and id, NUL-separated.
+/**
+ * Row key for the `saved` snapshot: kind and id, NUL-separated.
+ * @param {string} kind Section name, or `meta`.
+ * @param {string} id Entry id.
+ * @returns {string} The row key.
+ */
 const rowKey = (kind, id) => `${kind}\u0000${id}`;
 
+/**
+ * Error for a stored library newer than this build understands.
+ * @param {string} message The error message.
+ * @returns {Error} An error with code `LIBRARY_SCHEMA_TOO_NEW`.
+ */
 function schemaTooNew(message) {
   const error = new Error(message);
   error.code = 'LIBRARY_SCHEMA_TOO_NEW';
   return error;
 }
 
-// Every row the index would store, as serialized JSON. The meta rows hold the
-// roots list (order matters) and the index's own schemaVersion.
+/**
+ * Every row the index would store, as serialized JSON. The meta rows hold the
+ * roots list (order matters) and the index's own schemaVersion.
+ * @param {object} index The index.
+ * @returns {Map<string, string>} Row key to JSON text.
+ */
 function indexRows(index) {
   const rows = new Map();
   rows.set(rowKey('meta', 'schemaVersion'), JSON.stringify(index.schemaVersion));
@@ -112,9 +154,17 @@ function indexRows(index) {
   return rows;
 }
 
-// `dir` is the library folder (scan log, metadata caches, the pre-SQLite
-// index.json); `dbDir` is where rerun.db lives — userData in the app, the
-// same temp folder in tests.
+/**
+ * `dir` is the library folder (scan log, metadata caches, the pre-SQLite
+ * index.json); `dbDir` is where rerun.db lives — userData in the app, the
+ * same temp folder in tests.
+ * Creates the library store: loads the index lazily (SQLite, else the JSON fallback), edits it in memory and saves only changed rows.
+ * @param {object} opts Options.
+ * @param {string} opts.dir The library folder.
+ * @param {string} [opts.dbDir=opts.dir] Folder holding rerun.db.
+ * @param {Function} [opts.now] Clock in ms.
+ * @returns {object} The store API (`load`, `save`, `stats`, `generation`, root, item, series, query and preset methods).
+ */
 function createLibraryStore({ dir, dbDir = dir, now = () => Date.now() }) {
   const indexPath = path.join(dir, 'index.json');
   let index = null;

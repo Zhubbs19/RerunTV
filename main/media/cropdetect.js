@@ -21,8 +21,10 @@ const { cacheTable } = require('../util/db');
 const os = require('os');
 const path = require('path');
 
+// Version and size bound of the crop cache table.
 const CACHE_VERSION = 1;
 const MAX_CACHE_ENTRIES = 50000;
+// Length of each cropdetect sample, how long one may run, and the pause between background files.
 const SAMPLE_SECONDS = 4;
 const SAMPLE_TIMEOUT_MS = 45000;
 const SWEEP_GAP_MS = 1500;
@@ -33,7 +35,11 @@ const MIN_BAR_FRACTION = 0.03;
 // the samples were mostly black (a fade, a title card), not a real crop.
 const MIN_PICTURE_FRACTION = 0.3;
 
-// Every "crop=W:H:X:Y" ffmpeg printed, as { w, h, x, y }.
+/**
+ * Every "crop=W:H:X:Y" ffmpeg printed, as { w, h, x, y }.
+ * @param {*} stderr ffmpeg's output.
+ * @returns {Array<object>} `{ w, h, x, y }` per crop line, in pixels.
+ */
 function parseCropLines(stderr) {
   const out = [];
   const re = /crop=(\d+):(\d+):(\d+):(\d+)/g;
@@ -43,14 +49,22 @@ function parseCropLines(stderr) {
   return out;
 }
 
-// "Stream #0:0: Video: h264 (High), yuv420p(tv), 1920x1080 [SAR 1:1 …]" -> { w, h }.
+/**
+ * "Stream #0:0: Video: h264 (High), yuv420p(tv), 1920x1080 [SAR 1:1 …]" -> { w, h }.
+ * @param {*} stderr ffmpeg's output.
+ * @returns {?object} The decoded frame size `{ w, h }`, or null.
+ */
 function parseFrameSize(stderr) {
   const m = /Video:[^\n]*?,\s*(\d{2,5})x(\d{2,5})[\s,[]/.exec(String(stderr || ''));
   return m ? { w: Number(m[1]), h: Number(m[2]) } : null;
 }
 
-// The most frequent crop in one sample: cropdetect settles on the same box
-// frame after frame, with the odd outlier on a dark scene.
+/**
+ * The most frequent crop in one sample: cropdetect settles on the same box
+ * frame after frame, with the odd outlier on a dark scene.
+ * @param {Array<object>} crops `{ w, h, x, y }` crops from one sample.
+ * @returns {?object} The most frequent crop, or null when there are none.
+ */
 function modeCrop(crops) {
   if (!crops.length) return null;
   const counts = new Map();
@@ -65,10 +79,15 @@ function modeCrop(crops) {
   return best;
 }
 
-// Several samples -> one crop. The largest box that holds every sample's
-// picture: a dark scene makes cropdetect over-crop, never under-crop, so the
-// union is the safe answer. Returns fractions of the frame, or null when there
-// are no real bars (or the samples don't agree on anything usable).
+/**
+ * Several samples -> one crop. The largest box that holds every sample's
+ * picture: a dark scene makes cropdetect over-crop, never under-crop, so the
+ * union is the safe answer. Returns fractions of the frame, or null when there
+ * are no real bars (or the samples don't agree on anything usable).
+ * @param {Array<?object>} samples One crop (or null) per sample.
+ * @param {?object} frame The decoded frame size `{ w, h }`.
+ * @returns {?object} `{ x, y, w, h }` as fractions of the frame, or null.
+ */
 function combineCrops(samples, frame) {
   const usable = samples.filter(Boolean);
   if (!usable.length || !frame || !(frame.w > 0) || !(frame.h > 0)) return null;
@@ -84,12 +103,23 @@ function combineCrops(samples, frame) {
   return { x: round(box.x), y: round(box.y), w: round(box.w), h: round(box.h) };
 }
 
-// Sample start times (seconds) for a file of `duration` seconds.
+/**
+ * Sample start times (seconds) for a file of `duration` seconds.
+ * @param {number} duration File duration in seconds.
+ * @returns {number[]} Offsets to sample at, in seconds.
+ */
 function sampleStarts(duration) {
   if (!(duration > 120)) return [Math.max(0, Math.floor((duration || 0) * 0.2))];
   return [0.1, 0.3, 0.5, 0.7, 0.9].map((f) => Math.floor(duration * f));
 }
 
+/**
+ * Runs cropdetect over one short sample of a file.
+ * @param {string} ffmpegPath Path of the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {number} start Sample offset in seconds.
+ * @returns {Promise<object>} `{ crop, frame }`; either may be null.
+ */
 function runSample(ffmpegPath, filePath, start) {
   return new Promise((resolve) => {
     const args = [
@@ -123,6 +153,13 @@ function runSample(ffmpegPath, filePath, start) {
   });
 }
 
+/**
+ * Samples a file at several points and combines the results.
+ * @param {string} ffmpegPath Path of the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {number} duration File duration in seconds.
+ * @returns {Promise<?object>} `{ x, y, w, h }` fractions, or null for no bars.
+ */
 async function measureCrop(ffmpegPath, filePath, duration) {
   const samples = [];
   let frame = null;
@@ -136,6 +173,13 @@ async function measureCrop(ffmpegPath, filePath, duration) {
 
 // ---------- Service ----------
 
+/**
+ * Creates the cached, queued crop detection service.
+ * @param {object} opts Options.
+ * @param {string} opts.userDataDir The userData folder holding rerun.db.
+ * @param {Function} opts.getFfmpegPath Returns the ffmpeg path, or null when missing.
+ * @returns {object} `{ get, prefetch, cancelBackground, status }`.
+ */
 function createCropDetectService({ userDataDir, getFfmpegPath }) {
   // One row per file in rerun.db (main/util/db.js), so a new measurement is
   // one write instead of a rewrite of every other file's entry.
@@ -273,6 +317,11 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
   };
 }
 
+/**
+ * Registers the `cropdetect:*` IPC handlers.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ * @param {object} service The service from `createCropDetectService`.
+ */
 function registerCropDetectIpc(ipcMain, service) {
   ipcMain.handle('cropdetect:get', async (event, filePath, duration) => service.get(filePath, duration));
   ipcMain.handle('cropdetect:prefetch', async (event, items) => service.prefetch(items));

@@ -26,14 +26,31 @@ import { airFilesFor } from '../core/interstitials.js';
 // Field names are dotted paths into an item: `facets.genre`, `series.name`.
 // String comparisons ignore case. Decades ("1990s") compare correctly as text.
 
+/**
+ * Reads a dotted path from an item.
+ * @param {object} item A library item.
+ * @param {string} dotted A path such as `facets.genre`.
+ * @returns {*} The value, or `undefined` when a step is missing.
+ */
 function readPath(item, dotted) {
   return String(dotted).split('.').reduce((node, key) => (node == null ? undefined : node[key]), item);
 }
 
+/**
+ * Lower-cases strings for comparison; other values pass through.
+ * @param {*} value The value.
+ * @returns {*} The normalized value.
+ */
 function norm(value) {
   return typeof value === 'string' ? value.toLowerCase() : value;
 }
 
+/**
+ * Orders two values: numerically for numbers, else as natural text ignoring case.
+ * @param {*} a The first value.
+ * @param {*} b The second value.
+ * @returns {number} Negative, zero or positive.
+ */
 function compare(a, b) {
   const x = norm(a);
   const y = norm(b);
@@ -41,6 +58,12 @@ function compare(a, b) {
   return String(x).localeCompare(String(y), undefined, { numeric: true });
 }
 
+/**
+ * Tests equality, where either side may be an array meaning "any of".
+ * @param {*} actual The item's value.
+ * @param {*} expected The query's value.
+ * @returns {boolean} True on a match.
+ */
 function valueMatches(actual, expected) {
   if (Array.isArray(actual)) return actual.some((one) => valueMatches(one, expected));
   if (Array.isArray(expected)) return expected.some((one) => valueMatches(actual, one));
@@ -48,6 +71,13 @@ function valueMatches(actual, expected) {
   return norm(actual) === norm(expected);
 }
 
+/**
+ * Tests a value against an operator object such as `{ gte: 1990, ne: 'x' }`.
+ * @param {*} actual The item's value.
+ * @param {object} ops Operators and their operands; all must hold.
+ * @returns {boolean} True when every operator holds.
+ * @throws {Error} For an unknown operator.
+ */
 function operatorMatches(actual, ops) {
   return Object.entries(ops).every(([op, expected]) => {
     switch (op) {
@@ -71,6 +101,13 @@ function operatorMatches(actual, ops) {
   });
 }
 
+/**
+ * Tests a library item against a query.
+ * @param {object} item A library item.
+ * @param {?object} where The query; an empty or missing one matches everything.
+ * @returns {boolean} True on a match.
+ * @throws {Error} For an unknown operator.
+ */
 export function matchesWhere(item, where) {
   if (!where || typeof where !== 'object') return true;
   return Object.entries(where).every(([key, expected]) => {
@@ -88,8 +125,13 @@ export function matchesWhere(item, where) {
   });
 }
 
-// Throws a user-facing error for a query that could never be evaluated, so a
-// bad saved query is caught when it is saved, not when a channel is rebuilt.
+/**
+ * Throws a user-facing error for a query that could never be evaluated, so a
+ * bad saved query is caught when it is saved, not when a channel is rebuilt.
+ * @param {*} where The query.
+ * @returns {boolean} Always true when it does not throw.
+ * @throws {Error} When the query is empty, not an object, or uses an unknown operator.
+ */
 export function validateWhere(where) {
   if (!where || typeof where !== 'object' || Array.isArray(where)) throw new Error('A query needs at least one condition.');
   matchesWhere({}, where); // unknown operators throw here
@@ -101,6 +143,11 @@ export function validateWhere(where) {
 // `any`, `not`) is reported as `advanced` so the editor does not flatten it.
 const FORM_FIELDS = { kind: 'kind', genre: 'facets.genre', era: 'facets.era', series: 'series.name' };
 
+/**
+ * Builds a query from the setup screen's simple form.
+ * @param {object} [form] Field values: `kind`, `genre`, `era`, `series`, `text`.
+ * @returns {object} The query.
+ */
 export function buildWhere(form = {}) {
   const where = {};
   Object.entries(FORM_FIELDS).forEach(([name, key]) => {
@@ -112,6 +159,11 @@ export function buildWhere(form = {}) {
   return where;
 }
 
+/**
+ * Reads a query back into the simple form's fields.
+ * @param {?object} [where] The query.
+ * @returns {object} Form values plus `advanced`, true when the form can't show the query.
+ */
 export function formFromWhere(where = {}) {
   const form = { kind: '', genre: '', era: '', series: '', text: '', advanced: false };
   Object.entries(where || {}).forEach(([key, value]) => {
@@ -123,7 +175,11 @@ export function formFromWhere(where = {}) {
   return form;
 }
 
-// "episode · genre sitcom · era 1990s · contains “christmas”"
+/**
+ * "episode · genre sitcom · era 1990s · contains “christmas”"
+ * @param {?object} [where] The query.
+ * @returns {string} A short description; `'everything'` for an empty query.
+ */
 export function describeWhere(where = {}) {
   const labels = { kind: '', 'facets.genre': 'genre', 'facets.era': 'era', 'series.name': 'series' };
   return Object.entries(where || {}).map(([key, value]) => {
@@ -134,6 +190,13 @@ export function describeWhere(where = {}) {
   }).join(' · ') || 'everything';
 }
 
+/**
+ * Returns the items matching a query.
+ * @param {Array<object>} items Library items.
+ * @param {?object} where The query.
+ * @returns {Array<object>} The matching items, in input order.
+ * @throws {Error} For an unknown operator.
+ */
 export function runQuery(items, where) {
   return items.filter((item) => matchesWhere(item, where));
 }
@@ -142,6 +205,10 @@ export function runQuery(items, where) {
 
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
+/**
+ * @param {object} item A library item.
+ * @returns {string} The title, else the file name from its ref.
+ */
 function titleKey(item) {
   return item.title || String(item.ref || '').split(/[\\/]/).pop() || '';
 }
@@ -176,11 +243,24 @@ export const ORDER_POLICIES = {
 // `ch.files[i].title` / `.tags` keeps working (the doc's one-release dual-read).
 const DUAL_READ_FIELDS = ['title', 'tags', 'facets', 'description', 'tmdb', 'tvmaze', 'poster', 'breakMarks', 'creditsFound', 'rating', 'advisory', 'advisoryCues', 'hasCC', 'hasSAP', 'hasStereo', 'creditsLeadS', 'kind', 'artist', 'album'];
 
+/**
+ * @param {string} ref A media ref.
+ * @returns {string} The provider id of a mediasource ref, else `'local'`.
+ */
 function sourceOf(ref) {
   const match = /^mediasource:([^:]+):/.exec(String(ref || ''));
   return match ? match[1] : 'local';
 }
 
+/**
+ * Turns library items into ordered playlist entries.
+ * Items with no known duration are skipped and reported.
+ * @param {Array<object>} items Library items.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.order='series'] An `ORDER_POLICIES` name.
+ * @param {?string} [opts.seed] The shuffle seed.
+ * @returns {object} `{ files, skipped }`.
+ */
 export function materializeItems(items, { order = 'series', seed = null } = {}) {
   const policy = ORDER_POLICIES[order] || ORDER_POLICIES.series;
   const playable = [];
@@ -209,6 +289,11 @@ export function materializeItems(items, { order = 'series', seed = null } = {}) 
  * Files that came from a folder (they carry `folder`) are kept first, in their
  * current order — folder sync owns those, and a rebuild must not reorder them.
  * Query results follow, de-duplicated against the folder files by item.
+ * @param {object} channel The channel config.
+ * @param {object} library The library index (`items`, `queries`).
+ * @param {object} opts Options.
+ * @param {number} opts.atMs The instant whose airing must be kept, epoch ms.
+ * @returns {object} `{ files, anchor, reanchor, summary }`.
  */
 export function planChannelFiles(channel, library, { atMs }) {
   const itemsById = library.items || {};

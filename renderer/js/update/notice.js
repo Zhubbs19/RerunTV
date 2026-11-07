@@ -23,27 +23,42 @@ import { focusDefault, registerModal } from '../ui/focus.js';
 // goes away on its own so it can't hold the remote hostage over live TV.
 const TV_TOAST_AUTO_HIDE_MS = 20000;
 let toastTimer = null;
+// The post-update notice being shown, until it is acknowledged.
 let pendingPostUpdate = null;
 // The version downloaded and waiting to install, for the cable-guide Messages
 // page; null when there is none.
 let readyVersion = null;
 
+/**
+ * The version downloaded and waiting to install.
+ * @returns {?string} The version, or null when none is ready.
+ */
 export function updateReadyVersion() {
   return readyVersion;
 }
 
-// Brings back the Install / Later prompt (Messages › the update).
+/**
+ * Brings back the Install / Later prompt (Messages › the update).
+ */
 export function showUpdatePrompt() {
   if (readyVersion) showToast(readyVersion);
 }
+// What had focus before the post-update card opened, to restore on close.
 let postUpdatePreviouslyFocused = null;
 
+/**
+ * Hides the update-ready toast and cancels its TV auto-hide timer.
+ */
 function hideToast() {
   clearTimeout(toastTimer);
   toastTimer = null;
   if (updateToastEl) updateToastEl.classList.add('hidden');
 }
 
+/**
+ * Shows the update-ready toast; in TV mode it takes focus and hides itself after a while.
+ * @param {string} version The downloaded version.
+ */
 function showToast(version) {
   if (!updateToastEl) return;
   // Explicit about what clicking Install actually does — the NSIS installer
@@ -60,6 +75,10 @@ function showToast(version) {
   }
 }
 
+/**
+ * Hides the toast and opens HELP with the release notes scrolled into view.
+ * @returns {Promise<void>} Resolves once the setup screen is showing.
+ */
 async function jumpToReleaseNotes() {
   hideToast();
   await showSetupScreen();
@@ -68,6 +87,10 @@ async function jumpToReleaseNotes() {
   document.getElementById('help-release-notes-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+/**
+ * Tells main the post-update notice was seen, so it is not shown again.
+ * @returns {Promise<void>} Resolves when acknowledged (a failure retries next launch).
+ */
 async function acknowledgePostUpdate() {
   if (!pendingPostUpdate) return;
   const version = pendingPostUpdate.toVersion;
@@ -75,6 +98,12 @@ async function acknowledgePostUpdate() {
   try { await window.api.acknowledgePostUpdateNotice(version); } catch (e) { /* retry on next launch */ }
 }
 
+/**
+ * Closes the post-update card, acknowledges it, and restores the earlier focus.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.openReleaseNotes=false] Also open the full release notes.
+ * @returns {Promise<void>} Resolves when done.
+ */
 async function closePostUpdate({ openReleaseNotes = false } = {}) {
   if (!updateChangelogEl || updateChangelogEl.classList.contains('hidden')) return;
   updateChangelogEl.classList.add('hidden');
@@ -93,10 +122,19 @@ const CARD_TEXT = {
   viewAll: ['VIEW ALL RELEASE NOTES', 'View All Release Notes'],
   done: ['START WATCHING', 'Start Watching'],
 };
+/**
+ * One of the post-update card's fixed words, cased for the layout on screen.
+ * @param {string} key `kicker`, `viewAll` or `done`.
+ * @returns {string} The text.
+ */
 function cardText(key) {
   return CARD_TEXT[key][currentUiMode() === CABLE_GUIDE_UI ? 1 : 0];
 }
 
+/**
+ * Shows the post-update card with the version change, release notes and highlights.
+ * @param {?object} notice Main's post-update notice (`fromVersion`, `toVersion`, `name`, `notes`).
+ */
 function showPostUpdate(notice) {
   if (!updateChangelogEl || !notice) return;
   pendingPostUpdate = notice;
@@ -118,6 +156,10 @@ function showPostUpdate(notice) {
   updateChangelogDoneBtn.focus({ preventScroll: true });
 }
 
+/**
+ * Keydown handler for the post-update card: Escape closes it, Tab cycles its two buttons.
+ * @param {KeyboardEvent} event The keydown event.
+ */
 function trapPostUpdateFocus(event) {
   if (!updateChangelogEl || updateChangelogEl.classList.contains('hidden')) return;
   if (event.key === 'Escape') {
@@ -140,9 +182,12 @@ function trapPostUpdateFocus(event) {
   }
 }
 
-// Called once at boot (app.js) — a no-op for the LAN viewer (window.api's
-// browser-api-shim doesn't implement onUpdateStatus at all: a viewer is a
-// read-only browser tab, never the thing that gets installed/restarted).
+/**
+ * Wires the update toast and post-update card to their buttons and main's update events.
+ * Called once at boot (app.js) — a no-op for the LAN viewer (window.api's
+ * browser-api-shim doesn't implement onUpdateStatus at all: a viewer is a
+ * read-only browser tab, never the thing that gets installed/restarted).
+ */
 export function initUpdateNotice() {
   if (!window.api.onUpdateStatus) return;
 

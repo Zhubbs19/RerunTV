@@ -31,6 +31,7 @@ const { sanitizeViewerConfig, createViewerProjection } = require('./viewer-proje
 // package manifest nor the renderer bundle after the main-process split.
 const { version: APP_VERSION } = require('../../package.json');
 
+// The renderer bundle served to viewers.
 const RENDERER_DIR = path.join(__dirname, '..', '..', 'renderer');
 // docs/design/06 §4: command batches are small. A template or an import is a
 // separate upload endpoint, not this one.
@@ -44,7 +45,9 @@ const BROWSE_FILTERS = {
   audio: AUDIO_EXTENSIONS,
   folder: new Set(),
 };
+// How many recent events the viewer remote bridge keeps for polling clients.
 const VIEWER_REMOTE_EVENT_LIMIT = 128;
+// Event-bus channels that may be published to paired viewers.
 const VIEWER_REMOTE_CHANNELS = new Set([
   'remote:command',
   'remote:tune',
@@ -77,6 +80,12 @@ const VIEWER_REMOTE_CHANNELS = new Set([
 // against that request's own scope rather than at publish time.
 const CONTROL_ONLY_CHANNELS = new Set(['config:applied']);
 
+/**
+ * Reads and parses a small JSON request body.
+ * @param {http.IncomingMessage} req The request.
+ * @param {number} [maxBytes=8192] Largest body accepted.
+ * @returns {Promise<object>} The parsed body (an empty body is `{}`).
+ */
 function readJsonBody(req, maxBytes = 8192) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -94,6 +103,10 @@ function readJsonBody(req, maxBytes = 8192) {
   });
 }
 
+/**
+ * Creates the event bus paired viewers poll: a bounded, sequence-numbered list of allowed events plus the host's latest now-playing state.
+ * @returns {object} `{ publish, updateState, getState, read }`.
+ */
 function createViewerRemoteBridge() {
   let latestState = { number: null, name: null };
   let sequence = 0;
@@ -125,12 +138,22 @@ function createViewerRemoteBridge() {
   };
 }
 
+/**
+ * Escapes a value for HTML text or attribute use.
+ * @param {*} value The value (null and undefined become empty).
+ * @returns {string} The escaped text.
+ */
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * Whether a request comes from this machine and names a loopback Host on this server's own port.
+ * @param {http.IncomingMessage} req The request.
+ * @returns {boolean} True for a genuine local request.
+ */
 function isLoopbackRequest(req) {
   const ip = requestIp(req);
   if (!(ip === '::1' || ip === '127.0.0.1' || ip.startsWith('127.')
@@ -147,6 +170,15 @@ function isLoopbackRequest(req) {
   return !localPort || Number(hostUrl.port || 80) === localPort;
 }
 
+/**
+ * HTML of the loopback-only `/server` control page (pairing codes, viewer links, stop button).
+ * @param {object} opts Page inputs.
+ * @param {object} opts.access The viewer's LAN access gate (pairing codes).
+ * @param {object} opts.state `{ viewerUrls, companionUrls }` to list.
+ * @param {string} opts.controlToken Token the stop button must send.
+ * @param {boolean} opts.canStop Whether to offer the stop button.
+ * @returns {string} The full HTML document.
+ */
 function controlPage({ access, state, controlToken, canStop }) {
   const nonce = crypto.randomBytes(16).toString('base64');
   const viewerUrls = Array.isArray(state.viewerUrls) ? state.viewerUrls : [];
@@ -184,22 +216,27 @@ ${canStop ? '<section class="panel"><h2>SERVER POWER</h2><p class="muted">Stops 
 </main>${canStop ? `<script nonce="${nonce}">document.getElementById('stop').addEventListener('click',async()=>{const b=document.getElementById('stop');b.disabled=true;b.textContent='STOPPING…';try{await fetch('/server/stop',{method:'POST',headers:{'X-RerunTV-Control':'${controlToken}'}});document.getElementById('stop-status').hidden=false}catch(e){b.disabled=false;b.textContent='STOP RERUNTV SERVER'}});</script>` : ''}</body></html>`;
 }
 
-// `pluginServices` is the same shared, mutated-in-place object every
-// plugin's ctx.services already is (see main-plugins.js) — core has no
-// business knowing which plugin, if any, wants to offer a "watch live"
-// link on the LAN viewer page, so it just reads whatever's published under
-// this one generic key instead of calling a party-specific URL builder
-// directly. This server starts (see main.js's app.whenReady()) before
-// loadMainPlugins() has run, but that's fine: the object reference is
-// captured once here and read fresh on every actual request, which only
-// ever arrives well after boot has finished populating it.
-// `control` is the LAN write path (docs/design/05 §2.4, 06 §4). It is only
-// reachable by a session that entered the separate control pairing code, and
-// everything it can do goes through the same configHost.applyCommands() the
-// Electron renderer uses — the host stays the single writer, and a LAN client
-// is just another client with a base revision and a batch id. Administration
-// (plugin install, capability approval, updates, network services) is not here
-// and is not grantable remotely.
+/**
+ * `pluginServices` is the same shared, mutated-in-place object every
+ * plugin's ctx.services already is (see main-plugins.js) — core has no
+ * business knowing which plugin, if any, wants to offer a "watch live"
+ * link on the LAN viewer page, so it just reads whatever's published under
+ * this one generic key instead of calling a party-specific URL builder
+ * directly. This server starts (see main.js's app.whenReady()) before
+ * loadMainPlugins() has run, but that's fine: the object reference is
+ * captured once here and read fresh on every actual request, which only
+ * ever arrives well after boot has finished populating it.
+ * `control` is the LAN write path (docs/design/05 §2.4, 06 §4). It is only
+ * reachable by a session that entered the separate control pairing code, and
+ * everything it can do goes through the same configHost.applyCommands() the
+ * Electron renderer uses — the host stays the single writer, and a LAN client
+ * is just another client with a base revision and a batch id. Administration
+ * (plugin install, capability approval, updates, network services) is not here
+ * and is not grantable remotely.
+ * @param {object} pluginServices The shared `ctx.services` object (gets `viewerRemoteBridge`).
+ * @param {object} [pluginRuntime={}] Host hooks (`pluginsDir`, `listPlugins`, `applyCommands`, `snapshot`, `getRevision`, `assetsDir`, `libraryCall`, `personalCall`, `getControlState`, `requestStop`) and test overrides (`access`, `projection`, `loadConfig`, `port`, `host`).
+ * @returns {object} `{ server, access, projection, ready }`; `ready` resolves true once listening, false on error.
+ */
 function startViewerServer(pluginServices, pluginRuntime = {}) {
   const services = pluginServices || {};
   const remoteBridge = services.viewerRemoteBridge || createViewerRemoteBridge();

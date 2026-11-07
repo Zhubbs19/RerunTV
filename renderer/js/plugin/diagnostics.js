@@ -1,17 +1,29 @@
+// The plugin diagnostics panel: captures recent renderer console output, shows plugin
+// states, registrations, theme contrast and the combined main/renderer log, and exports
+// the redacted support bundle.
 import { S } from '../core/state.js';
 import { pluginDiagnosticsSnapshot, themePackEntries } from './host.js';
 import { allThemeCheckResults } from '../display/theme-check.js';
 
 const MAX_LOGS = 200;
+// Recent renderer console entries, oldest first, capped at MAX_LOGS.
 const rendererLogs = [];
 let captureInstalled = false;
 
+/**
+ * Turns a console argument into log text.
+ * @param {*} value Any console argument.
+ * @returns {string} Errors with their stack, strings as-is, everything else as JSON.
+ */
 function printable(value) {
   if (value instanceof Error) return `${value.name}: ${value.message}\n${value.stack || ''}`;
   if (typeof value === 'string') return value;
   try { return JSON.stringify(value); } catch (error) { return String(value); }
 }
 
+/**
+ * Wraps `console.log`, `warn` and `error` once so their output is also kept in `rendererLogs`.
+ */
 function installRendererLogCapture() {
   if (captureInstalled) return;
   captureInstalled = true;
@@ -27,6 +39,10 @@ function installRendererLogCapture() {
 
 installRendererLogCapture();
 
+/**
+ * Collects the renderer's side of the diagnostics: plugin registrations, captured logs and runtime state.
+ * @returns {object} `{ registrations, logs, runtime }`.
+ */
 function rendererSnapshot() {
   return {
     registrations: pluginDiagnosticsSnapshot(),
@@ -42,6 +58,12 @@ function rendererSnapshot() {
   };
 }
 
+/**
+ * Appends one "LABEL: value" metric row to the summary.
+ * @param {HTMLElement} root The summary element.
+ * @param {string} label The metric name.
+ * @param {string} value The value text.
+ */
 function appendMetric(root, label, value) {
   const item = document.createElement('div');
   item.className = 'perf-telemetry-item';
@@ -53,8 +75,11 @@ function appendMetric(root, label, value) {
   root.appendChild(item);
 }
 
-// Theme contrast (docs/design/04 §4.4): every theme with a pair below its
-// minimum, worst first, with the colours that failed and any exemption.
+/**
+ * Theme contrast (docs/design/04 §4.4): every theme with a pair below its
+ * minimum, worst first, with the colours that failed and any exemption.
+ * @param {HTMLElement} summary The summary element the THEME CONTRAST metric is added to.
+ */
 function renderThemeContrast(summary) {
   const el = document.getElementById('plugin-diagnostics-contrast');
   const results = allThemeCheckResults();
@@ -82,6 +107,10 @@ function renderThemeContrast(summary) {
   });
 }
 
+/**
+ * Refreshes the diagnostics panel from the main process and the renderer snapshot.
+ * @returns {Promise<void>}
+ */
 export async function renderPluginDiagnostics() {
   const summary = document.getElementById('plugin-diagnostics-summary');
   const log = document.getElementById('plugin-diagnostics-log');
@@ -118,6 +147,10 @@ export async function renderPluginDiagnostics() {
   }
 }
 
+/**
+ * Asks the main process to save the redacted support bundle and reports the outcome in the status line.
+ * @returns {Promise<void>}
+ */
 async function exportSupportBundle() {
   const status = document.getElementById('plugin-diagnostics-status');
   if (status) status.textContent = 'BUILDING REDACTED SUPPORT BUNDLE…';

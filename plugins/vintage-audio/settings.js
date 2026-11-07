@@ -1,3 +1,6 @@
+// PLUGINS-tab settings for vintage audio: the speaker lowpass filter, theme
+// ambient texture and the mechanical click sound.
+
 import { applyThemeAudio, applySpeakerCutoff } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('vintage-audio', {

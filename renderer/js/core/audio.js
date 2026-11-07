@@ -1,9 +1,14 @@
+// Sound effects: the shared Web Audio context and gain bus, synthesized tones
+// and noise bursts, custom-sound overrides per slot, theme-supplied channel and
+// power sounds, hold music, EAS and news stingers, and speech readouts.
+
 import { player } from './dom.js';
 import { getThemePack } from '../plugin/host.js';
 import { S } from './state.js';
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
 import { applyAudioOutputToContext } from '../display/audio-output.js';
 
+// Every sound slot a box or channel can override: `[slot id, setup label]`.
 export const CUSTOM_SOUND_SLOTS = [
   ['button', 'BUTTON / CONTROL'], ['channelClick', 'CHANNEL BUTTON CLICK'], ['channelTune', 'CHANNEL TUNING'],
   ['guideOpen', 'GUIDE OPEN'], ['guideClose', 'GUIDE CLOSE'], ['volumeUp', 'VOLUME UP'], ['volumeDown', 'VOLUME DOWN'],
@@ -12,7 +17,14 @@ export const CUSTOM_SOUND_SLOTS = [
   ['daypart', 'DAYPART TRANSITION CHIME'],
 ];
 
+// The last custom `Audio` played per slot, so a repeat restarts it instead of overlapping.
 const customAudioBySlot = new Map();
+/**
+ * Looks up a sound slot's override, the channel's own first and then the box-wide one.
+ * @param {string} slot A `CUSTOM_SOUND_SLOTS` id.
+ * @param {number} [channelNumber=S.currentNumber] The channel whose identity sounds to check.
+ * @returns {string|boolean|undefined} A file path, `false` for silent, or undefined for the built-in sound.
+ */
 function configuredSound(slot, channelNumber = S.currentNumber) {
   const ch = (S.config.channels || []).find((channel) => channel.number === channelNumber);
   const channelValue = ch && ch.broadcastIdentity && ch.broadcastIdentity.sounds
@@ -21,9 +33,14 @@ function configuredSound(slot, channelNumber = S.currentNumber) {
   return S.config.customSounds ? S.config.customSounds[slot] : undefined;
 }
 
-// Returns true when a custom/silent override handled the event, allowing
-// callers to skip their synthesized/theme fallback. `false` is an explicit
-// silent choice; null/undefined means keep the normal built-in sound.
+/**
+ * Returns true when a custom/silent override handled the event, allowing
+ * callers to skip their synthesized/theme fallback. `false` is an explicit
+ * silent choice; null/undefined means keep the normal built-in sound.
+ * @param {string} slot A `CUSTOM_SOUND_SLOTS` id.
+ * @param {number} [channelNumber=S.currentNumber] The channel whose identity sounds to check.
+ * @returns {boolean} True when the override handled the sound.
+ */
 export function playConfiguredSound(slot, channelNumber = S.currentNumber) {
   const configured = configuredSound(slot, channelNumber);
   if (configured === false) return true;
@@ -39,13 +56,17 @@ export function playConfiguredSound(slot, channelNumber = S.currentNumber) {
   return true;
 }
 
-// Also re-syncs S.sfxGain's level with the current mute/volume state on
-// every call, as a side effect — every one-shot SFX calls this right before
-// playing, so that's how a one-shot always reads the right level without a
-// separate mute/volume-change listener of its own. refreshSfxGainLevel()
-// below exists only because a *persistent* node (the tape-hiss loop) can't
-// rely on "the next unrelated SFX happens to trigger a refresh" and needs it
-// proactively instead.
+/**
+ * Returns the shared audio context, creating it and the `S.sfxGain` bus on first use.
+ * Also re-syncs S.sfxGain's level with the current mute/volume state on
+ * every call, as a side effect — every one-shot SFX calls this right before
+ * playing, so that's how a one-shot always reads the right level without a
+ * separate mute/volume-change listener of its own. refreshSfxGainLevel()
+ * below exists only because a *persistent* node (the tape-hiss loop) can't
+ * rely on "the next unrelated SFX happens to trigger a refresh" and needs it
+ * proactively instead.
+ * @returns {AudioContext} The shared audio context.
+ */
 export function getAudioCtx() {
   if (!S.audioCtx) {
     S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -58,6 +79,15 @@ export function getAudioCtx() {
   return S.audioCtx;
 }
 
+/**
+ * Plays a single enveloped oscillator tone through the effects bus.
+ * @param {object} opts Tone options.
+ * @param {number} opts.freq Start frequency in Hz.
+ * @param {number} opts.duration Length in milliseconds.
+ * @param {string} [opts.type='sine'] Oscillator wave type.
+ * @param {number} [opts.endFreq] Frequency to sweep to by the end.
+ * @param {number} [opts.gain=0.2] Peak gain.
+ */
 export function playTone(opts) {
   const ctx = getAudioCtx();
   const now = ctx.currentTime;
@@ -74,6 +104,13 @@ export function playTone(opts) {
   osc.stop(now + durationSec);
 }
 
+/**
+ * Plays a short white-noise burst through the effects bus, with a soft onset.
+ * @param {object} opts Burst options.
+ * @param {number} opts.duration Length in milliseconds.
+ * @param {number} [opts.filterFreq] Band-pass centre frequency in Hz; unfiltered when missing.
+ * @param {number} [opts.gain=0.2] Peak gain.
+ */
 export function playNoiseBurst(opts) {
   const ctx = getAudioCtx();
   const now = ctx.currentTime;
@@ -106,16 +143,22 @@ export function playNoiseBurst(opts) {
   src.start(now);
 }
 
-// Theme-aware channel-change/power SFX — supplied by the active theme
-// pack's `channelChangeSfx`/`powerSfx` fields (registerThemePack,
-// plugins.js). A color-only pack simply omits them, in which case
-// sfxChannelChange()/sfxPowerOff() below fall through to the plain generic
-// sound every theme originally had.
+/**
+ * Theme-aware channel-change/power SFX — supplied by the active theme
+ * pack's `channelChangeSfx`/`powerSfx` fields (registerThemePack,
+ * plugins.js). A color-only pack simply omits them, in which case
+ * sfxChannelChange()/sfxPowerOff() below fall through to the plain generic
+ * sound every theme originally had.
+ * @returns {boolean} True when the theme pack played its own sound.
+ */
 function themeChannelChangeSfx() {
   const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
   if (pack && pack.channelChangeSfx) { pack.channelChangeSfx(window.RCBPlugins.ctx); return true; }
   return false;
 }
+/**
+ * Plays the channel-change sound: a custom override, then the channel identity's choice, then the theme's, then the generic burst.
+ */
 export function sfxChannelChange() {
   if (playConfiguredSound('channelTune')) return;
   const identity = channelIdentity(S.config, S.currentNumber);
@@ -126,50 +169,73 @@ export function sfxChannelChange() {
   if (themeChannelChangeSfx()) return;
   playNoiseBurst({ duration: 130, gain: 0.07, filterFreq: 1400 });
 }
+/**
+ * Plays the volume step sound.
+ * @param {boolean} up True for volume up.
+ */
 export function sfxVolumeTick(up) {
   if (playConfiguredSound(up ? 'volumeUp' : 'volumeDown')) return;
   playTone({ freq: up ? 900 : 500, duration: 45, type: 'sine', gain: 0.12 });
 }
+/**
+ * Plays the guide open or close sound.
+ * @param {boolean} opening True when the guide is opening.
+ */
 export function sfxGuideToggle(opening) {
   if (playConfiguredSound(opening ? 'guideOpen' : 'guideClose')) return;
   playTone({ freq: opening ? 650 : 480, duration: 55, type: 'sine', gain: 0.1 });
 }
 
-// Dayparting transition chime — a short two-note sting when the schedule
-// crosses into a genuinely different block (see scheduleBlockBoundaryRetune,
-// playback.js, for the "genuinely different" check). Same
-// playConfiguredSound-first-then-synthesized-fallback shape as every other
-// SFX here.
+/**
+ * Dayparting transition chime — a short two-note sting when the schedule
+ * crosses into a genuinely different block (see scheduleBlockBoundaryRetune,
+ * playback.js, for the "genuinely different" check). Same
+ * playConfiguredSound-first-then-synthesized-fallback shape as every other
+ * SFX here.
+ */
 export function playDaypartChime() {
   if (playConfiguredSound('daypart')) return;
   playTone({ freq: 520, duration: 90, type: 'sine', gain: 0.14 });
   setTimeout(() => playTone({ freq: 780, duration: 140, type: 'sine', gain: 0.14 }), 90);
 }
 
+/**
+ * Plays the theme pack's own power sound, if it has one.
+ * @param {boolean} isOn True for power on.
+ * @returns {boolean} True when the theme pack played its own sound.
+ */
 function themePowerSfx(isOn) {
   const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
   if (pack && pack.powerSfx) { pack.powerSfx(isOn, window.RCBPlugins.ctx); return true; }
   return false;
 }
+/**
+ * Plays the power-off sound: a custom override, then the theme's, then the generic one.
+ */
 export function sfxPowerOff() {
   if (playConfiguredSound('powerOff')) return;
   if (themePowerSfx(false)) return;
   playNoiseBurst({ duration: 25, gain: 0.25 });
   playTone({ freq: 880, endFreq: 80, duration: 320, type: 'sine', gain: 0.12 });
 }
+/**
+ * Plays the power-on sound: a custom override, then the theme's, then the generic one.
+ */
 export function sfxPowerOn() {
   if (playConfiguredSound('powerOn')) return;
   if (themePowerSfx(true)) return;
   playNoiseBurst({ duration: 25, gain: 0.25 });
   playTone({ freq: 120, endFreq: 880, duration: 380, type: 'sine', gain: 0.12 });
 }
-// Looping "please stand by" hold music — a persistent node like the
-// analog-90s tape hiss (see getAudioCtx's comment above), started when
-// showNoSignal's 'offair' technical-difficulties variant fires
-// (playback.js) and stopped the moment it clears. Two soft sustained tones
-// (a minor third apart) with a slow shared tremolo, deliberately calmer
-// than playEasTone's harsh sustained alert pair — this is dead-air filler
-// music, not an emergency signal.
+/**
+ * Looping "please stand by" hold music — a persistent node like the
+ * analog-90s tape hiss (see getAudioCtx's comment above), started when
+ * showNoSignal's 'offair' technical-difficulties variant fires
+ * (playback.js) and stopped the moment it clears. Two soft sustained tones
+ * (a minor third apart) with a slow shared tremolo, deliberately calmer
+ * than playEasTone's harsh sustained alert pair — this is dead-air filler
+ * music, not an emergency signal.
+ */
 export function startHoldMusicLoop() {
   if (S.holdMusicNodes) return; // already looping
   const ctx = getAudioCtx();
@@ -195,6 +261,9 @@ export function startHoldMusicLoop() {
   S.holdMusicNodes = { tremolo, masterGain, oscillators };
 }
 
+/**
+ * Fades out and stops the hold music loop, if it is running.
+ */
 export function stopHoldMusicLoop() {
   if (!S.holdMusicNodes) return;
   const { tremolo, masterGain, oscillators } = S.holdMusicNodes;
@@ -208,6 +277,11 @@ export function stopHoldMusicLoop() {
   S.holdMusicNodes = null;
 }
 
+/**
+ * Plays the EAS attention signal: the two-tone 853 and 960 Hz pair.
+ * Keeps the oscillators in `S.easOscillators` so the alert can stop them early.
+ * @param {number} durationMs Length in milliseconds.
+ */
 export function playEasTone(durationMs) {
   const ctx = getAudioCtx();
   const now = ctx.currentTime;
@@ -230,6 +304,10 @@ export function playEasTone(durationMs) {
   });
 }
 
+/**
+ * Plays a news-break stinger: a sci-fi sweep for 'alien-report', otherwise a brass fanfare with teletype clicks.
+ * @param {string} style The stinger style.
+ */
 export function playNewsStinger(style) {
   const ctx = getAudioCtx();
   const now = ctx.currentTime;
@@ -297,9 +375,14 @@ export function playNewsStinger(style) {
   }
 }
 
-// Web Speech API runs through the OS's own TTS pipeline, not Web Audio, so
-// it can't be routed through sfxGain — volume/mute are only applied as a
-// snapshot at speak() time, not live. Acceptable for an ~15s alert readout.
+/**
+ * Web Speech API runs through the OS's own TTS pipeline, not Web Audio, so
+ * it can't be routed through sfxGain — volume/mute are only applied as a
+ * snapshot at speak() time, not live. Acceptable for an ~15s alert readout.
+ * @param {string} text The text to read.
+ * @param {Function} onDone Called when speech ends, fails, or is unavailable.
+ * @returns {?SpeechSynthesisUtterance} The utterance, or null without speech support.
+ */
 export function speakEasMessage(text, onDone) {
   if (!window.speechSynthesis) { onDone(); return null; }
   window.speechSynthesis.cancel(); // clear anything stuck in the queue
@@ -313,10 +396,19 @@ export function speakEasMessage(text, onDone) {
   return utter;
 }
 
+/**
+ * Stops any EAS speech in progress.
+ */
 export function cancelEasSpeech() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
+/**
+ * Reads a news message aloud at the current volume.
+ * @param {string} text The text to read.
+ * @param {?Function} onDone Called when speech ends, fails, or is unavailable.
+ * @returns {?SpeechSynthesisUtterance} The utterance, or null without speech support.
+ */
 export function speakNewsMessage(text, onDone) {
   if (!window.speechSynthesis) { if (onDone) onDone(); return null; }
   window.speechSynthesis.cancel();
@@ -330,10 +422,16 @@ export function speakNewsMessage(text, onDone) {
   return utter;
 }
 
+/**
+ * Stops any news speech in progress.
+ */
 export function cancelNewsSpeech() {
   if (window.speechSynthesis) window.speechSynthesis.cancel();
 }
 
+/**
+ * Plays the purchase confirmation sound, or its custom override.
+ */
 export function playPurchaseConfirmSound() {
   if (playConfiguredSound('purchase')) return;
   // Cash register cha-ching + success chime
@@ -342,6 +440,9 @@ export function playPurchaseConfirmSound() {
   setTimeout(() => playTone({ freq: 1600, duration: 300, type: 'sine', gain: 0.18 }), 120);
 }
 
+/**
+ * Plays the PIN unlock sound, or its custom override.
+ */
 export function playPinUnlockSound() {
   if (playConfiguredSound('unlock')) return;
   playTone({ freq: 880, duration: 100, type: 'sine', gain: 0.15 });
@@ -349,6 +450,9 @@ export function playPinUnlockSound() {
 }
 
 
+/**
+ * Plays the mechanical channel-button click, unless vintage audio has clicks switched off.
+ */
 export function playChannelClickSound() {
   if (playConfiguredSound('channelClick')) return;
   if (S.config && S.config.vintageAudio && S.config.vintageAudio.clicks === false) return;
@@ -362,12 +466,14 @@ if (document.addEventListener) {
   });
 }
 
-// Re-syncs S.sfxGain's live level with the current mute/volume state.
-// getAudioCtx() already does this as a side effect on every call (needed so
-// one-shot SFX read the right level at the instant they fire), but a
-// persistent node like the analog-90s tape hiss below needs it refreshed
-// proactively the moment mute/volume changes, not just whenever the next
-// unrelated SFX happens to trigger a refresh.
+/**
+ * Re-syncs S.sfxGain's live level with the current mute/volume state.
+ * getAudioCtx() already does this as a side effect on every call (needed so
+ * one-shot SFX read the right level at the instant they fire), but a
+ * persistent node like the analog-90s tape hiss below needs it refreshed
+ * proactively the moment mute/volume changes, not just whenever the next
+ * unrelated SFX happens to trigger a refresh.
+ */
 export function refreshSfxGainLevel() {
   if (S.audioCtx) getAudioCtx();
 }

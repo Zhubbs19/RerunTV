@@ -26,22 +26,33 @@ import { themeSelect, themeBrowserToggle, themeBrowserCurrentLabel, themeBrowser
 // group name that isn't pre-registered here.
 export const THEME_GROUP_ORDER = ['ERA (BY DECADE)', 'REAL CABLE-BOX UI', 'BROADCAST/STUDIO', 'STYLIZED'];
 
-// Surfaces the same THEME TYPOGRAPHY control PLUGINS > [theme] > SETTINGS
-// already has (renderThemeFontSettings, setup-plugin-settings.js) right next
-// to the theme picker itself — customizing the theme you're looking at
-// shouldn't require knowing it's really a plugin under the hood and finding
-// its settings panel on a different tab. Re-render on every theme switch
-// since the override values shown are per-theme.
+/**
+ * Surfaces the same THEME TYPOGRAPHY control PLUGINS > [theme] > SETTINGS
+ * already has (renderThemeFontSettings, setup-plugin-settings.js) right next
+ * to the theme picker itself — customizing the theme you're looking at
+ * shouldn't require knowing it's really a plugin under the hood and finding
+ * its settings panel on a different tab. Re-render on every theme switch
+ * since the override values shown are per-theme.
+ */
 export function renderThemeFontSettingsInline() {
   const container = document.getElementById('display-theme-font-settings');
   if (!container) return;
   renderThemeFontSettings(container, S.config.theme || 'digital-2000s');
 }
 
+/**
+ * Picks the theme whose guide genre palette is being edited.
+ * @returns {string} The theme id: the theme select's value, else the configured theme.
+ */
 function activeGuideGenreThemeId() {
   return themeSelect.value || S.config.theme || 'digital-2000s';
 }
 
+/**
+ * Lists the genres to show in the palette editor: the defaults, the theme's own colours and every genre tagged on a channel file.
+ * @param {object} themeConfig The theme's guide genre config (`enabled`, `colors`).
+ * @returns {string[]} Normalized genre keys, sorted.
+ */
 function guideGenreKeys(themeConfig) {
   const keys = new Set([...Object.keys(DEFAULT_GUIDE_GENRES), ...Object.keys(themeConfig.colors)]);
   (S.config.channels || []).forEach((channel) => (channel.files || []).forEach((file) => {
@@ -53,6 +64,10 @@ function guideGenreKeys(themeConfig) {
   return Array.from(keys).sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * Applies a change to the active theme's guide genre palette as a settings command, then re-renders the editor.
+ * @param {(next: object) => void} mutator Changes a copy of the palette (`enabled`, `colors`) in place.
+ */
 function updateGuideGenreTheme(mutator) {
   const themeId = activeGuideGenreThemeId();
   const current = guideGenreThemeConfig(S.config, themeId);
@@ -62,6 +77,9 @@ function updateGuideGenreTheme(mutator) {
   renderGuideGenreSettings();
 }
 
+/**
+ * Renders the guide genre colour editor for the active theme: the enable toggle, the palette label and one colour row per genre.
+ */
 export function renderGuideGenreSettings() {
   const enabled = document.getElementById('guide-genre-colors-enabled');
   const label = document.getElementById('guide-genre-theme-label');
@@ -93,6 +111,11 @@ export function renderGuideGenreSettings() {
   });
 }
 
+/**
+ * Hides the theme browser overlay.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.restoreFocus=false] Move focus back to the toggle button.
+ */
 function closeThemeBrowser({ restoreFocus = false } = {}) {
   if (!themeBrowserEl) return;
   themeBrowserEl.classList.add('hidden');
@@ -101,6 +124,9 @@ function closeThemeBrowser({ restoreFocus = false } = {}) {
   if (restoreFocus) themeBrowserToggle.focus();
 }
 
+/**
+ * Renders the theme browser grid from the installed packs, filtered by its search box and grouped in `THEME_GROUP_ORDER`, with a contrast badge on themes that fail the check.
+ */
 export function renderThemeBrowser() {
   if (!themeBrowserGroups) return;
   const entries = themePackEntries();

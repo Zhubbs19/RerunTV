@@ -13,21 +13,27 @@ import { shareFileFields } from '../library/file-copies.js';
 import { findFades } from '../library/break-marks.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from '../playback/order.js';
 
-// Downloads a mediaSource-plugin file's full bytes to a local folder (via
-// main-media-dispatch.js's media:downloadFile, which loops the provider's
-// own readRange the same way live playback already does — no plugin-side
-// change needed), then repoints this one file entry to the resulting real
-// local path. From that point on it plays as a genuine local file: no more
-// network dependency, and it becomes eligible for FIX PLAYBACK the way a
-// plugin-sourced file never is (media:resolvePlayablePath's
-// transcodable:false).
-//
-// `target` is whatever the destination directory gets remembered on — same
-// "just needs a .files array" shape this whole panel already treats
-// uniformly (a channel or a block), so a block gets its own remembered
-// download directory too rather than needing special-casing here. Asked
-// once per target, not once per file: the first download on a given
-// channel/block prompts for a folder, every later one just reuses it.
+/**
+ * Downloads a mediaSource-plugin file's full bytes to a local folder (via
+ * main-media-dispatch.js's media:downloadFile, which loops the provider's
+ * own readRange the same way live playback already does — no plugin-side
+ * change needed), then repoints this one file entry to the resulting real
+ * local path. From that point on it plays as a genuine local file: no more
+ * network dependency, and it becomes eligible for FIX PLAYBACK the way a
+ * plugin-sourced file never is (media:resolvePlayablePath's
+ * transcodable:false).
+ *
+ * `target` is whatever the destination directory gets remembered on — same
+ * "just needs a .files array" shape this whole panel already treats
+ * uniformly (a channel or a block), so a block gets its own remembered
+ * download directory too rather than needing special-casing here. Asked
+ * once per target, not once per file: the first download on a given
+ * channel/block prompts for a folder, every later one just reuses it.
+ * @param {object} target The channel or schedule block whose `files` hold the entry; its `downloadDir` is remembered here.
+ * @param {object} file The file entry to download and repoint.
+ * @param {HTMLButtonElement} btn The DOWNLOAD button, which shows progress and is disabled while running.
+ * @returns {Promise<void>} Resolves when the download ends or is cancelled.
+ */
 async function downloadFileToLocal(target, file, btn) {
   if (btn.disabled) return;
   let destDir = target.downloadDir;
@@ -84,12 +90,20 @@ async function downloadFileToLocal(target, file, btn) {
   }
 }
 
-// Details a row action finds for a file (a TMDB match) describe the media,
-// not this one playlist entry: they are written on every entry for the same
-// path, in every channel and schedule block (library/file-copies.js), and on
-// its library item, so a smart-channel rebuild keeps them too. A description
-// another copy was given by hand stays. `commit: false` lets a bulk action
-// record one undo step at the end with commitSharedFileFields.
+/**
+ * Details a row action finds for a file (a TMDB match) describe the media,
+ * not this one playlist entry: they are written on every entry for the same
+ * path, in every channel and schedule block (library/file-copies.js), and on
+ * its library item, so a smart-channel rebuild keeps them too. A description
+ * another copy was given by hand stays. `commit: false` lets a bulk action
+ * record one undo step at the end with commitSharedFileFields.
+ * @param {object} file The file entry the details were found for.
+ * @param {object} fields The fields to write (e.g. `tmdb`, `tvmaze`, `poster`, `description`).
+ * @param {object} [opts] Options.
+ * @param {string} [opts.label='Update file details'] The undo label.
+ * @param {boolean} [opts.commit=true] Record the undo step now.
+ * @returns {number} How many other entries were changed.
+ */
 function shareFileFieldsEverywhere(file, fields, { label = 'Update file details', commit = true } = {}) {
   const changed = shareFileFields(S.config, file, fields);
   if (changed.length && commit) commitConfigPatch(label, { delay: 100 });
@@ -104,11 +118,18 @@ function shareFileFieldsEverywhere(file, fields, { label = 'Update file details'
   return changed.length;
 }
 
-// Per-file metadata edits go through file.set (commands.js): one named undo
-// step per user action, however many files it touches. `target` is the
-// channel or schedule block whose pool the files are in, found in S.config by
-// identity. `fieldsFor(file)` returns the fields to set on that file, or null
-// to leave it alone. Returns whether anything changed.
+/**
+ * Per-file metadata edits go through file.set (commands.js): one named undo
+ * step per user action, however many files it touches. `target` is the
+ * channel or schedule block whose pool the files are in, found in S.config by
+ * identity. `fieldsFor(file)` returns the fields to set on that file, or null
+ * to leave it alone. Returns whether anything changed.
+ * @param {object} target The channel or schedule block holding the files.
+ * @param {Array<object>} files The file entries to consider.
+ * @param {(file: object) => ?object} fieldsFor Returns the fields to set on a file, or null to skip it.
+ * @param {object} [opts={}] Dispatch options such as `label` and `coalesce`.
+ * @returns {boolean} True when anything changed.
+ */
 function setFileFields(target, files, fieldsFor, opts = {}) {
   const changes = files.map((file) => [file, fieldsFor(file)]).filter(([, fields]) => fields);
   if (!changes.length) return false;
@@ -132,8 +153,13 @@ function setFileFields(target, files, fieldsFor, opts = {}) {
   return true;
 }
 
-// The facets a file would have after `mutate`, and the tags mirrored from
-// them (mirrorFacetsIntoTags), without touching the file itself.
+/**
+ * The facets a file would have after `mutate`, and the tags mirrored from
+ * them (mirrorFacetsIntoTags), without touching the file itself.
+ * @param {object} file The file entry.
+ * @param {(facets: object) => void} mutate Changes a copy of the facets in place.
+ * @returns {object} `{ facets, tags }` as they would be after the change.
+ */
 function facetFields(file, mutate) {
   const next = {
     facets: JSON.parse(JSON.stringify(file.facets || freshFileFacets())),
@@ -144,11 +170,17 @@ function facetFields(file, mutate) {
   return next;
 }
 
-// `target` just needs a `.files` array — works for a channel (ch.files) or
-// a single schedule block (block.files), since both store their file pool
-// the same shape. `folders` (for the "select by folder" dropdown) defaults
-// to target.folders (channels have several) but can be passed explicitly
-// for a block, which only ever has the one folder it was scanned from.
+/**
+ * `target` just needs a `.files` array — works for a channel (ch.files) or
+ * a single schedule block (block.files), since both store their file pool
+ * the same shape. `folders` (for the "select by folder" dropdown) defaults
+ * to target.folders (channels have several) but can be passed explicitly
+ * for a block, which only ever has the one folder it was scanned from.
+ * @param {object} target The channel or schedule block whose `files` the panel lists.
+ * @param {HTMLElement} panelEl The element to build into; its contents are replaced.
+ * @param {object} [opts={}] Options.
+ * @param {Array<object>} [opts.folders] Folders for "select by folder"; defaults to `target.folders`.
+ */
 export function buildTitlesPanel(target, panelEl, opts = {}) {
   panelEl.innerHTML = '';
   const folders = opts.folders || target.folders || [];

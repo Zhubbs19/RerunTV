@@ -72,9 +72,15 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { mapFitAir } from '../core/fit.js';
 
-// A schedule row's file can be a planned or fitted copy whose duration is its
-// air time (breaks included, core/fit.js): seconds into that air time are not
-// seconds into the video. This maps one to the other for a plugin that seeks.
+/**
+ * Maps seconds into a schedule row's air time to seconds into its video. A row's file can be a
+ * planned or fitted copy whose duration is its air time (breaks included, core/fit.js): seconds
+ * into that air time are not seconds into the video. This maps one to the other for a plugin that
+ * seeks.
+ * @param {?object} file The schedule row's file.
+ * @param {number} airSeconds Seconds into the file's air time.
+ * @returns {number} Seconds into the video file.
+ */
 function videoSecondsAt(file, airSeconds) {
   const s = Math.max(0, Number(airSeconds) || 0);
   return file && file.fit ? mapFitAir(file.fit, s).contentS : s;
@@ -102,6 +108,7 @@ import { Tabs } from '../ui/tabs.js';
 import { Toast } from '../ui/toast.js';
 import * as titleMatch from '../library/title-match.js';
 
+// Plugin registries: each maps a plugin (or theme, provider or hook event) id to what it registered.
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
 const settingsSectionRegistry = new Map();
@@ -120,6 +127,12 @@ const coreHookRegistry = new Map(); // event name -> Set<fn>
 const rendererServiceRegistry = new Map();
 let loadErrors = []; // [{id, name, error}] — surfaced once via a themed alert, not per-plugin
 
+/**
+ * Registers a plugin channel type (see the definition shape in the file header).
+ * @param {string} id The plugin's channel type id.
+ * @param {object} definition The channel definition; `render` and an integer `number` are required.
+ * @throws {Error} When the id or a required definition field is missing.
+ */
 export function registerChannelType(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerChannelType: id must be a non-empty string');
   if (!definition || typeof definition.render !== 'function') {
@@ -131,34 +144,58 @@ export function registerChannelType(id, definition) {
   channelTypeRegistry.set(id, definition);
 }
 
+/**
+ * Looks up a registered plugin channel type.
+ * @param {string} id The channel type id.
+ * @returns {?object} Its definition, or null.
+ */
 export function getPluginChannelType(id) {
   return channelTypeRegistry.get(id) || null;
 }
 
+/**
+ * Lists every registered plugin channel type id.
+ * @returns {string[]} The ids.
+ */
 export function pluginChannelTypeIds() {
   return Array.from(channelTypeRegistry.keys());
 }
 
-// Renderer-local counterpart to main-process registerService/callService.
-// This keeps plugin-to-plugin UI collaboration behind a generic named
-// contract instead of encouraging plugins to attach one-off globals.
+/**
+ * Renderer-local counterpart to main-process registerService/callService.
+ * This keeps plugin-to-plugin UI collaboration behind a generic named
+ * contract instead of encouraging plugins to attach one-off globals.
+ * @param {string} id Service name.
+ * @param {object} service The service object other plugins will receive.
+ * @throws {Error} When the id or service is invalid.
+ */
 export function registerRendererService(id, service) {
   if (!id || typeof id !== 'string') throw new Error('registerRendererService: id must be a non-empty string');
   if (!service || typeof service !== 'object') throw new Error(`registerRendererService("${id}"): service must be an object`);
   rendererServiceRegistry.set(id, service);
 }
 
+/**
+ * Looks up a renderer service registered by another plugin.
+ * @param {string} id Service name.
+ * @returns {?object} The service, or null.
+ */
 export function getRendererService(id) {
   return rendererServiceRegistry.get(id) || null;
 }
 
-// A plugin channel's authored `number`/`label` are just defaults — the
-// Channel Setup screen's PLUGIN CHANNELS section (setup-channels.js) lets a
-// user rename/renumber one the same way a real channel row does, without
-// touching the plugin's own code or its dedicated PLUGINS-tab settings.
-// Stored in the same generic per-plugin namespace as channelDisplay above,
-// so it survives config export/import and undo/redo like everything else
-// that flows through updatePluginSettings.
+/**
+ * A plugin channel's authored `number`/`label` are just defaults — the
+ * Channel Setup screen's PLUGIN CHANNELS section (setup-channels.js) lets a
+ * user rename/renumber one the same way a real channel row does, without
+ * touching the plugin's own code or its dedicated PLUGINS-tab settings.
+ * Stored in the same generic per-plugin namespace as channelDisplay above,
+ * so it survives config export/import and undo/redo like everything else
+ * that flows through updatePluginSettings.
+ * @param {string} id The plugin channel type id.
+ * @param {?object} [definition] Its definition; looked up when omitted.
+ * @returns {object} `{ name, number }` in effect for the channel.
+ */
 export function getPluginChannelOverride(id, definition = getPluginChannelType(id)) {
   const stored = getPluginSettings(id).channelOverride;
   const hasStored = stored && typeof stored === 'object' && !Array.isArray(stored);
@@ -170,6 +207,12 @@ export function getPluginChannelOverride(id, definition = getPluginChannelType(i
   };
 }
 
+/**
+ * Merges a patch into a plugin channel's stored name/number override and saves it.
+ * @param {string} id The plugin channel type id.
+ * @param {object} patch Fields to set, `name` and/or `number`.
+ * @returns {object} The plugin's updated settings.
+ */
 export function updatePluginChannelOverride(id, patch) {
   const previous = getPluginSettings(id);
   const channelOverride = previous.channelOverride && typeof previous.channelOverride === 'object' && !Array.isArray(previous.channelOverride)
@@ -178,13 +221,17 @@ export function updatePluginChannelOverride(id, patch) {
   return updatePluginSettings(id, { channelOverride: { ...channelOverride, ...patch } });
 }
 
-// The channel number actually in effect for a registered channel-type plugin
-// right now — its own definition.number, unless the user has overridden it
-// via getPluginChannelOverride above. Every place that needs to know "what
-// number does this plugin currently live at" (virtual.js's guide/tune-in
-// logic, display-mode.js's per-channel override lookup) goes through this
-// single function rather than reading definition.number directly, so an
-// override takes effect everywhere consistently.
+/**
+ * The channel number actually in effect for a registered channel-type plugin
+ * right now — its own definition.number, unless the user has overridden it
+ * via getPluginChannelOverride above. Every place that needs to know "what
+ * number does this plugin currently live at" (virtual.js's guide/tune-in
+ * logic, display-mode.js's per-channel override lookup) goes through this
+ * single function rather than reading definition.number directly, so an
+ * override takes effect everywhere consistently.
+ * @param {number} number A channel number.
+ * @returns {?object} `{ id, definition }` of the plugin channel at that number, or null.
+ */
 export function getPluginChannelEntryForNumber(number) {
   for (const [id, definition] of channelTypeRegistry) {
     if (getPluginChannelOverride(id, definition).number === number) return { id, definition };
@@ -192,17 +239,28 @@ export function getPluginChannelEntryForNumber(number) {
   return null;
 }
 
-// Generic persisted settings owned by the plugin platform. Plugin-specific
-// legacy config can keep living where it already does; shared/type-provided
-// settings use this namespace so core never needs to know a plugin's private
-// config shape. Reads are non-mutating, while writes always use the renderer's
-// normal save funnel so configGeneration and undo/redo stay correct.
+/**
+ * Generic persisted settings owned by the plugin platform. Plugin-specific
+ * legacy config can keep living where it already does; shared/type-provided
+ * settings use this namespace so core never needs to know a plugin's private
+ * config shape. Reads are non-mutating, while writes always use the renderer's
+ * normal save funnel so configGeneration and undo/redo stay correct.
+ * @param {string} id The plugin id.
+ * @returns {object} The plugin's stored settings, or an empty object.
+ */
 export function getPluginSettings(id) {
   const root = S.config && S.config.pluginSettings;
   const settings = root && Object.prototype.hasOwnProperty.call(root, id) ? root[id] : null;
   return settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
 }
 
+/**
+ * Shallow-merges a patch into a plugin's settings, validates it against the plugin's schema and records it as an undoable command.
+ * @param {string} id The plugin id.
+ * @param {object} patch Top-level fields to set.
+ * @returns {object} The plugin's updated settings.
+ * @throws {Error} When the id or patch is invalid or the result fails validation.
+ */
 export function updatePluginSettings(id, patch) {
   if (!id || typeof id !== 'string') throw new Error('updatePluginSettings: id must be a non-empty string');
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
@@ -235,14 +293,27 @@ const LEGACY_CONFIG_OWNERS = {
   'companion-app': { section: 'network', fields: ['companionEnabled'] },
 };
 
+/**
+ * Looks up which legacy config section a first-party plugin owns.
+ * @param {string} id The plugin id.
+ * @param {string} where Calling function name, for the error message.
+ * @returns {object} `{ section, fields? }` from `LEGACY_CONFIG_OWNERS`.
+ * @throws {Error} When the plugin owns no legacy section.
+ */
 function legacyOwner(id, where) {
   const owner = LEGACY_CONFIG_OWNERS[id];
   if (!owner) throw new Error(`ctx.settings.${where}: "${id}" has no legacy config section`);
   return owner;
 }
 
-// The plugin's section object, created (empty or from `defaults`) when missing.
-// Seeding defaults is not an edit, so nothing is saved here.
+/**
+ * The plugin's section object, created (empty or from `defaults`) when missing.
+ * Seeding defaults is not an edit, so nothing is saved here.
+ * @param {string} id The plugin id.
+ * @param {object} [defaults={}] Values to seed a missing section with.
+ * @returns {object} The live section object in `S.config`.
+ * @throws {Error} When the plugin owns no legacy section.
+ */
 export function ensureLegacyConfig(id, defaults = {}) {
   const { section } = legacyOwner(id, 'ensureLegacyConfig');
   if (!S.config[section] || typeof S.config[section] !== 'object' || Array.isArray(S.config[section])) {
@@ -251,8 +322,17 @@ export function ensureLegacyConfig(id, defaults = {}) {
   return S.config[section];
 }
 
-// Applies `patch` (a value of undefined removes the key) to the plugin's legacy
-// section as a single labelled, undoable change.
+/**
+ * Applies `patch` (a value of undefined removes the key) to the plugin's legacy
+ * section as a single labelled, undoable change.
+ * @param {string} id The plugin id.
+ * @param {object} patch Fields to set; undefined removes a key.
+ * @param {object} [opts] Save options.
+ * @param {string} [opts.label] Undo history label.
+ * @param {number} [opts.delay] Save debounce delay.
+ * @returns {object} The live section object.
+ * @throws {Error} When the patch is invalid or touches a field the plugin does not own.
+ */
 export function updateLegacyConfig(id, patch, opts = {}) {
   const owner = legacyOwner(id, 'updateLegacyConfig');
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error(`updateLegacyConfig("${id}"): patch must be an object`);
@@ -307,18 +387,34 @@ export const pluginCommands = {
   },
 };
 
+/**
+ * Checks that a plugin passed its id to a `ctx.commands` call.
+ * @param {string} where The `ctx` method name, for the error message.
+ * @param {string} id The plugin id.
+ * @throws {Error} When the id is missing.
+ */
 function requirePluginId(where, id) {
   if (!id || typeof id !== 'string') throw new Error(`ctx.${where}: a plugin id is required`);
 }
 
+/**
+ * A plugin's settings with its schema's sensitive values redacted.
+ * @param {string} id The plugin id.
+ * @returns {object} The redacted copy.
+ */
 export function getRedactedPluginSettings(id) {
   return redactPluginSettings(getPluginSettings(id), settingsSchemaRegistry.get(id));
 }
 
-// Definition fields remain a compatibility/default fallback for plugins
-// written before core-owned channel settings existed. Once a user chooses a
-// value in the generated panel, even an explicit null (INHERIT) wins over the
-// old definition value and is persisted in the generic namespace.
+/**
+ * Definition fields remain a compatibility/default fallback for plugins
+ * written before core-owned channel settings existed. Once a user chooses a
+ * value in the generated panel, even an explicit null (INHERIT) wins over the
+ * old definition value and is persisted in the generic namespace.
+ * @param {string} id The plugin channel type id.
+ * @param {?object} [definition] Its definition; looked up when omitted.
+ * @returns {object} `{ resolutionOverride, displayAspectOverride }`.
+ */
 export function getPluginChannelDisplaySettings(id, definition = getPluginChannelType(id)) {
   const stored = getPluginSettings(id).channelDisplay;
   const hasStored = stored && typeof stored === 'object' && !Array.isArray(stored);
@@ -330,6 +426,12 @@ export function getPluginChannelDisplaySettings(id, definition = getPluginChanne
   };
 }
 
+/**
+ * Merges a patch into a plugin channel's stored display settings and saves it.
+ * @param {string} id The plugin channel type id.
+ * @param {object} patch Fields to set, `resolutionOverride` and/or `displayAspectOverride`.
+ * @returns {object} The plugin's updated settings.
+ */
 export function updatePluginChannelDisplaySettings(id, patch) {
   const previous = getPluginSettings(id);
   const channelDisplay = previous.channelDisplay && typeof previous.channelDisplay === 'object' && !Array.isArray(previous.channelDisplay)
@@ -338,14 +440,19 @@ export function updatePluginChannelDisplaySettings(id, patch) {
   return updatePluginSettings(id, { channelDisplay: { ...channelDisplay, ...patch } });
 }
 
-// A plugin that wants its own settings UI (a toggle, a path field, whatever)
-// registers one of these instead of the app hardcoding a panel for it in
-// index.html — mirrors registerChannelType's shape. render(container, ctx)
-// is called every time the plugin's own SETTINGS toggle (in its PLUGINS tab
-// row — see setup-plugins.js's renderPluginsList) is expanded, same
-// "rebuild from scratch each time" contract as a channel type's render() —
-// so it should clear/rebuild `container`'s contents each call rather than
-// assuming it's empty only the first time.
+/**
+ * A plugin that wants its own settings UI (a toggle, a path field, whatever)
+ * registers one of these instead of the app hardcoding a panel for it in
+ * index.html — mirrors registerChannelType's shape. render(container, ctx)
+ * is called every time the plugin's own SETTINGS toggle (in its PLUGINS tab
+ * row — see setup-plugins.js's renderPluginsList) is expanded, same
+ * "rebuild from scratch each time" contract as a channel type's render() —
+ * so it should clear/rebuild `container`'s contents each call rather than
+ * assuming it's empty only the first time.
+ * @param {string} id The plugin id.
+ * @param {object} definition `{ render(container, ctx) }`.
+ * @throws {Error} When the id or `render` is missing.
+ */
 export function registerSettingsPanel(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerSettingsPanel: id must be a non-empty string');
   if (!definition || typeof definition.render !== 'function') {
@@ -354,13 +461,24 @@ export function registerSettingsPanel(id, definition) {
   settingsPanelRegistry.set(id, definition);
 }
 
+/**
+ * Looks up a plugin's legacy single settings panel.
+ * @param {string} id The plugin id.
+ * @returns {?object} The panel definition, or null.
+ */
 export function getPluginSettingsPanel(id) {
   return settingsPanelRegistry.get(id) || null;
 }
 
-// New composable settings API. Type-provided sections are assembled by core;
-// plugins contribute only their own sections. registerSettingsPanel above is
-// intentionally retained as a legacy single-section contract.
+/**
+ * New composable settings API. Type-provided sections are assembled by core;
+ * plugins contribute only their own sections. registerSettingsPanel above is
+ * intentionally retained as a legacy single-section contract.
+ * Applies the definition's schema (migrations and defaults) to stored settings before recording its sections; can be called more than once per plugin.
+ * @param {string} id The plugin id.
+ * @param {object} definition `{ sections, schemaVersion?, defaults?, validate?, sensitivePaths?, migrations? }`.
+ * @throws {Error} When the definition, a section or its schema is malformed.
+ */
 export function registerPluginSettings(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerPluginSettings: id must be a non-empty string');
   if (!definition || !Array.isArray(definition.sections) || !definition.sections.length) {
@@ -409,10 +527,15 @@ export function registerPluginSettings(id, definition) {
   settingsSectionRegistry.set(id, [...existing, ...sections]);
 }
 
-// Setup search entries for settings a plugin draws itself (docs/design/03 §6).
-// Each is { label, keywords?, section? }: label is what the user reads,
-// keywords are extra words to match, section is a registerPluginSettings
-// section id to scroll to. Replaces the plugin's earlier entries.
+/**
+ * Setup search entries for settings a plugin draws itself (docs/design/03 §6).
+ * Each is { label, keywords?, section? }: label is what the user reads,
+ * keywords are extra words to match, section is a registerPluginSettings
+ * section id to scroll to. Replaces the plugin's earlier entries.
+ * @param {string} id The plugin id.
+ * @param {Array<object>} entries The search entries.
+ * @throws {Error} When the id or an entry is invalid.
+ */
 export function registerSettingsSearchEntries(id, entries) {
   if (!id || typeof id !== 'string') throw new Error('registerSettingsSearchEntries: id must be a non-empty string');
   if (!Array.isArray(entries)) throw new Error(`registerSettingsSearchEntries("${id}"): entries must be an array`);
@@ -429,9 +552,12 @@ export function registerSettingsSearchEntries(id, entries) {
   settingsSearchRegistry.set(id, clean);
 }
 
-// Everything the setup search knows about plugins: one entry per installed
-// plugin (its name and description, plus its section labels) and the
-// entries plugins registered for individual settings.
+/**
+ * Everything the setup search knows about plugins: one entry per installed
+ * plugin (its name and description, plus its section labels) and the
+ * entries plugins registered for individual settings.
+ * @returns {Array<object>} Search results with `pluginId`, `pluginName`, `kind`, `label`, `section`, `preview` and `haystack`.
+ */
 export function getPluginSearchEntries() {
   const results = [];
   installedPluginSummaries.forEach((summary, id) => {
@@ -460,88 +586,108 @@ export function getPluginSearchEntries() {
   return results;
 }
 
+/**
+ * A plugin's registered settings sections, with its legacy panel appended as a last section when it has one.
+ * @param {string} id The plugin id.
+ * @returns {Array<object>} The sections.
+ */
 export function getPluginSettingsSections(id) {
   const sections = settingsSectionRegistry.get(id) || [];
   const legacy = getPluginSettingsPanel(id);
   return legacy ? [...sections, { id: 'legacy-panel', label: '', render: legacy.render, legacy: true }] : [...sections];
 }
 
-// A media-source provider plugin's own "browse for a folder" UI —
-// PLUGIN_DEVELOPMENT.md's "Media sources" section documents the four core
-// verbs (list/probe/readRange/checkAvailable, called via ctx.callService
-// from the plugin's MAIN process) plus an optional main-process pickFolder
-// verb; this is a second, richer alternative to that plain pickFolder verb,
-// registered from the plugin's *renderer.js* instead — since a plugin's
-// renderer.js already runs in this same window/process (same reason
-// registerSettingsPanel/registerChannelType are plain function calls, not
-// IPC), `pickerFn` can build and show a real modal (breadcrumbs, a
-// clickable folder list, whatever the provider's own data shape needs)
-// directly, with none of the cross-process UI choreography a main-process
-// pickFolder verb would need to show anything. setup-channels.js's CHOOSE
-// SOURCE flow tries this first, falls back to the main-process pickFolder
-// verb, then finally to a plain text-input prompt if neither is
-// registered. `pickerFn(): Promise<folderRef | null>` — same
-// null-means-cancelled contract as the plain-prompt fallback.
+/**
+ * A media-source provider plugin's own "browse for a folder" UI —
+ * PLUGIN_DEVELOPMENT.md's "Media sources" section documents the four core
+ * verbs (list/probe/readRange/checkAvailable, called via ctx.callService
+ * from the plugin's MAIN process) plus an optional main-process pickFolder
+ * verb; this is a second, richer alternative to that plain pickFolder verb,
+ * registered from the plugin's *renderer.js* instead — since a plugin's
+ * renderer.js already runs in this same window/process (same reason
+ * registerSettingsPanel/registerChannelType are plain function calls, not
+ * IPC), `pickerFn` can build and show a real modal (breadcrumbs, a
+ * clickable folder list, whatever the provider's own data shape needs)
+ * directly, with none of the cross-process UI choreography a main-process
+ * pickFolder verb would need to show anything. setup-channels.js's CHOOSE
+ * SOURCE flow tries this first, falls back to the main-process pickFolder
+ * verb, then finally to a plain text-input prompt if neither is
+ * registered. `pickerFn(): Promise<folderRef | null>` — same
+ * null-means-cancelled contract as the plain-prompt fallback.
+ * @param {string} providerId The media-source provider id.
+ * @param {Function} pickerFn Shows the picker; resolves to a folder ref or null when cancelled.
+ * @throws {Error} When either argument is invalid.
+ */
 export function registerMediaSourcePicker(providerId, pickerFn) {
   if (!providerId || typeof providerId !== 'string') throw new Error('registerMediaSourcePicker: providerId must be a non-empty string');
   if (typeof pickerFn !== 'function') throw new Error(`registerMediaSourcePicker("${providerId}"): pickerFn must be a function`);
   mediaSourcePickerRegistry.set(providerId, pickerFn);
 }
 
+/**
+ * Looks up a provider's renderer-side folder picker.
+ * @param {string} providerId The media-source provider id.
+ * @returns {?Function} The picker, or null.
+ */
 export function getMediaSourcePicker(providerId) {
   return mediaSourcePickerRegistry.get(providerId) || null;
 }
 
-// A "pack" plugin bundles one CRT theme's look (`html[data-theme="<id>"]`
-// CSS, shipped in the plugin's own style.css — same app://plugins/ delivery
-// every other plugin stylesheet already uses, nothing new needed there)
-// with the behavioral bits a handful of themes also carry beyond CSS: CRT
-// bias defaults, a channel-change static style, channel/power SFX, ambient
-// audio texture, and an optional border/bezel image for non-16:9 content.
-// `safeAreaPct` (optional, only meaningful alongside `borderImage`) is
-// `{ top, right, bottom, left }`, each a 0-1 fraction of the screen that
-// border's artwork visually occupies — applyTvBezel (power.js) shrinks/
-// repositions the video into the remaining space so it doesn't render
-// underneath the frame. Omitted entirely, a modest default inset is used
-// instead (DEFAULT_SAFE_AREA_PCT, power.js) so every existing pack still
-// gets this "content auto-fits inside the border" behavior for free.
-// `id` is the theme id (`S.config.theme` value, e.g. "wood-console-70s"),
-// NOT the plugin id — mirrors how CSS already keys off the theme id via
-// `[data-theme]`, so a pack plugin's manifest id can differ from its theme
-// id (e.g. plugin id "theme-wood-console-70s", theme id
-// "wood-console-70s") without the two needing to be kept in sync by hand.
-// Every field but `label` is optional — a color-only theme (most of them)
-// registers just `{ label }` (plus maybe `borderImage`), and core's own
-// lookups (crtBias/staticStyle/sfx/ambientTexture) all fall back to today's
-// generic defaults when a field is absent, exactly as if no pack were
-// registered for that theme at all.
-// `group` (optional) is a plain UI-categorization string — setup-settings.js's
-// theme `<select>` (18 entries and counting) groups options under an
-// `<optgroup>` per distinct value instead of one long flat list. Purely
-// cosmetic, no behavioral effect; a pack that omits it falls into a generic
-// "OTHER" group. Existing values in use: 'ERA (BY DECADE)', 'REAL CABLE-BOX
-// UI', 'BROADCAST/STUDIO', 'STYLIZED' — reuse one of these for a new pack
-// where it fits rather than inventing a near-duplicate.
-// `captionStyle` (optional) is read by the closed-captions plugin, not core
-// — an era-appropriate `#player::cue` styling object (background, color,
-// fontFamily, fontSize, textTransform, padding, textShadow). Core has no
-// idea captions exist; this field just sits here unread unless that plugin
-// is installed, same as every other optional field on this object.
-// `preview` (optional) gives the theme browser a stable, representative
-// three-color swatch without applying the theme. Use CSS color strings for
-// `background`, `accent`, and `secondary`. Packs that omit it receive a
-// neutral preview so third-party themes remain selectable.
-// `guidePreviewDefault` (optional, boolean) sets the *default* for whether
-// the full-page program guide (DOCKED/FULL, guide.js's toggleGuideDockMode)
-// shrinks the live picture into a top-right preview box while this theme is
-// active — a look that's anachronistic for a pre-picture-in-picture era.
-// Read by guide.js's guideLivePreviewEnabled, same lookup shape as crtBias
-// above. Omitted (or any value other than `false`) keeps today's behavior,
-// the preview box on. This is only ever a *default* — DISPLAY > GUIDE LIVE
-// PREVIEW (S.config.display.guideLivePreview) lets the user set an explicit
-// value that always overrides it, the same "explicit user choice beats
-// theme default" rule getPluginChannelDisplaySettings's INHERIT semantics
-// already use for per-channel overrides.
+/**
+ * A "pack" plugin bundles one CRT theme's look (`html[data-theme="<id>"]`
+ * CSS, shipped in the plugin's own style.css — same app://plugins/ delivery
+ * every other plugin stylesheet already uses, nothing new needed there)
+ * with the behavioral bits a handful of themes also carry beyond CSS: CRT
+ * bias defaults, a channel-change static style, channel/power SFX, ambient
+ * audio texture, and an optional border/bezel image for non-16:9 content.
+ * `safeAreaPct` (optional, only meaningful alongside `borderImage`) is
+ * `{ top, right, bottom, left }`, each a 0-1 fraction of the screen that
+ * border's artwork visually occupies — applyTvBezel (power.js) shrinks/
+ * repositions the video into the remaining space so it doesn't render
+ * underneath the frame. Omitted entirely, a modest default inset is used
+ * instead (DEFAULT_SAFE_AREA_PCT, power.js) so every existing pack still
+ * gets this "content auto-fits inside the border" behavior for free.
+ * `id` is the theme id (`S.config.theme` value, e.g. "wood-console-70s"),
+ * NOT the plugin id — mirrors how CSS already keys off the theme id via
+ * `[data-theme]`, so a pack plugin's manifest id can differ from its theme
+ * id (e.g. plugin id "theme-wood-console-70s", theme id
+ * "wood-console-70s") without the two needing to be kept in sync by hand.
+ * Every field but `label` is optional — a color-only theme (most of them)
+ * registers just `{ label }` (plus maybe `borderImage`), and core's own
+ * lookups (crtBias/staticStyle/sfx/ambientTexture) all fall back to today's
+ * generic defaults when a field is absent, exactly as if no pack were
+ * registered for that theme at all.
+ * `group` (optional) is a plain UI-categorization string — setup-settings.js's
+ * theme `<select>` (18 entries and counting) groups options under an
+ * `<optgroup>` per distinct value instead of one long flat list. Purely
+ * cosmetic, no behavioral effect; a pack that omits it falls into a generic
+ * "OTHER" group. Existing values in use: 'ERA (BY DECADE)', 'REAL CABLE-BOX
+ * UI', 'BROADCAST/STUDIO', 'STYLIZED' — reuse one of these for a new pack
+ * where it fits rather than inventing a near-duplicate.
+ * `captionStyle` (optional) is read by the closed-captions plugin, not core
+ * — an era-appropriate `#player::cue` styling object (background, color,
+ * fontFamily, fontSize, textTransform, padding, textShadow). Core has no
+ * idea captions exist; this field just sits here unread unless that plugin
+ * is installed, same as every other optional field on this object.
+ * `preview` (optional) gives the theme browser a stable, representative
+ * three-color swatch without applying the theme. Use CSS color strings for
+ * `background`, `accent`, and `secondary`. Packs that omit it receive a
+ * neutral preview so third-party themes remain selectable.
+ * `guidePreviewDefault` (optional, boolean) sets the *default* for whether
+ * the full-page program guide (DOCKED/FULL, guide.js's toggleGuideDockMode)
+ * shrinks the live picture into a top-right preview box while this theme is
+ * active — a look that's anachronistic for a pre-picture-in-picture era.
+ * Read by guide.js's guideLivePreviewEnabled, same lookup shape as crtBias
+ * above. Omitted (or any value other than `false`) keeps today's behavior,
+ * the preview box on. This is only ever a *default* — DISPLAY > GUIDE LIVE
+ * PREVIEW (S.config.display.guideLivePreview) lets the user set an explicit
+ * value that always overrides it, the same "explicit user choice beats
+ * theme default" rule getPluginChannelDisplaySettings's INHERIT semantics
+ * already use for per-channel overrides.
+ * @param {string} id The theme id.
+ * @param {object} definition The theme pack; `label` is required.
+ * @throws {Error} When the id or label is missing.
+ */
 export function registerThemePack(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerThemePack: id must be a non-empty string');
   if (!definition || typeof definition.label !== 'string') {
@@ -550,16 +696,24 @@ export function registerThemePack(id, definition) {
   themePackRegistry.set(id, definition);
 }
 
+/**
+ * Looks up a registered theme pack.
+ * @param {string} id The theme id.
+ * @returns {?object} The pack definition, or null.
+ */
 export function getThemePack(id) {
   return themePackRegistry.get(id) || null;
 }
 
-// For the theme <select> (setup-settings.js) to build its option list from
-// whatever pack plugins are actually installed+enabled, instead of a
-// hardcoded 10-option HTML block — always includes 'digital-2000s' even
-// with zero pack plugins installed, since that theme's look is just core's
-// own base :root palette (no override CSS, no plugin required) and must
-// stay available as the safe zero-plugins default.
+/**
+ * For the theme <select> (setup-settings.js) to build its option list from
+ * whatever pack plugins are actually installed+enabled, instead of a
+ * hardcoded 10-option HTML block — always includes 'digital-2000s' even
+ * with zero pack plugins installed, since that theme's look is just core's
+ * own base :root palette (no override CSS, no plugin required) and must
+ * stay available as the safe zero-plugins default.
+ * @returns {Array<object>} `{ id, label, group, preview, ... }` per theme.
+ */
 export function themePackEntries() {
   const entries = Array.from(themePackRegistry.entries())
     .map(([themeId, def]) => ({
@@ -583,33 +737,38 @@ export function themePackEntries() {
   return entries;
 }
 
-// A full-screen (or otherwise attention-grabbing) interrupt a plugin can
-// trigger on top of whatever's tuned — an alert slate, a news crawl, or any
-// other third-party equivalent. Generalizes what used to be a couple of
-// hand-wired special cases (each independently hardcoded by name in
-// app.js/power.js/playback.js/tv-menu.js) into one registry any plugin can
-// join.
-//   label         — shown as a TV-menu button (tv-menu.js).
-//   hintKey       — matches a hint-bar item's data-hintKey (power.js), so
-//                   that item auto-hides when this plugin is disabled.
-//   hotkey        — optional single letter; app.js's key handler runs
-//                   .run({manual: true}) when it's pressed on live TV.
-//   run(opts)     — trigger the interrupt.
-//   cancel()      — called on power-off and whenever the box tunes to a new
-//                   channel (playback.js) — clear timers, hide the overlay.
-//   scheduleNext() — called after a tune-in completes, so a plugin that
-//                   auto-fires periodically (e.g. "roll EAS test every N
-//                   minutes") can re-arm its own timer for the new channel.
-//   cancelScheduled() — optional; stops a pending scheduleNext() timer
-//                   without touching an in-progress alert (distinct from
-//                   cancel()) — called when entering setup, so a random
-//                   test doesn't fire while there's no live TV to interrupt.
-//   isActive()    — optional; returns whether THIS interrupt is currently
-//                   showing. Lets one interrupt plugin (e.g. eas-alerts)
-//                   politely defer to another (e.g. breaking-news) via
-//                   anyOtherInterruptActive() below without either plugin
-//                   hardcoding the other's name or private state field —
-//                   each plugin only ever describes itself.
+/**
+ * A full-screen (or otherwise attention-grabbing) interrupt a plugin can
+ * trigger on top of whatever's tuned — an alert slate, a news crawl, or any
+ * other third-party equivalent. Generalizes what used to be a couple of
+ * hand-wired special cases (each independently hardcoded by name in
+ * app.js/power.js/playback.js/tv-menu.js) into one registry any plugin can
+ * join.
+ *   label         — shown as a TV-menu button (tv-menu.js).
+ *   hintKey       — matches a hint-bar item's data-hintKey (power.js), so
+ *                   that item auto-hides when this plugin is disabled.
+ *   hotkey        — optional single letter; app.js's key handler runs
+ *                   .run({manual: true}) when it's pressed on live TV.
+ *   run(opts)     — trigger the interrupt.
+ *   cancel()      — called on power-off and whenever the box tunes to a new
+ *                   channel (playback.js) — clear timers, hide the overlay.
+ *   scheduleNext() — called after a tune-in completes, so a plugin that
+ *                   auto-fires periodically (e.g. "roll EAS test every N
+ *                   minutes") can re-arm its own timer for the new channel.
+ *   cancelScheduled() — optional; stops a pending scheduleNext() timer
+ *                   without touching an in-progress alert (distinct from
+ *                   cancel()) — called when entering setup, so a random
+ *                   test doesn't fire while there's no live TV to interrupt.
+ *   isActive()    — optional; returns whether THIS interrupt is currently
+ *                   showing. Lets one interrupt plugin (e.g. eas-alerts)
+ *                   politely defer to another (e.g. breaking-news) via
+ *                   anyOtherInterruptActive() below without either plugin
+ *                   hardcoding the other's name or private state field —
+ *                   each plugin only ever describes itself.
+ * @param {string} id The interrupt id.
+ * @param {object} definition The interrupt; `run` is required.
+ * @throws {Error} When the id or `run` is missing.
+ */
 export function registerInterrupt(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerInterrupt: id must be a non-empty string');
   if (!definition || typeof definition.run !== 'function') {
@@ -618,21 +777,34 @@ export function registerInterrupt(id, definition) {
   interruptRegistry.set(id, definition);
 }
 
+/**
+ * Looks up a registered interrupt.
+ * @param {string} id The interrupt id.
+ * @returns {?object} Its definition, or null.
+ */
 export function getInterrupt(id) {
   return interruptRegistry.get(id) || null;
 }
 
+/**
+ * Lists every registered interrupt.
+ * @returns {Array<object>} Each definition with its `id` added.
+ */
 export function interruptEntries() {
   return Array.from(interruptRegistry.entries()).map(([id, def]) => ({ id, ...def }));
 }
 
-// True if any REGISTERED interrupt other than excludeId reports itself
-// active via its own optional isActive() — generic stand-in for a plugin
-// that would otherwise have to hardcode another specific plugin's id/state
-// field (e.g. "don't fire if breaking-news happens to be up") to avoid two
-// full-screen/overlay interrupts colliding. A plugin that never defines
-// isActive() simply never blocks anything this way, exactly as if it didn't
-// exist for this check.
+/**
+ * True if any REGISTERED interrupt other than excludeId reports itself
+ * active via its own optional isActive() — generic stand-in for a plugin
+ * that would otherwise have to hardcode another specific plugin's id/state
+ * field (e.g. "don't fire if breaking-news happens to be up") to avoid two
+ * full-screen/overlay interrupts colliding. A plugin that never defines
+ * isActive() simply never blocks anything this way, exactly as if it didn't
+ * exist for this check.
+ * @param {string} excludeId The caller's own interrupt id.
+ * @returns {boolean} True when another interrupt is showing.
+ */
 export function anyOtherInterruptActive(excludeId) {
   for (const [id, def] of interruptRegistry) {
     if (id !== excludeId && typeof def.isActive === 'function' && def.isActive()) return true;
@@ -640,28 +812,42 @@ export function anyOtherInterruptActive(excludeId) {
   return false;
 }
 
+/**
+ * Calls every interrupt's `cancel()`.
+ */
 export function cancelAllInterrupts() {
   interruptRegistry.forEach((def) => { if (def.cancel) def.cancel(); });
 }
 
+/**
+ * Calls every interrupt's `scheduleNext()`, after a tune-in completes.
+ */
 export function scheduleAllInterrupts() {
   interruptRegistry.forEach((def) => { if (def.scheduleNext) def.scheduleNext(); });
 }
 
+/**
+ * Calls every interrupt's `cancelScheduled()`, leaving any interrupt already showing alone.
+ */
 export function cancelAllScheduledInterrupts() {
   interruptRegistry.forEach((def) => { if (def.cancelScheduled) def.cancelScheduled(); });
 }
 
-// A gate a plugin can register to block tuning into a channel until some
-// condition is met — generalizes pin-lock's isPinLocked/showPinLockScreen
-// (previously the one hardcoded lock system playback.js's tuneToChannel
-// knew about by direct import) into a registry any plugin can join, e.g. a
-// bedtime lock or a PPV-credit gate.
-//   isBlocked(number) — return true to block the tune.
-//   onBlocked(number) — called instead of tuning; owns showing whatever UI
-//                       resolves the block (a PIN pad, a purchase prompt)
-//                       and calling window.tuneToChannel(number,
-//                       {bypassGateIds: [id]}) once satisfied.
+/**
+ * A gate a plugin can register to block tuning into a channel until some
+ * condition is met — generalizes pin-lock's isPinLocked/showPinLockScreen
+ * (previously the one hardcoded lock system playback.js's tuneToChannel
+ * knew about by direct import) into a registry any plugin can join, e.g. a
+ * bedtime lock or a PPV-credit gate.
+ *   isBlocked(number) — return true to block the tune.
+ *   onBlocked(number) — called instead of tuning; owns showing whatever UI
+ *                       resolves the block (a PIN pad, a purchase prompt)
+ *                       and calling window.tuneToChannel(number,
+ *                       {bypassGateIds: [id]}) once satisfied.
+ * @param {string} id The gate id.
+ * @param {object} definition `{ isBlocked(number), onBlocked(number) }`.
+ * @throws {Error} When the id or either function is missing.
+ */
 export function registerTuneGate(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerTuneGate: id must be a non-empty string');
   if (!definition || typeof definition.isBlocked !== 'function' || typeof definition.onBlocked !== 'function') {
@@ -670,22 +856,31 @@ export function registerTuneGate(id, definition) {
   tuneGateRegistry.set(id, definition);
 }
 
+/**
+ * Lists every registered tune gate.
+ * @returns {Array<object>} Each definition with its `id` added.
+ */
 export function tuneGateEntries() {
   return Array.from(tuneGateRegistry.entries()).map(([id, def]) => ({ id, ...def }));
 }
 
-// A background <audio> element that plays independently of whatever's tuned
-// (an overlay music source, e.g. a channel that opts to keep playing under
-// other channels) and needs master-volume/mute/power coordination from core
-// the same way the shared #player does. Generalizes what used to be a single
-// hardcoded single-plugin `.overlayAudioEl` special case in power.js into a
-// registry any plugin can join.
-//   el              — the plugin's own persistent <audio> element.
-//   overlayVolume()  — optional; returns this source's own 0-1 volume
-//                      slider value (multiplied with master volume). Falls
-//                      back to 0.6 if omitted.
-//   resumeIfNeeded() — optional; called on power-on, so a plugin whose
-//                      overlay was paused for power-off can resume it.
+/**
+ * A background <audio> element that plays independently of whatever's tuned
+ * (an overlay music source, e.g. a channel that opts to keep playing under
+ * other channels) and needs master-volume/mute/power coordination from core
+ * the same way the shared #player does. Generalizes what used to be a single
+ * hardcoded single-plugin `.overlayAudioEl` special case in power.js into a
+ * registry any plugin can join.
+ *   el              — the plugin's own persistent <audio> element.
+ *   overlayVolume()  — optional; returns this source's own 0-1 volume
+ *                      slider value (multiplied with master volume). Falls
+ *                      back to 0.6 if omitted.
+ *   resumeIfNeeded() — optional; called on power-on, so a plugin whose
+ *                      overlay was paused for power-off can resume it.
+ * @param {string} id The source id.
+ * @param {object} definition `{ el, overlayVolume?, resumeIfNeeded? }`.
+ * @throws {Error} When the id or `el` is missing.
+ */
 export function registerOverlayAudioSource(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerOverlayAudioSource: id must be a non-empty string');
   if (!definition || !definition.el) {
@@ -694,35 +889,44 @@ export function registerOverlayAudioSource(id, definition) {
   overlayAudioRegistry.set(id, definition);
 }
 
+/**
+ * Lists every registered overlay audio source.
+ * @returns {Array<object>} Each definition with its `id` added.
+ */
 export function overlayAudioEntries() {
   return Array.from(overlayAudioRegistry.entries()).map(([id, def]) => ({ id, ...def }));
 }
 
-// A plugin can inject its own per-file action into the TITLES tab's file
-// rows (setup-panels.js) — and, since that same row renderer is reused for a
-// SCHEDULE block's own file list (setup-schedule.js), there too — without
-// core needing to know that plugin exists at all. Generalizes what used to
-// be a single hardcoded metadata-lookup button built directly into
-// setup-panels.js (core had no business knowing that specific plugin
-// existed, let alone building its whole UI).
-//   renderRowCell(container, file, ctx)  — called once per visible file row;
-//                                          build this action's own UI (a
-//                                          button, a poster thumbnail,
-//                                          whatever) into `container`, an
-//                                          empty cell core creates and
-//                                          appends into the row. Same
-//                                          "clear/rebuild on every call, own
-//                                          `container` fully" contract every
-//                                          other registry here already uses.
-//   renderBulkAction(container, ctx)     — optional; called once per panel
-//                                          build to add a control into the
-//                                          bulk-action bar (acts on every
-//                                          currently-selected file at once).
-// ctx (both hooks) is the standard window.RCBPlugins.ctx, plus:
-//   getSelectedFiles()  — (renderBulkAction only) the Set of files currently
-//                         bulk-selected on this panel.
-//   rerender()          — re-renders every row (e.g. after a bulk action
-//                         mutates many files at once).
+/**
+ * A plugin can inject its own per-file action into the TITLES tab's file
+ * rows (setup-panels.js) — and, since that same row renderer is reused for a
+ * SCHEDULE block's own file list (setup-schedule.js), there too — without
+ * core needing to know that plugin exists at all. Generalizes what used to
+ * be a single hardcoded metadata-lookup button built directly into
+ * setup-panels.js (core had no business knowing that specific plugin
+ * existed, let alone building its whole UI).
+ *   renderRowCell(container, file, ctx)  — called once per visible file row;
+ *                                          build this action's own UI (a
+ *                                          button, a poster thumbnail,
+ *                                          whatever) into `container`, an
+ *                                          empty cell core creates and
+ *                                          appends into the row. Same
+ *                                          "clear/rebuild on every call, own
+ *                                          `container` fully" contract every
+ *                                          other registry here already uses.
+ *   renderBulkAction(container, ctx)     — optional; called once per panel
+ *                                          build to add a control into the
+ *                                          bulk-action bar (acts on every
+ *                                          currently-selected file at once).
+ * ctx (both hooks) is the standard window.RCBPlugins.ctx, plus:
+ *   getSelectedFiles()  — (renderBulkAction only) the Set of files currently
+ *                         bulk-selected on this panel.
+ *   rerender()          — re-renders every row (e.g. after a bulk action
+ *                         mutates many files at once).
+ * @param {string} id The action id.
+ * @param {object} definition `{ renderRowCell, renderBulkAction? }`.
+ * @throws {Error} When the id or `renderRowCell` is missing.
+ */
 export function registerTitleRowAction(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerTitleRowAction: id must be a non-empty string');
   if (!definition || typeof definition.renderRowCell !== 'function') {
@@ -731,23 +935,32 @@ export function registerTitleRowAction(id, definition) {
   titleRowActionRegistry.set(id, definition);
 }
 
+/**
+ * Lists every registered title row action.
+ * @returns {Array<object>} Each definition with its `id` added.
+ */
 export function titleRowActionEntries() {
   return Array.from(titleRowActionRegistry.entries()).map(([id, def]) => ({ id, ...def }));
 }
 
-// Generic core-to-plugin event hook — closes the last ad-hoc gap in plugin
-// agnosticism: before this, a handful of core call sites reached into a
-// specific plugin by hardcoded name (window.RCBPlugins.screensaver?.
-// cancelTimer?.(), .vintageAudio?.applyThemeAudio?.(), .smpteTestPattern?.
-// draw?.()) — safe (null-checked) but still meant core had to know that
-// exact plugin's property name existed. A plugin now subscribes to a named
-// event instead (e.g. 'power-off', 'idle-reset', 'draw-test-pattern' — see
-// PLUGIN_DEVELOPMENT.md for the current event list) and core fires the
-// event generically, with zero knowledge of who (if anyone) is listening.
-// Multiple plugins may subscribe to the same event; one plugin may
-// subscribe to several. A throw in one handler is caught and logged, same
-// per-plugin failure isolation every other registry here already gives —
-// it doesn't stop the remaining handlers for that event from running.
+/**
+ * Generic core-to-plugin event hook — closes the last ad-hoc gap in plugin
+ * agnosticism: before this, a handful of core call sites reached into a
+ * specific plugin by hardcoded name (window.RCBPlugins.screensaver?.
+ * cancelTimer?.(), .vintageAudio?.applyThemeAudio?.(), .smpteTestPattern?.
+ * draw?.()) — safe (null-checked) but still meant core had to know that
+ * exact plugin's property name existed. A plugin now subscribes to a named
+ * event instead (e.g. 'power-off', 'idle-reset', 'draw-test-pattern' — see
+ * PLUGIN_DEVELOPMENT.md for the current event list) and core fires the
+ * event generically, with zero knowledge of who (if anyone) is listening.
+ * Multiple plugins may subscribe to the same event; one plugin may
+ * subscribe to several. A throw in one handler is caught and logged, same
+ * per-plugin failure isolation every other registry here already gives —
+ * it doesn't stop the remaining handlers for that event from running.
+ * @param {string} event The core event name.
+ * @param {Function} fn Handler called with the event's arguments.
+ * @throws {Error} When the event name or handler is invalid.
+ */
 export function registerCoreHook(event, fn) {
   if (!event || typeof event !== 'string') throw new Error('registerCoreHook: event must be a non-empty string');
   if (typeof fn !== 'function') throw new Error(`registerCoreHook("${event}"): fn must be a function`);
@@ -755,6 +968,11 @@ export function registerCoreHook(event, fn) {
   coreHookRegistry.get(event).add(fn);
 }
 
+/**
+ * Calls every handler subscribed to a core event, logging and skipping any that throws.
+ * @param {string} event The core event name.
+ * @param {...*} args Arguments passed to each handler.
+ */
 export function runCoreHooks(event, ...args) {
   const fns = coreHookRegistry.get(event);
   if (!fns) return;
@@ -763,8 +981,11 @@ export function runCoreHooks(event, ...args) {
   });
 }
 
-// Functions and DOM nodes never cross the diagnostics boundary. This is an
-// inventory of registration ids/counts only, safe to display and export.
+/**
+ * Functions and DOM nodes never cross the diagnostics boundary. This is an
+ * inventory of registration ids/counts only, safe to display and export.
+ * @returns {object} Registered ids and counts per registry, plus load errors.
+ */
 export function pluginDiagnosticsSnapshot() {
   return {
     channelTypes: Array.from(channelTypeRegistry.keys()),
@@ -829,6 +1050,9 @@ const CTX_VERSION = 12;
 const pluginEventListeners = new Map();
 let pluginEventsBound = false;
 
+/**
+ * Subscribes once to the main process's plugin events and fans each one out to its `ctx.ipc.on` listeners.
+ */
 function bindPluginEvents() {
   if (pluginEventsBound || !window.api || typeof window.api.onPluginEvent !== 'function') return;
   pluginEventsBound = true;
@@ -842,6 +1066,7 @@ function bindPluginEvents() {
   });
 }
 
+// `ctx.ipc`: the generic bridge from a plugin's on-screen code to its own main-process channels.
 const pluginIpc = Object.freeze({
   // Resolves with the handler's answer, or the plugin's fallbackIpc value
   // while it is disabled or unapproved. Rejects when the plugin has no
@@ -868,6 +1093,9 @@ const pluginIpc = Object.freeze({
   },
 });
 
+/**
+ * Builds `window.RCBPlugins`: the register functions and the `ctx` object plugins receive.
+ */
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
   const audio = { playTone, playNoiseBurst, getAudioCtx };
@@ -976,10 +1204,18 @@ function installGlobalApi() {
 // Resolves once every plugin stylesheet added by loadPlugins has loaded (or
 // failed), so work that reads theme CSS (theme-check.js) sees all of it.
 let styleLoads = [];
+/**
+ * Waits for every plugin stylesheet added by `loadPlugins`.
+ * @returns {Promise<Array>} Resolves once each has loaded or failed.
+ */
 export function pluginStylesReady() {
   return Promise.all(styleLoads);
 }
 
+/**
+ * Installs the plugin API, then loads every enabled plugin's stylesheet and imports its renderer and settings modules, reporting failures in one dialog.
+ * @returns {Promise<void>} Resolves once every import has settled.
+ */
 export async function loadPlugins() {
   installGlobalApi();
   let manifests;
@@ -1072,45 +1308,51 @@ export async function loadPlugins() {
   reportInstalledThemes();
 }
 
-// Pushes the current theme-pack registry to main (companion-app/main.js's
-// GET /api/themes reads it back via ctx.getInstalledThemes) — the registry
-// only ever exists here, populated by whichever pack plugins' renderer.js
-// modules happened to call registerThemePack, so main has no way to know
-// the list on its own. Called after every plugin (re)load, boot included,
-// same as renderThemeSelectOptions' own "rebuilt on every visit" comment
-// explains — the installed-pack set can change between calls.
+/**
+ * Pushes the current theme-pack registry to main (companion-app/main.js's
+ * GET /api/themes reads it back via ctx.getInstalledThemes) — the registry
+ * only ever exists here, populated by whichever pack plugins' renderer.js
+ * modules happened to call registerThemePack, so main has no way to know
+ * the list on its own. Called after every plugin (re)load, boot included,
+ * same as renderThemeSelectOptions' own "rebuilt on every visit" comment
+ * explains — the installed-pack set can change between calls.
+ */
 function reportInstalledThemes() {
   if (window.api.reportInstalledThemes) window.api.reportInstalledThemes(themePackEntries());
 }
 
-// Re-fetches and re-registers a single plugin's renderer-side assets
-// (style.css, renderer.js, settings.js) without restarting the app —
-// cache-busts every URL with a fresh timestamp so an on-disk edit is
-// actually picked up (app://plugins/... otherwise resolves to the exact
-// same specifier Chromium already has cached, both as an HTTP response and,
-// for the JS files, as an already-evaluated ES module record). Deliberately
-// does NOT touch this plugin's main.js — a same-process main-process plugin
-// has no deactivate() hook yet, so cleanly unregistering its ipcMain
-// handlers/spawned processes isn't possible without a real architecture
-// change (see PLUGIN_DEVELOPMENT.md); a plugin with system-level changes
-// still needs a full app restart, same as before this existed.
-// Most registries here are plain id-keyed Maps, so re-running a plugin's
-// top-level register*() calls naturally replaces its old entry. The one
-// exception is settingsSectionRegistry, which *appends* (registerPluginSettings
-// supports being called more than once per plugin for a different section
-// each time) — cleared explicitly first so a reload doesn't duplicate every
-// section it already registered. registerThemePack keys off the theme id,
-// not the plugin id (a "theme-x" plugin registers theme id "x" — see that
-// function's doc comment above), so it's cleared the same way when the
-// naming convention holds.
-// Known limitation: this only cleans up what a plugin declares through the
-// register*() contract. A plugin whose top-level code has side effects
-// beyond that — a running setInterval, an <audio> element it created and
-// kept its only reference to locally, a registerCoreHook subscription (no
-// registry here tracks which plugin owns which hook handler) — can still
-// leak a stale instance across a reload. Fine for the common styling/UI/
-// settings-panel iteration loop this exists for; not a guaranteed-clean
-// unload for every possible plugin.
+/**
+ * Re-fetches and re-registers a single plugin's renderer-side assets
+ * (style.css, renderer.js, settings.js) without restarting the app —
+ * cache-busts every URL with a fresh timestamp so an on-disk edit is
+ * actually picked up (app://plugins/... otherwise resolves to the exact
+ * same specifier Chromium already has cached, both as an HTTP response and,
+ * for the JS files, as an already-evaluated ES module record). Deliberately
+ * does NOT touch this plugin's main.js — a same-process main-process plugin
+ * has no deactivate() hook yet, so cleanly unregistering its ipcMain
+ * handlers/spawned processes isn't possible without a real architecture
+ * change (see PLUGIN_DEVELOPMENT.md); a plugin with system-level changes
+ * still needs a full app restart, same as before this existed.
+ * Most registries here are plain id-keyed Maps, so re-running a plugin's
+ * top-level register*() calls naturally replaces its old entry. The one
+ * exception is settingsSectionRegistry, which *appends* (registerPluginSettings
+ * supports being called more than once per plugin for a different section
+ * each time) — cleared explicitly first so a reload doesn't duplicate every
+ * section it already registered. registerThemePack keys off the theme id,
+ * not the plugin id (a "theme-x" plugin registers theme id "x" — see that
+ * function's doc comment above), so it's cleared the same way when the
+ * naming convention holds.
+ * Known limitation: this only cleans up what a plugin declares through the
+ * register*() contract. A plugin whose top-level code has side effects
+ * beyond that — a running setInterval, an <audio> element it created and
+ * kept its only reference to locally, a registerCoreHook subscription (no
+ * registry here tracks which plugin owns which hook handler) — can still
+ * leak a stale instance across a reload. Fine for the common styling/UI/
+ * settings-panel iteration loop this exists for; not a guaranteed-clean
+ * unload for every possible plugin.
+ * @param {string} id The plugin id.
+ * @returns {Promise<object>} `{ ok: true }`, or `{ ok: false, error }`.
+ */
 export async function reloadPlugin(id) {
   let manifests;
   try {
@@ -1164,6 +1406,10 @@ export async function reloadPlugin(id) {
 // path:toFileUrl) — reused rather than adding a new IPC round-trip.
 const CUSTOM_CSS_LINK_ID = 'custom-css-override';
 
+/**
+ * Loads (or removes) the user's custom stylesheet last in the page, cache-busted so an edited file is re-read.
+ * @returns {Promise<void>} Resolves once the link is updated.
+ */
 export async function applyCustomCss() {
   const existing = document.getElementById(CUSTOM_CSS_LINK_ID);
   const path = S.config.display && S.config.display.customCssPath;

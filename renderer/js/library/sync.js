@@ -15,6 +15,10 @@ let periodicTimer = null;
 let syncRunning = false;
 
 
+/**
+ * Returns the library sync settings, creating them with defaults when missing.
+ * @returns {object} The live `S.config.librarySync` object.
+ */
 function settings() {
   if (!S.config.librarySync) {
     S.config.librarySync = { enabled: false, runAtStartup: true, intervalMinutes: 30, removeMissing: false };
@@ -22,6 +26,13 @@ function settings() {
   return S.config.librarySync;
 }
 
+/**
+ * Lists a channel folder and probes the durations of files not already known.
+ * @param {object} folder The channel's folder entry (`source`, `ref`).
+ * @param {Array<object>} tracked The channel's current entries for this folder.
+ * @returns {Promise<Array<object>>} `{ path, source, duration }` per listed file; `duration` is `null` when unreadable.
+ * @throws {Error} When the listing is invalid, or empty while the folder had files.
+ */
 async function scanFolder(folder, tracked) {
   const listed = await window.api.scanFolder(folder.source || 'local', folder.ref);
   if (!Array.isArray(listed)) throw new Error('The source returned an invalid folder listing.');
@@ -48,16 +59,25 @@ async function scanFolder(folder, tracked) {
   return out;
 }
 
-// Changing a channel's playlist changes what airs unless its anchor moves with
-// it (docs/design/07 §3): even a pure append changes the loop's length and can
-// cut away from the programme on screen. Evaluated at viewNow() — the clock the
-// schedule reads — and, for the tuned channel, with the break-drift
-// compensation playback applies.
+/**
+ * Changing a channel's playlist changes what airs unless its anchor moves with
+ * it (docs/design/07 §3): even a pure append changes the loop's length and can
+ * cut away from the programme on screen. Evaluated at viewNow() — the clock the
+ * schedule reads — and, for the tuned channel, with the break-drift
+ * compensation playback applies.
+ * @param {object} channel The channel config.
+ * @returns {number} The schedule time to keep on the air, epoch ms.
+ */
 export function scheduleClockFor(channel) {
   const atMs = viewNow();
   return S.currentNumber === channel.number ? atMs - (S.contentLostMs || 0) : atMs;
 }
 
+/**
+ * Summarizes sync counts as one line.
+ * @param {object} result Counts: added, renamed, removed, missing, unprobed, filled, errors, onAirChanged.
+ * @returns {string} The summary.
+ */
 function summaryText(result) {
   const parts = [];
   if (result.added) parts.push(`${result.added} added`);
@@ -71,6 +91,10 @@ function summaryText(result) {
   return parts.length ? parts.join(' · ') : 'No library changes found';
 }
 
+/**
+ * Draws the per-folder sync results, warnings first.
+ * @param {Array<object>} rows Per-folder result rows.
+ */
 function renderResults(rows) {
   const root = document.getElementById('library-sync-results');
   if (!root) return;
@@ -93,6 +117,14 @@ function renderResults(rows) {
   });
 }
 
+/**
+ * Syncs every linked channel folder with its source.
+ * Keeps what is on the air where it can, fills new files' details when that is on, and
+ * records the run as one undoable patch. Does nothing on a LAN viewer or while a run is going.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.reason='manual'] Why it ran: `manual`, `startup` or `periodic`.
+ * @returns {Promise<?object>} The totals plus `rows`, or `null` when it did not run.
+ */
 export async function runLibrarySync({ reason = 'manual' } = {}) {
   if (syncRunning || window.__isViewer) return null;
   syncRunning = true;
@@ -176,8 +208,11 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
   }
 }
 
-// Every local playlist entry, in channels and their schedule blocks, that is
-// missing a detail a reading could supply.
+/**
+ * Every local playlist entry, in channels and their schedule blocks, that is
+ * missing a detail a reading could supply.
+ * @returns {Array<object>} Live playlist entries.
+ */
 function filesMissingDetails() {
   const out = [];
   (S.config.channels || []).forEach((channel) => {
@@ -193,12 +228,15 @@ function filesMissingDetails() {
   return out;
 }
 
-// LIBRARY SYNC › FILL IN ALL CHANNELS NOW: one pass over the whole lineup,
-// recorded as a single undoable patch. First every entry takes what its
-// other copies already know (a TMDB match made on one channel before matches
-// were shared, library/file-copies.js), then the rest are read from disk. Titles, descriptions, ratings and
-// series names don't move anything in a schedule, so nothing on the air
-// changes; only empty fields are filled.
+/**
+ * LIBRARY SYNC › FILL IN ALL CHANNELS NOW: one pass over the whole lineup,
+ * recorded as a single undoable patch. First every entry takes what its
+ * other copies already know (a TMDB match made on one channel before matches
+ * were shared, library/file-copies.js), then the rest are read from disk. Titles, descriptions, ratings and
+ * series names don't move anything in a schedule, so nothing on the air
+ * changes; only empty fields are filled.
+ * @returns {Promise<?object>} `{ filled, read, shared }`, or `null` when it did not run or reading failed.
+ */
 export async function fillAllChannelDetails() {
   if (syncRunning || window.__isViewer) return null;
   const status = document.getElementById('local-meta-status');
@@ -245,6 +283,9 @@ export async function fillAllChannelDetails() {
   }
 }
 
+/**
+ * Fills the LIBRARY SYNC controls from the saved settings.
+ */
 export function renderLibrarySyncSettings() {
   const prefs = settings();
   const enabled = document.getElementById('library-sync-enabled');
@@ -266,6 +307,9 @@ export function renderLibrarySyncSettings() {
     : (prefs.enabled ? 'READY — NO SYNC HAS RUN YET.' : 'SYNC IS OFF.');
 }
 
+/**
+ * Restarts the periodic sync timer from the current settings.
+ */
 function schedulePeriodicSync() {
   clearInterval(periodicTimer);
   periodicTimer = null;
@@ -275,6 +319,9 @@ function schedulePeriodicSync() {
   periodicTimer = setInterval(() => { runLibrarySync({ reason: 'periodic' }).catch((e) => console.warn('[library-sync] periodic run failed:', e)); }, minutes * 60 * 1000);
 }
 
+/**
+ * Draws the settings, starts the periodic timer and schedules the startup run.
+ */
 export function initLibrarySync() {
   renderLibrarySyncSettings();
   schedulePeriodicSync();

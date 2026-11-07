@@ -21,6 +21,11 @@ const CONTENT_TYPE_BY_EXT = {
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac',
 };
 
+/**
+ * Starts the LAN media server and registers the `cast:*` IPC handlers.
+ * The server serves the file now airing at `/now` and the live window mirror at `/mirror`, both only to the connected receiver's address. One Cast session is kept at a time; quitting closes it and the server.
+ * @param {object} ctx The main-process plugin context (`ipcMain`, `createServer`, `desktopCapturer`, `getLanAddresses`, `sendToMainWindow`, `app`).
+ */
 function activate(ctx) {
   const { ipcMain, createServer, desktopCapturer, getLanAddresses, sendToMainWindow } = ctx;
 

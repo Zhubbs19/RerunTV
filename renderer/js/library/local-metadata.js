@@ -19,23 +19,41 @@
 // title that several files of one call share, as a collection's name.
 const BATCH = 200;
 
-// LIBRARY SYNC › DETAILS FROM YOUR FILES.
+/**
+ * LIBRARY SYNC › DETAILS FROM YOUR FILES.
+ * @param {?object} config The box config.
+ * @returns {object} `{ fillDetails, readTags }`.
+ */
 export function localMetadataPrefs(config) {
   const prefs = (config && config.librarySync) || {};
   return { fillDetails: !!prefs.fillDetails, readTags: prefs.readTags !== false };
 }
 
-// A playlist path the host can read sidecars beside: a plain local file, not
-// a mediasource: ref (core/channels.js parseMediaRef's other case).
+/**
+ * A playlist path the host can read sidecars beside: a plain local file, not
+ * a mediasource: ref (core/channels.js parseMediaRef's other case).
+ * @param {*} path A playlist path.
+ * @returns {?string} The path, or `null` for a mediasource ref or a non-string.
+ */
 export function localPathOf(path) {
   return typeof path === 'string' && path && !path.startsWith('mediasource:') ? path : null;
 }
 
+/**
+ * Returns the folder part of a path.
+ * @param {string} ref A file path.
+ * @returns {string} The path without its last segment.
+ */
 function folderOf(ref) {
   return String(ref).replace(/[\\/][^\\/]*$/, '');
 }
 
-// Batches of refs, each folder kept whole when it fits in one.
+/**
+ * Batches of refs, each folder kept whole when it fits in one.
+ * @param {string[]} refs File paths.
+ * @param {number} [size=BATCH] The most refs in one batch.
+ * @returns {Array<string[]>} The batches.
+ */
 export function batchByFolder(refs, size = BATCH) {
   const byFolder = new Map();
   refs.forEach((ref) => {
@@ -59,6 +77,12 @@ export function batchByFolder(refs, size = BATCH) {
 /**
  * Reads .nfo files and (unless turned off) container tags for local refs.
  * -> { results: { [ref]: { fields, sources, kind? } | null }, tagsAvailable }
+ * @param {string[]} refs Local file paths; blanks and repeats are dropped.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.tags=true] Also read container tags.
+ * @param {?Function} [opts.onProgress] Called with `(done, total)` after each batch.
+ * @returns {Promise<object>} `{ results, tagsAvailable }`.
+ * @throws {Error} When not on the host, or the host call fails.
  */
 export async function readLocalMetadata(refs, { tags = true, onProgress = null } = {}) {
   const unique = [...new Set(refs.filter(Boolean))];
@@ -79,6 +103,10 @@ export async function readLocalMetadata(refs, { tags = true, onProgress = null }
   return { results, tagsAvailable };
 }
 
+/**
+ * @param {*} value A field value.
+ * @returns {boolean} True for null, undefined or a blank string.
+ */
 function empty(value) {
   return value == null || (typeof value === 'string' && !value.trim());
 }
@@ -89,6 +117,9 @@ function empty(value) {
  * has none.
  * A rating of 'NONE' is a choice and counts as set. Returns null when there
  * is nothing to fill.
+ * @param {object} file The playlist entry.
+ * @param {?object} reading One `readLocalMetadata` result.
+ * @returns {?object} The fields to fill, or `null`.
  */
 export function fileFieldsFromLocal(file, reading) {
   if (!file || !reading || !reading.fields) return null;
@@ -104,7 +135,11 @@ export function fileFieldsFromLocal(file, reading) {
   return Object.keys(out).length ? out : null;
 }
 
-/** "3 titles, 2 descriptions and 1 rating" for a set of filled field lists. */
+/**
+ * "3 titles, 2 descriptions and 1 rating" for a set of filled field lists.
+ * @param {Array<object>} fieldLists Field objects as returned by `fileFieldsFromLocal`.
+ * @returns {string} The summary, or `'nothing'`.
+ */
 export function describeFilled(fieldLists) {
   const counts = { title: 0, description: 0, rating: 0, series: 0, poster: 0 };
   fieldLists.forEach((fields) => Object.keys(fields).forEach((key) => { if (key in counts) counts[key] += 1; }));
@@ -118,6 +153,9 @@ export function describeFilled(fieldLists) {
  * Fills empty details on playlist entries in place, from one host reading.
  * For new entries that aren't in config yet (folder sync), and for whole-config
  * passes the caller records as one patch. Returns the field lists it applied.
+ * @param {Array<object>} files Playlist entries, changed in place.
+ * @param {object} [opts] `readLocalMetadata` options.
+ * @returns {Promise<Array<object>>} The field lists applied.
  */
 export async function fillFilesInPlace(files, opts = {}) {
   const targets = files.filter((file) => localPathOf(file.path));

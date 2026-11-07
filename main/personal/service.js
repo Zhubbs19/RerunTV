@@ -9,18 +9,47 @@ const { currentThemeId } = require('../config/renamed-plugins');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
+// Methods a paired LAN control client may call; anything else is host-only.
 const REMOTE_METHODS = new Set(['status', 'listProfiles', 'getProfile', 'createProfile', 'updateProfile', 'verifyProfile', 'deleteProfile', 'command', 'handoff', 'session', 'presence']);
+// Badge colours handed out to new profiles in turn.
 const COLORS = ['#f0b429', '#6fe0f2', '#8b93f5', '#ff6b5b', '#5fd68a', '#e0895f'];
 
+/**
+ * Deep-copies a JSON-safe value.
+ * @param {*} value The value to copy.
+ * @returns {*} A structurally identical copy.
+ */
 const clone = (value) => JSON.parse(JSON.stringify(value));
+/**
+ * Makes a random id with a readable prefix.
+ * @param {string} prefix The id's prefix, such as `profile`.
+ * @returns {string} `<prefix>_<16 hex digits>`.
+ */
 const newId = (prefix) => `${prefix}_${crypto.randomBytes(8).toString('hex')}`;
+/**
+ * Checks that a value is a safe profile or session id (used in file names).
+ * @param {*} value The candidate id.
+ * @returns {boolean} True for 1 to 80 letters, digits, `_` or `-`.
+ */
 const safeId = (value) => /^[a-zA-Z0-9_-]{1,80}$/.test(String(value || ''));
 
+/**
+ * Writes a value as pretty-printed JSON through the atomic writer, creating the folder first.
+ * @param {string} file The destination path.
+ * @param {*} value The JSON-safe value to write.
+ * @param {Function} now The service clock (unused here).
+ */
 function atomicJson(file, value, now) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   atomicWriteFileSync(file, JSON.stringify(value, null, 2), { encoding: 'utf8' });
 }
 
+/**
+ * Builds a new profile's personal state, seeded from the box config's favorites, quick-jump slots, reminders and air checks.
+ * @param {object} [config={}] The channels.json config.
+ * @param {Array<object>} [history=[]] Viewing history entries to start with.
+ * @returns {object} The profile state.
+ */
 function defaultState(config = {}, history = []) {
   return {
     favorites: (config.channels || []).filter((channel) => channel.favorite).map((channel) => channel.number),
@@ -32,6 +61,12 @@ function defaultState(config = {}, history = []) {
   };
 }
 
+/**
+ * Coerces a stored profile into the current schema, dropping or defaulting anything malformed.
+ * @param {?object} raw The profile as read from disk or a request.
+ * @param {object} [fallback={}] Values (id, name, color, timestamps) to use where `raw` has none.
+ * @returns {object} A complete profile.
+ */
 function normalizeProfile(raw, fallback = {}) {
   const profile = raw && typeof raw === 'object' ? raw : {};
   const state = profile.state && typeof profile.state === 'object' ? profile.state : {};
@@ -67,18 +102,37 @@ function normalizeProfile(raw, fallback = {}) {
   };
 }
 
+/**
+ * Returns the parts of a profile that are safe to hand to a client (no PIN hash).
+ * @param {object} profile The profile.
+ * @param {boolean} [includeState=false] Whether to include a copy of its personal state.
+ * @returns {object} `{ id, name, color, restriction, hasPin, revision, state? }`.
+ */
 function publicProfile(profile, includeState = false) {
   const out = { id: profile.id, name: profile.name, color: profile.color, restriction: profile.restriction, hasPin: !!profile.pinHash, revision: profile.revision };
   if (includeState) out.state = clone(profile.state);
   return out;
 }
 
+/**
+ * Hashes a four-digit profile PIN with scrypt.
+ * @param {?string|number} pin The PIN; empty or null means no PIN.
+ * @param {string} [salt] Hex salt; a random one by default.
+ * @returns {?string} `<salt>:<hash>`, or null when there is no PIN.
+ * @throws {Error} When the PIN is not four digits.
+ */
 function hashPin(pin, salt = crypto.randomBytes(16).toString('hex')) {
   if (pin == null || pin === '') return null;
   if (!/^\d{4}$/.test(String(pin))) throw new Error('A profile PIN must be four digits.');
   return `${salt}:${crypto.scryptSync(String(pin), salt, 32).toString('hex')}`;
 }
 
+/**
+ * Checks a PIN against a stored hash in constant time.
+ * @param {?string|number} pin The PIN entered.
+ * @param {?string} encoded The stored `<salt>:<hash>`; empty means the profile has no PIN.
+ * @returns {boolean} True when the profile has no PIN or the PIN matches.
+ */
 function verifyPin(pin, encoded) {
   if (!encoded) return true;
   const [salt, expected] = encoded.split(':');
@@ -87,6 +141,17 @@ function verifyPin(pin, encoded) {
   return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
+/**
+ * Creates the personal-state service that stores each profile in its own JSON file and serves profile, session, presence and handoff calls.
+ * @param {object} opts Service options.
+ * @param {string} opts.dir The folder holding `index.json` and one file per profile.
+ * @param {Function} [opts.getConfig] Returns the current channels.json config, used when seeding profiles.
+ * @param {?Function} [opts.getLegacyHistory] Returns the viewing history to migrate into the first profile.
+ * @param {?string} [opts.legacyHistoryFile] A legacy history JSON file read when `getLegacyHistory` is absent.
+ * @param {Function} [opts.now] The clock.
+ * @param {?Function} [opts.publish] Called with `(event, payload)` when profiles, sessions or handoffs change.
+ * @returns {object} `{ call, api, REMOTE_METHODS, verifyPin }`.
+ */
 function createPersonalService({ dir, getConfig = () => ({}), getLegacyHistory = null, legacyHistoryFile = null, now = () => Date.now(), publish = null }) {
   const indexFile = path.join(dir, 'index.json');
   const profileFile = (id) => path.join(dir, `${id}.json`);
@@ -314,6 +379,12 @@ function createPersonalService({ dir, getConfig = () => ({}), getLegacyHistory =
   return { call, api, REMOTE_METHODS, verifyPin };
 }
 
+/**
+ * Registers the `personal:call` IPC handler, which answers `{ ok, result }` or `{ ok: false, error }`.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} deps Accessors.
+ * @param {Function} deps.getService Returns the personal service.
+ */
 function registerPersonalIpc(ipcMain, { getService }) {
   ipcMain.handle('personal:call', async (event, method, payload) => {
     try { return { ok: true, result: await getService().call(method, payload) }; }

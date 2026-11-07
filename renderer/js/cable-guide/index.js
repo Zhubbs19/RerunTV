@@ -13,8 +13,12 @@ export { createGuideHeader } from './header.js';
 export { hidePictureBox, pictureBox, showPictureBox } from './picture-box.js';
 export { currentUiMode } from './mode.js';
 
+// Set once `installCableGuide()` has run.
 let installed = false;
 
+/**
+ * Installs the cable-guide UI's shared pieces once: the layout-change hook and the setup shell.
+ */
 export function installCableGuide() {
   if (installed) return;
   installed = true;

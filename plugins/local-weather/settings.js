@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the local weather channel (CH 3): location text,
+// display units and background audio.
 window.RCBPlugins.registerPluginSettings('local-weather', {
   sections: [{
     id: 'general',

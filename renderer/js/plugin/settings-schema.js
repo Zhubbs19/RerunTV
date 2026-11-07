@@ -3,16 +3,32 @@
 // evolution, validation, and redaction can be tested without booting the
 // renderer/plugin loader.
 
+/**
+ * Whether a value is a non-null, non-array object.
+ * @param {*} value Value to test.
+ * @returns {boolean} True for a plain object.
+ */
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Deep-copies plain JSON-like data (objects, arrays, primitives).
+ * @param {*} value Value to copy.
+ * @returns {*} The copy; primitives are returned as-is.
+ */
 function clone(value) {
   if (value == null || typeof value !== 'object') return value;
   if (Array.isArray(value)) return value.map(clone);
   return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, clone(entry)]));
 }
 
+/**
+ * Returns a copy of settings with every missing key filled from defaults, recursing into nested objects.
+ * @param {object} settings The stored plugin settings.
+ * @param {object} defaults The schema's default values.
+ * @returns {object} A new merged settings object.
+ */
 function mergeDefaults(settings, defaults) {
   const result = isPlainObject(settings) ? clone(settings) : {};
   if (!isPlainObject(defaults)) return result;
@@ -26,6 +42,12 @@ function mergeDefaults(settings, defaults) {
   return result;
 }
 
+/**
+ * Turns whatever a plugin's `validate()` hook returned into an error message.
+ * `true`/nullish mean valid; `false`, a string, an array of strings or `{ valid: false, message }` mean invalid.
+ * @param {*} result The hook's return value.
+ * @returns {string} The message, or an empty string when valid.
+ */
 function validationMessage(result) {
   if (result == null || result === true) return '';
   if (result === false) return 'settings failed validation';
@@ -35,6 +57,13 @@ function validationMessage(result) {
   return '';
 }
 
+/**
+ * Validates and normalizes the declarative schema part of a `registerPluginSettings()` definition.
+ * @param {string} pluginId The plugin id, used in error messages.
+ * @param {object} definition The settings definition the plugin registered.
+ * @returns {?object} `{ schemaVersion, defaults, validate, sensitivePaths, migrations }`, or null when the definition declares no schema fields.
+ * @throws {Error} When a schema field has the wrong shape.
+ */
 export function normalizePluginSettingsSchema(pluginId, definition) {
   const hasSchema = definition && ['schemaVersion', 'defaults', 'validate', 'sensitivePaths', 'migrations']
     .some((key) => Object.prototype.hasOwnProperty.call(definition, key));
@@ -76,6 +105,15 @@ export function normalizePluginSettingsSchema(pluginId, definition) {
   };
 }
 
+/**
+ * Brings stored plugin settings up to the schema's current version: runs migrations in order, merges defaults and validates.
+ * @param {string} pluginId The plugin id, used in error messages and passed to migrations.
+ * @param {object} settings The stored settings.
+ * @param {number} storedVersion The schema version the settings were saved under (0 when unknown).
+ * @param {?object} schema A normalized schema from `normalizePluginSettingsSchema`.
+ * @returns {object} `{ settings, version, changed }`, where `changed` says the result differs from what was stored.
+ * @throws {Error} When the stored version is newer than the schema, a migration returns a non-object, or validation fails.
+ */
 export function applyPluginSettingsSchema(pluginId, settings, storedVersion, schema) {
   if (!schema) return { settings: isPlainObject(settings) ? settings : {}, version: 0, changed: false };
   let version = Number.isInteger(storedVersion) && storedVersion >= 0 ? storedVersion : 0;
@@ -100,6 +138,13 @@ export function applyPluginSettingsSchema(pluginId, settings, storedVersion, sch
   return { settings: next, version, changed: before !== JSON.stringify(next) || storedVersion !== version };
 }
 
+/**
+ * Runs the schema's `validate()` hook against a copy of the settings.
+ * @param {string} pluginId The plugin id, used in error messages.
+ * @param {object} settings The settings to check.
+ * @param {?object} schema A normalized schema.
+ * @throws {Error} When settings is not an object or the hook reports a problem.
+ */
 export function validatePluginSettings(pluginId, settings, schema) {
   if (!isPlainObject(settings)) throw new Error(`${pluginId} settings must be an object`);
   if (!schema || !schema.validate) return;
@@ -107,6 +152,13 @@ export function validatePluginSettings(pluginId, settings, schema) {
   if (message) throw new Error(`${pluginId} settings are invalid: ${message}`);
 }
 
+/**
+ * Returns a copy of the settings with every schema `sensitivePaths` value replaced, for logs and diagnostics.
+ * @param {object} settings The plugin settings.
+ * @param {?object} schema A normalized schema.
+ * @param {*} [replacement='[REDACTED]'] Value written in place of each sensitive value.
+ * @returns {object} The redacted copy.
+ */
 export function redactPluginSettings(settings, schema, replacement = '[REDACTED]') {
   const redacted = clone(isPlainObject(settings) ? settings : {});
   if (!schema) return redacted;
@@ -133,6 +185,14 @@ export function redactPluginSettings(settings, schema, replacement = '[REDACTED]
 //     min: 1, max: 10, step: 1, unit: 'x', dependsOn: 'enabled', synonyms: 'scroll pace' }
 const FIELD_TYPES = new Set(['toggle', 'slider', 'number', 'select', 'text', 'color']);
 
+/**
+ * Validates a settings section's declarative `fields` list and normalizes each entry for the field renderer.
+ * @param {string} pluginId The plugin id, used in error messages.
+ * @param {string} sectionId The settings section id, used in error messages.
+ * @param {Array<object>} fields The field definitions the plugin registered.
+ * @returns {Array<object>} Normalized field descriptors.
+ * @throws {Error} When the list is empty or a field is malformed or duplicated.
+ */
 export function normalizeSettingsFields(pluginId, sectionId, fields) {
   const where = `registerPluginSettings("${pluginId}", "${sectionId}")`;
   if (!Array.isArray(fields) || !fields.length) throw new Error(`${where}: fields must be a non-empty array`);
@@ -170,6 +230,12 @@ export function normalizeSettingsFields(pluginId, sectionId, fields) {
   });
 }
 
+/**
+ * Reads a dotted path out of a settings object.
+ * @param {object} settings The plugin settings.
+ * @param {string} path Dotted key such as `crawl.speed`.
+ * @returns {*} The value, or undefined when any step is missing.
+ */
 export function readSettingPath(settings, path) {
   return path.split('.').reduce((node, part) => (isPlainObject(node) ? node[part] : undefined), settings);
 }
@@ -178,6 +244,14 @@ export function readSettingPath(settings, path) {
 // path, leaving everything else in that branch as it was.
 const UNSAFE_PATH_PARTS = new Set(['__proto__', 'constructor', 'prototype']);
 
+/**
+ * Builds the top-level patch that sets one dotted path while keeping the rest of its branch.
+ * Paths through prototype-chain keys yield an empty patch.
+ * @param {object} settings The current plugin settings.
+ * @param {string} path Dotted key to set.
+ * @param {*} value The new value.
+ * @returns {object} A `{ [topKey]: branch }` patch for `updatePluginSettings`.
+ */
 export function settingPathPatch(settings, path, value) {
   const parts = path.split('.');
   // A plugin-supplied path must never walk or assign through prototype-chain keys.
@@ -198,7 +272,12 @@ export function settingPathPatch(settings, path, value) {
   return { [top]: branch };
 }
 
-// A field's value as a control shows it, and back again for saving.
+/**
+ * A field's value as a control shows it, and back again for saving.
+ * @param {object} field A normalized field descriptor.
+ * @param {*} raw The raw stored or control value.
+ * @returns {*} The value clamped or coerced to the field's type.
+ */
 export function coerceFieldValue(field, raw) {
   if (field.type === 'toggle') return !!raw;
   if (field.type === 'slider' || field.type === 'number') {

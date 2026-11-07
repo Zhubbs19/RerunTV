@@ -24,19 +24,31 @@ import { LEVELER_MODES, levelerGainFor, levelerTargetFrom, lineupMediaItems, mea
 
 export { LEVELER_MODES };
 
+// Measured loudness by local path (null for a file with no measurable audio).
 const known = new Map();
+// Paths whose loudness lookup is in flight.
 const pending = new Set();
+// Local path of the file #player has loaded, or null.
 let currentPath = null;
+// Whether the #player listeners have been added.
 let installed = false;
+// Whether the background lineup measurement has been scheduled.
 let sweepStarted = false;
 const SWEEP_START_DELAY_MS = 30 * 1000;
 
+/**
+ * Returns the configured leveler mode, falling back to 'off' for anything unknown.
+ * @returns {string} One of `LEVELER_MODES`.
+ */
 export function currentLevelerMode() {
   const mode = S.config && S.config.audioLeveler;
   return LEVELER_MODES.includes(mode) ? mode : 'off';
 }
 
-// Multiplier applyVolume applies to #player for the file it has loaded.
+/**
+ * Multiplier applyVolume applies to #player for the file it has loaded.
+ * @returns {number} The gain multiplier, 1 when the leveler is off or nothing is loaded.
+ */
 export function levelerGain() {
   const mode = currentLevelerMode();
   if (mode === 'off' || !currentPath) return 1;
@@ -48,6 +60,11 @@ export function levelerGain() {
 // file. Rebuilt when config changes (S.configGeneration, CLAUDE.md).
 let lineupDurations = new Map();
 let lineupDurationsGeneration = -1;
+/**
+ * Looks up the lineup's recorded duration for a local file, rebuilding the map on a config change.
+ * @param {string} filePath The local media path.
+ * @returns {number} Duration in seconds, or 0 when the lineup does not list the file.
+ */
 function lineupDuration(filePath) {
   if (lineupDurationsGeneration !== S.configGeneration) {
     lineupDurationsGeneration = S.configGeneration;
@@ -56,10 +73,13 @@ function lineupDuration(filePath) {
   return lineupDurations.get(filePath) || 0;
 }
 
-// Runs at loadstart, as soon as the source is known, and again at
-// loadedmetadata (when the duration is): the lookup starts before the first
-// sound when the lineup knows the file's duration, and otherwise waits for
-// the second pass (measureDurationAt).
+/**
+ * Runs at loadstart, as soon as the source is known, and again at
+ * loadedmetadata (when the duration is): the lookup starts before the first
+ * sound when the lineup knows the file's duration, and otherwise waits for
+ * the second pass (measureDurationAt).
+ * @param {?Event} event The media event (`loadstart` or `loadedmetadata`), or a stand-in with a `type`.
+ */
 function onLoadedMetadata(event) {
   const filePath = mediaPathFromUrl(player.currentSrc || player.src);
   currentPath = filePath;
@@ -77,7 +97,9 @@ function onLoadedMetadata(event) {
   }).catch(() => { pending.delete(filePath); });
 }
 
-// Applies config.audioLeveler. Safe to call any time, as often as needed.
+/**
+ * Applies config.audioLeveler. Safe to call any time, as often as needed.
+ */
 export function applyLeveler() {
   const api = window.api;
   if (!api || typeof api.getLoudness !== 'function') return;

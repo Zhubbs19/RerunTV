@@ -20,6 +20,10 @@ const MAX_ART_BYTES = 8 * 1024 * 1024;
 // One rescan asks for a whole station's tags in batches; bound a single call.
 const MAX_TAG_BATCH = 200;
 
+/**
+ * Registers the `digital-music:embeddedArt`, `digital-music:readTags` and `digital-music:scanFolder` IPC handlers.
+ * @param {object} ctx The main-process plugin context (`ipcMain`, `fs`).
+ */
 function activate(ctx) {
   const { ipcMain, fs: pluginFs } = ctx;
 

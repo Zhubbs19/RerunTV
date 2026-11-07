@@ -125,6 +125,9 @@ window.playNoiseBurst = playNoiseBurst;
 // See the beforeMigration/applyConfigDefaults call below — shown once per
 // boot when the loaded config's shape actually changed, not on every load.
 let migrationToastTimer = null;
+/**
+ * Shows the "config was updated" toast for 12 seconds.
+ */
 function showMigrationToast() {
   if (!migrationToastEl) return;
   migrationToastTextEl.textContent = 'Your config was updated for new features — see HELP › WHAT\'S NEW for details.';
@@ -140,6 +143,11 @@ if (migrationToastDismissBtn) {
 }
 
 // ---------- Direct number entry ----------
+/**
+ * Adds one key press to the direct channel-number entry and restarts its commit timer.
+ * Keeps the last three digits, and allows one `.` followed by one sub-channel digit.
+ * @param {string} d A digit '0' to '9', or '.' for the sub-channel separator.
+ */
 export function pushDigit(d) {
   if (d === '.') {
     // The sub-channel separator, the way a set-top box's own dash/dot key
@@ -166,6 +174,9 @@ export function pushDigit(d) {
   S.entryTimer = setTimeout(commitEntry, entryDelay != null ? Math.min(3000, Math.max(0, entryDelay)) : 800);
 }
 
+/**
+ * Tunes to the typed channel number, if it parses, and clears the entry.
+ */
 export function commitEntry() {
   if (S.entryBuffer) {
     // parseChannelNumber handles a trailing separator ("7." reads as 7) and
@@ -188,8 +199,11 @@ export function commitEntry() {
 // Shift on its way to another key, shouldn't light the set up.
 const BARE_MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'AltGraph', 'Meta', 'OS', 'CapsLock', 'NumLock', 'ScrollLock', 'Fn', 'FnLock', 'Hyper', 'Super']);
 
-// A short note on the channel banner: the legacy card's NOW line, or the
-// cable-guide Flip Bar's description line.
+/**
+ * A short note on the channel banner: the legacy card's NOW line, or the
+ * cable-guide Flip Bar's description line.
+ * @param {string} text The note to show.
+ */
 function bannerNote(text) {
   showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
   const guideNow = document.getElementById('guide-now');
@@ -198,25 +212,39 @@ function bannerNote(text) {
   if (flipDesc) flipDesc.textContent = text;
 }
 
-// Quick-jump slots 1-4 (Ctrl / Alt + number, and the TV menu's CHANNELS).
+/**
+ * Quick-jump slots 1-4 (Ctrl / Alt + number, and the TV menu's CHANNELS).
+ * @param {number} slot The slot number, 1 to 4.
+ */
 export function saveQuickJump(slot) {
   S.quickJumpSlots[slot] = S.currentNumber;
   if (S.personalProfile) personalCommand({ type: 'state.set', key: 'quickJumpSlots', value: S.quickJumpSlots }).catch(() => {});
   bannerNote(`⭐ QUICK-JUMP SLOT ${slot} SAVED!`);
 }
 
+/**
+ * Tunes to the channel saved in a quick-jump slot, if any.
+ * @param {number} slot The slot number, 1 to 4.
+ */
 export function recallQuickJump(slot) {
   const target = S.quickJumpSlots[slot];
   if (target != null) tuneToChannel(target);
 }
 
-// Stereo → mono → SAP (Shift+M, the Quick Menu's audio tile).
+/**
+ * Stereo → mono → SAP (Shift+M, the Quick Menu's audio tile).
+ */
 export function cycleSapMode() {
   const modes = ['stereo', 'mono', 'sap'];
   S.sapMode = modes[(modes.indexOf(S.sapMode) + 1) % modes.length];
   bannerNote(`🔊 AUDIO MODE: ${S.sapMode.toUpperCase()}`);
 }
 
+/**
+ * Handles one key press on the TV screen.
+ * Also driven by the phone remote and TV-mode routing through a synthesized event, so every input path shares this switch.
+ * @param {KeyboardEvent|object} e The key event, or a synthesized `{ key, shiftKey, preventDefault() }`.
+ */
 export function handleKey(e) {
   if (tvScreen.classList.contains('hidden')) return;
 
@@ -591,13 +619,18 @@ window.api.onRemoteSetChannelFlag((data) => {
   ch[data.field] = !!data.value;
   commitInPlace({ type: 'channel.set', channel: ch.number, field: data.field, value: ch[data.field] });
 });
-// Recursively merges `patch` into `target` in place, at any depth, but only
-// ever assigns a leaf onto a key that already exists on `target` — never
-// invents a new key at any level. Used below so a companion-app edit to one
-// deeply-nested leaf (e.g. display.overlayLayouts['ticker-bar'].x) can't
-// wipe out sibling keys the way a plain Object.assign one level deep would
-// (that would replace the whole nested object with just the edited leaf).
-// Returns whether anything was actually changed.
+/**
+ * Recursively merges `patch` into `target` in place, at any depth, but only
+ * ever assigns a leaf onto a key that already exists on `target` — never
+ * invents a new key at any level. Used below so a companion-app edit to one
+ * deeply-nested leaf (e.g. display.overlayLayouts['ticker-bar'].x) can't
+ * wipe out sibling keys the way a plain Object.assign one level deep would
+ * (that would replace the whole nested object with just the edited leaf).
+ * Returns whether anything was actually changed.
+ * @param {object} target The live config object to merge into.
+ * @param {object} patch The partial values to apply.
+ * @returns {boolean} True when any value was written.
+ */
 function deepMergeExistingKeys(target, patch) {
   let changed = false;
   for (const [key, value] of Object.entries(patch)) {
@@ -614,6 +647,13 @@ function deepMergeExistingKeys(target, patch) {
   return changed;
 }
 
+/**
+ * Tells whether an incoming companion value has the same kind as the current one.
+ * Arrays match arrays, objects match objects, and scalars match by `typeof`.
+ * @param {*} current The current config value.
+ * @param {*} incoming The value from the companion patch.
+ * @returns {boolean} True when the incoming value may replace the current one.
+ */
 function sameConfigShape(current, incoming) {
   if (Array.isArray(current) || Array.isArray(incoming)) {
     return Array.isArray(current) && Array.isArray(incoming);
@@ -624,6 +664,10 @@ function sameConfigShape(current, incoming) {
   return typeof current === typeof incoming;
 }
 
+/**
+ * Reapplies the live surfaces after a companion or LAN-viewer config change.
+ * @param {Set<string>} changedSections Top-level config keys that changed.
+ */
 function applyCompanionSettingsLive(changedSections) {
   if (!changedSections.size) return;
 
@@ -802,6 +846,10 @@ window.api.onCompanionSetTicker?.((data) => {
 // own 30s tick.
 const COMPANION_LINEUP_PUSH_MS = 30000;
 const COMPANION_LINEUP_MAX_CHANNELS = 300;
+/**
+ * Sends the companion app and phone remote a now/next snapshot of the channel lineup.
+ * Skipped while nothing can play or both LAN services are off.
+ */
 function pushCompanionLineup() {
   if (!window.api || typeof window.api.sendRemoteState !== 'function') return;
   // The per-channel schedule sweep below is the cost, and nothing reads the snapshot when the
@@ -847,6 +895,9 @@ function pushCompanionLineup() {
   window.api.sendRemoteState({ lineup, lineupAt: Date.now() });
 }
 
+/**
+ * Pushes the lineup once now and then every 30 seconds.
+ */
 function startCompanionLineupPushes() {
   pushCompanionLineup();
   setInterval(() => {
@@ -857,6 +908,7 @@ function startCompanionLineupPushes() {
 const pinCancelBtnEl = document.getElementById('pin-cancel-btn');
 if (pinCancelBtnEl) pinCancelBtnEl.addEventListener('click', hidePinLockScreen);
 
+// Pending single-click timer: a second click inside 250 ms toggles fullscreen instead.
 let clickTimer = null;
 if (tvScreen) {
   tvScreen.addEventListener('click', (e) => {
@@ -901,6 +953,11 @@ guideSearchEl.addEventListener('input', () => {
 });
 
 // ================= SCREEN SWITCHING =================
+/**
+ * Leaves the TV screen for Channel Setup.
+ * Stops playback, breaks, interrupts and overlays, then renders the setup panels on the channel being watched.
+ * @returns {Promise<void>}
+ */
 export async function showSetupScreen() {
   if (!S.config.channels || S.config.channels.length === 0) {
     try {
@@ -957,6 +1014,11 @@ export async function showSetupScreen() {
   renderSettingsPanels();
 }
 
+/**
+ * Returns from Channel Setup to the TV screen.
+ * Reapplies the picture, sound and theme state, powers on and tunes the current channel.
+ * @returns {Promise<void>}
+ */
 export async function showTvScreen() {
   if (!S.config.channels || S.config.channels.length === 0) {
     try {
@@ -1068,13 +1130,19 @@ if (window.api && window.api.onFullscreenChange) {
   });
 }
 
-// Commercials/trivia/box-wide-commercials used to each carry their own
-// content (a per-owner bumper folder, or a flat facts[] array) — fold any of
-// that into tagged S.config.interstitials.pool entries, then strip the
-// retired fields so the owner object is left in its new content-free shape.
-// No-op once already migrated (the retired fields are gone by then, so
-// there's nothing left to find) — same idempotent-by-construction idiom as
-// normalizeChannel's other field migrations.
+/**
+ * Commercials/trivia/box-wide-commercials used to each carry their own
+ * content (a per-owner bumper folder, or a flat facts[] array) — fold any of
+ * that into tagged S.config.interstitials.pool entries, then strip the
+ * retired fields so the owner object is left in its new content-free shape.
+ * No-op once already migrated (the retired fields are gone by then, so
+ * there's nothing left to find) — same idempotent-by-construction idiom as
+ * normalizeChannel's other field migrations.
+ * @param {Array<object>} pool The `config.interstitials.pool` array to append to.
+ * @param {?object} cc The owner's commercials config (a channel's or a block's).
+ * @param {number} channelAffinity The owning channel's number.
+ * @param {?string} blockAffinity The owning block's id, or null for a channel.
+ */
 function migrateCommercialsToPool(pool, cc, channelAffinity, blockAffinity) {
   if (cc && cc.useOwnFolder && cc.files && cc.files.length) {
     cc.files.forEach((f) => {
@@ -1084,6 +1152,11 @@ function migrateCommercialsToPool(pool, cc, channelAffinity, blockAffinity) {
   if (cc) { delete cc.folder; delete cc.files; delete cc.useOwnFolder; }
 }
 
+/**
+ * Works out the update strategy, translating the older `mode` and popup fields.
+ * @param {?object} updates The `config.updates` section.
+ * @returns {string} One of 'startup-auto', 'background-auto', 'background-notify', 'manual' or 'off'.
+ */
 function normalizeUpdateStrategy(updates) {
   const valid = ['startup-auto', 'background-auto', 'background-notify', 'manual', 'off'];
   if (updates && valid.includes(updates.strategy)) return updates.strategy;
@@ -1096,10 +1169,14 @@ function normalizeUpdateStrategy(updates) {
 }
 
 // ================= INIT =================
-// Fills in any config field a fresh/older/imported config might be missing —
-// shared by the normal boot load and by importConfig() (setup.js) so an
-// imported file goes through the exact same schema-migration pass a config
-// loaded from disk would.
+/**
+ * Fills in any config field a fresh/older/imported config might be missing —
+ * shared by the normal boot load and by importConfig() (setup.js) so an
+ * imported file goes through the exact same schema-migration pass a config
+ * loaded from disk would.
+ * @param {object} config The loaded or imported config.
+ * @returns {object} The migrated config with every default filled in.
+ */
 export function applyConfigDefaults(config) {
   config = runConfigMigrations(config);
   if (!config.channels) config.channels = [];
@@ -1374,9 +1451,12 @@ export function applyConfigDefaults(config) {
   return config;
 }
 
-// One-time question after the first launch on a big screen with logo sizes
-// already tuned: were they set up on this screen? Decides the size the
-// Automatic scaling starts from (DISPLAY › Logo bug).
+/**
+ * One-time question after the first launch on a big screen with logo sizes
+ * already tuned: were they set up on this screen? Decides the size the
+ * Automatic scaling starts from (DISPLAY › Logo bug).
+ * @returns {Promise<void>}
+ */
 async function askAboutDisplaySizes() {
   const d = S.config && S.config.display;
   if (!d || !d.logoBugAuthoredAsk || window.__isViewer) return;
@@ -1395,6 +1475,11 @@ async function askAboutDisplaySizes() {
   applyLogoBugPlacement();
 }
 
+/**
+ * Boots the renderer: loads and migrates config, loads plugins, wires services and shows the TV screen.
+ * A config that fails to load is reported on screen instead of leaving the window blank.
+ * @returns {Promise<void>}
+ */
 async function init() {
   let loaded;
   try {
@@ -1566,6 +1651,9 @@ async function init() {
 // still-good in-memory config — no alert either, unlike the boot path,
 // since a dialog firing on every failed 10s poll would be unusable.
 const VIEWER_CONFIG_POLL_MS = 60000;
+/**
+ * Starts the LAN viewer's config refresh: on host change notices and on a 60 s fallback poll.
+ */
 function startViewerConfigPolling() {
   let refreshing = false;
   async function refresh() {
@@ -1599,14 +1687,16 @@ function startViewerConfigPolling() {
   setInterval(refresh, VIEWER_CONFIG_POLL_MS);
 }
 
-// Cross-link to whatever plugin's own guest/companion page (if any) wants to
-// offer a "watch live" link on the LAN viewer — generic across whichever
-// plugin, if any, declares registerChannelType's optional `viewerLink`
-// capability (plugins.js) and is the one actually live right now
-// (findLiveViewerLinkChannelType, virtual.js). Fetched once (the host's LAN
-// addresses don't change mid-session); the URL is stashed on the element's
-// dataset so the config-poll visibility check above can tell "never got a
-// URL" apart from "got one, just currently hidden."
+/**
+ * Cross-link to whatever plugin's own guest/companion page (if any) wants to
+ * offer a "watch live" link on the LAN viewer — generic across whichever
+ * plugin, if any, declares registerChannelType's optional `viewerLink`
+ * capability (plugins.js) and is the one actually live right now
+ * (findLiveViewerLinkChannelType, virtual.js). Fetched once (the host's LAN
+ * addresses don't change mid-session); the URL is stashed on the element's
+ * dataset so the config-poll visibility check above can tell "never got a
+ * URL" apart from "got one, just currently hidden."
+ */
 function initViewerLiveLink() {
   if (!viewerLiveLinkEl) return;
   const live = findLiveViewerLinkChannelType();
@@ -1619,16 +1709,18 @@ function initViewerLiveLink() {
   }).catch(() => {});
 }
 
-// Browsers block *all* autoplay (video freezes on its first frame, not just
-// silently — this was the actual root cause of "video shows but never
-// advances" on another device) unless the element is muted, or a real
-// user gesture has already happened on the page. applyMuteState (power.js)
-// force-mutes until S.viewerAudioUnlocked flips true — this is the only
-// place that happens, on the first genuinely browser-trusted gesture
-// (touchstart/pointerdown/keydown; a JS-dispatched synthetic event, like
-// the ones touch-controls.js's swipe handling or the Android wrapper send,
-// does NOT count for this — browsers deliberately don't treat those as user
-// activation). { once: true } since only the very first one matters.
+/**
+ * Browsers block *all* autoplay (video freezes on its first frame, not just
+ * silently — this was the actual root cause of "video shows but never
+ * advances" on another device) unless the element is muted, or a real
+ * user gesture has already happened on the page. applyMuteState (power.js)
+ * force-mutes until S.viewerAudioUnlocked flips true — this is the only
+ * place that happens, on the first genuinely browser-trusted gesture
+ * (touchstart/pointerdown/keydown; a JS-dispatched synthetic event, like
+ * the ones touch-controls.js's swipe handling or the Android wrapper send,
+ * does NOT count for this — browsers deliberately don't treat those as user
+ * activation). { once: true } since only the very first one matters.
+ */
 function initViewerAudioUnlock() {
   // The native Android TV shell explicitly sets
   // mediaPlaybackRequiresUserGesture=false before loading this page. Its

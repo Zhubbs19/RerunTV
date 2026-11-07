@@ -15,7 +15,11 @@ import { Button } from './button.js';
 import { h } from './kit-core.js';
 
 // ---------- Pure ----------
-// Which action a dialog starts on: [{ isDefault, variant }] → index.
+/**
+ * Which action a dialog starts on: [{ isDefault, variant }] → index.
+ * @param {Array<object>} actions The dialog's actions, each with optional `isDefault` and `variant`.
+ * @returns {number} The marked non-danger action, else the first non-danger one, else 0.
+ */
 export function dialogDefaultIndex(actions) {
   const marked = actions.findIndex((a) => a.isDefault && a.variant !== 'danger');
   if (marked !== -1) return marked;
@@ -24,12 +28,26 @@ export function dialogDefaultIndex(actions) {
 }
 
 // ---------- DOM ----------
+/**
+ * Whether the viewer asked for reduced motion (close animations are skipped).
+ * @returns {boolean} True when `prefers-reduced-motion: reduce` matches.
+ */
 const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// ModalSurface({ className, label, labelledBy, host, onCancel, closeAnimationMs })
-// → { el, open(), close(), isOpen(), refocus() }. refocus() puts focus back on
-// the safe default after the content changes (a wizard's next step). el is empty; put content in it before
-// open(). host defaults to document.body (fixed-position, above the guide).
+/**
+ * ModalSurface({ className, label, labelledBy, host, onCancel, closeAnimationMs })
+ * → { el, open(), close(), isOpen(), refocus() }. refocus() puts focus back on
+ * the safe default after the content changes (a wizard's next step). el is empty; put content in it before
+ * open(). host defaults to document.body (fixed-position, above the guide).
+ * @param {object} [opts] Options.
+ * @param {string} [opts.className=''] Classes on the dialog element.
+ * @param {string} [opts.label=''] Accessible name, used when `labelledBy` is not given.
+ * @param {string} [opts.labelledBy=''] Id of the element that names the dialog.
+ * @param {?(HTMLElement|Function)} [opts.host=null] Parent element, or a function returning it.
+ * @param {?Function} [opts.onCancel=null] Called on Back/cancel; defaults to closing.
+ * @param {number} [opts.closeAnimationMs=0] Delay before removal so a `closing` animation can run.
+ * @returns {object} `{ el, open(), close(), isOpen(), refocus() }`.
+ */
 export function ModalSurface({ className = '', label = '', labelledBy = '', host = null, onCancel = null, closeAnimationMs = 0 } = {}) {
   const el = h('div', { className, attrs: { role: 'dialog', 'aria-modal': 'true', 'aria-label': labelledBy ? undefined : (label || undefined), 'aria-labelledby': labelledBy || undefined } });
   let release = null;
@@ -63,12 +81,28 @@ export function ModalSurface({ className = '', label = '', labelledBy = '', host
   return api;
 }
 
-// Dialog({ title, message, body, actions: [{ label, variant, value, isDefault }],
-//   dismissValue, enterValue, danger, className, boxClassName })
-// → { el, box, close(value), result: Promise<value> }
-// Escape, Back and a click on the backdrop resolve dismissValue. enterValue,
-// when given, is what Enter resolves from anywhere in the dialog (a prompt's
-// text field); otherwise Enter presses the focused button like any button.
+/**
+ * Dialog({ title, message, body, actions: [{ label, variant, value, isDefault }],
+ *   dismissValue, enterValue, danger, className, boxClassName })
+ * → { el, box, close(value), result: Promise<value> }
+ * Escape, Back and a click on the backdrop resolve dismissValue. enterValue,
+ * when given, is what Enter resolves from anywhere in the dialog (a prompt's
+ * text field); otherwise Enter presses the focused button like any button.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.title=''] Title text.
+ * @param {string} [opts.message=''] Message text.
+ * @param {?HTMLElement} [opts.body=null] Custom body content.
+ * @param {Array<object>} [opts.actions=[]] `{ label, variant, value, isDefault }`; `value` may be a function.
+ * @param {*} [opts.dismissValue=null] What Escape, Back or a backdrop click resolves.
+ * @param {*} [opts.enterValue] What Enter resolves from anywhere; may be a function.
+ * @param {boolean} [opts.danger=false] Styles the box as destructive.
+ * @param {string} [opts.kind=''] Sets `data-kind`, e.g. `'prompt'`.
+ * @param {string} [opts.className='confirm-dialog'] Classes on the overlay.
+ * @param {string} [opts.boxClassName='confirm-dialog-box'] Classes on the box.
+ * @param {string} [opts.actionsClassName='confirm-dialog-actions'] Classes on the action row.
+ * @param {?HTMLElement} [opts.initialFocus=null] Element to focus instead of the default action.
+ * @returns {object} `{ el, box, buttons, close(value), result }`; `result` resolves with the chosen value.
+ */
 export function Dialog({
   title = '', message = '', body = null, actions = [], dismissValue = null, enterValue,
   danger = false, kind = '', className = 'confirm-dialog', boxClassName = 'confirm-dialog-box',

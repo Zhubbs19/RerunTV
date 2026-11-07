@@ -24,11 +24,15 @@ export const CONFIG_SCHEMA_VERSION = 1;
 // fields aren't retroactively assigned migrations.
 const MIGRATIONS = {};
 
-// Run once per applyConfigDefaults() call, before its own field-by-field
-// defaulting — a config with no schemaVersion yet (every config that
-// predates this scaffold) starts at 0 and walks forward through any
-// registered migrations before landing on CONFIG_SCHEMA_VERSION. Mutates
-// and returns the same object, matching applyConfigDefaults' own contract.
+/**
+ * Run once per applyConfigDefaults() call, before its own field-by-field
+ * defaulting — a config with no schemaVersion yet (every config that
+ * predates this scaffold) starts at 0 and walks forward through any
+ * registered migrations before landing on CONFIG_SCHEMA_VERSION. Mutates
+ * and returns the same object, matching applyConfigDefaults' own contract.
+ * @param {object} config The app config (S.config, the contents of channels.json).
+ * @returns {object} The same config object, migrated and stamped with `CONFIG_SCHEMA_VERSION`.
+ */
 export function runConfigMigrations(config) {
   let version = Number.isInteger(config.schemaVersion) ? config.schemaVersion : 0;
   if (version > CONFIG_SCHEMA_VERSION) {

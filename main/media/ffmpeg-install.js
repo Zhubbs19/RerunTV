@@ -24,11 +24,19 @@ const AdmZip = require('adm-zip');
 const WINDOWS_ZIP_URL = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
 const MAC_ZIP_URL = 'https://evermeet.cx/ffmpeg/getrelease/zip';
 
+/**
+ * Returns the folder a downloaded ffmpeg binary is installed into.
+ * @returns {string} `<userData>/ffmpeg-bin`.
+ */
 function ffmpegInstallDir() {
   const { app } = require('electron');
   return path.join(app.getPath('userData'), 'ffmpeg-bin');
 }
 
+/**
+ * Suggests a package-manager command that installs ffmpeg on this Linux machine.
+ * @returns {string} A shell command to show the user; it is never run.
+ */
 function linuxPackageManagerCommand() {
   // Best-effort detection only — used to prefill a copyable command, never
   // executed. `/etc/os-release`-style detection would be more precise, but
@@ -46,8 +54,11 @@ function linuxPackageManagerCommand() {
   return 'sudo apt-get update && sudo apt-get install -y ffmpeg';
 }
 
-// What the settings panel needs to decide whether to show "INSTALL FFMPEG"
-// as a real one-click download or as a copyable terminal command instead.
+/**
+ * What the settings panel needs to decide whether to show "INSTALL FFMPEG"
+ * as a real one-click download or as a copyable terminal command instead.
+ * @returns {object} `{ method, label, command? }`, where `method` is `download`, `command` or `unsupported`.
+ */
 function getPlatformInstallInfo() {
   if (process.platform === 'win32' && process.arch === 'x64') {
     return { method: 'download', label: 'Windows (64-bit)' };
@@ -67,6 +78,13 @@ function getPlatformInstallInfo() {
 const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_DOWNLOAD_BYTES = 400 * 1024 * 1024;
 
+/**
+ * Downloads a URL into memory within a time limit and a size cap, reporting progress.
+ * @param {string} url The file to download.
+ * @param {Function} onProgress Called with `{ phase: 'downloading', receivedBytes, totalBytes }` per chunk.
+ * @returns {Promise<Buffer>} The downloaded bytes.
+ * @throws {Error} When the response is not OK or exceeds the size cap.
+ */
 async function downloadToBuffer(url, onProgress) {
   const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
@@ -90,23 +108,39 @@ async function downloadToBuffer(url, onProgress) {
   return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
-// gyan.dev publishes the SHA-256 of each build next to it as <url>.sha256
-// (a bare hex digest, sometimes followed by a file name). This does not defend
-// against the publisher itself being compromised, but it does catch a truncated,
-// corrupted or tampered-in-transit download before anything is extracted.
-// Returns the expected digest, or null when the text holds none.
+/**
+ * gyan.dev publishes the SHA-256 of each build next to it as <url>.sha256
+ * (a bare hex digest, sometimes followed by a file name). This does not defend
+ * against the publisher itself being compromised, but it does catch a truncated,
+ * corrupted or tampered-in-transit download before anything is extracted.
+ * Returns the expected digest, or null when the text holds none.
+ * @param {string} text The checksum file's contents.
+ * @returns {?string} The lower-case hex digest, or null.
+ */
 function parseSha256(text) {
   const match = /(?:^|[^0-9a-fA-F])([0-9a-fA-F]{64})(?![0-9a-fA-F])/.exec(String(text || ''));
   return match ? match[1].toLowerCase() : null;
 }
 
+/**
+ * Hashes a buffer with SHA-256.
+ * @param {Buffer} buffer The data to hash.
+ * @returns {string} The hex digest.
+ */
 function sha256Hex(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-// Throws when a published digest exists and does not match. A source that
-// publishes no digest (or whose digest file cannot be fetched) is not blocked:
-// an unreachable checksum file must not make the one-click install unusable.
+/**
+ * Throws when a published digest exists and does not match. A source that
+ * publishes no digest (or whose digest file cannot be fetched) is not blocked:
+ * an unreachable checksum file must not make the one-click install unusable.
+ * @param {Buffer} zipBuffer The downloaded archive.
+ * @param {?string} checksumUrl Where the published digest lives, or null when there is none.
+ * @param {Function} [fetchImpl=fetch] The `fetch` to use (replaceable in tests).
+ * @returns {Promise<object>} `{ verified: true }`, or `{ verified: false, reason }` when no digest could be checked.
+ * @throws {Error} When the published digest does not match.
+ */
 async function verifyDownload(zipBuffer, checksumUrl, fetchImpl = fetch) {
   if (!checksumUrl) return { verified: false, reason: 'no checksum published' };
   let expected = null;
@@ -119,9 +153,14 @@ async function verifyDownload(zipBuffer, checksumUrl, fetchImpl = fetch) {
   return { verified: true };
 }
 
-// Finds the actual ffmpeg binary inside a downloaded zip (Windows builds
-// nest it under a versioned folder's bin/, macOS builds are a single bare
-// file at the zip's root) and writes just that one file out.
+/**
+ * Finds the actual ffmpeg binary inside a downloaded zip (Windows builds
+ * nest it under a versioned folder's bin/, macOS builds are a single bare
+ * file at the zip's root) and writes just that one file out.
+ * @param {Buffer} zipBuffer The downloaded archive.
+ * @param {string} destPath Where to write the binary.
+ * @throws {Error} When the archive holds no ffmpeg binary.
+ */
 function extractFfmpegBinary(zipBuffer, destPath) {
   const zip = new AdmZip(zipBuffer);
   const wantName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
@@ -133,6 +172,12 @@ function extractFfmpegBinary(zipBuffer, destPath) {
   if (process.platform !== 'win32') fs.chmodSync(destPath, 0o755);
 }
 
+/**
+ * Downloads, verifies and extracts ffmpeg for this platform into the userData install folder.
+ * @param {Function} onProgress Called with `{ phase, ... }` as the install moves through download, verify and extract.
+ * @returns {Promise<string>} The path of the installed binary.
+ * @throws {Error} When this platform has no automatic download, or any step fails.
+ */
 async function installFfmpeg(onProgress) {
   const info = getPlatformInstallInfo();
   if (info.method !== 'download') {
@@ -153,6 +198,12 @@ async function installFfmpeg(onProgress) {
   return destPath;
 }
 
+/**
+ * Registers the `ffmpeg:installInfo` and `ffmpeg:install` IPC handlers; only one install runs at a time.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} deps Accessors.
+ * @param {Function} deps.getMainWindow Returns the window that receives `ffmpeg:installProgress` events.
+ */
 function registerFfmpegInstallIpc(ipcMain, { getMainWindow }) {
   ipcMain.handle('ffmpeg:installInfo', () => getPlatformInstallInfo());
   let installInFlight = false;

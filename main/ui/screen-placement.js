@@ -20,14 +20,31 @@ const DISPLAY_SETTLE_MS = 1200;
 // After a display is removed, the OS relocates the window on its own schedule.
 const RELOCATE_SETTLE_MS = 500;
 
+/**
+ * Reduces an Electron display to the `{ id, label }` reference that is saved.
+ * @param {?object} display The display.
+ * @returns {?object} `{ id, label }`, or null.
+ */
 function displayRef(display) {
   return display ? { id: String(display.id), label: String(display.label || '') } : null;
 }
 
+/**
+ * Compares two displays or references by id.
+ * @param {?object} a The first display.
+ * @param {?object} b The second display.
+ * @returns {boolean} True when both exist and share an id.
+ */
 function sameDisplay(a, b) {
   return !!(a && b && String(a.id) === String(b.id));
 }
 
+/**
+ * Finds a saved screen among the connected ones, by id or else by a unique label.
+ * @param {Array<object>} displays The connected displays.
+ * @param {?object} ref The saved `{ id, label }`.
+ * @returns {?object} The display, or null.
+ */
 function findDisplay(displays, ref) {
   if (!ref) return null;
   const byId = displays.find((d) => String(d.id) === String(ref.id));
@@ -39,17 +56,33 @@ function findDisplay(displays, ref) {
   return byLabel.length === 1 ? byLabel[0] : null;
 }
 
+/**
+ * Checks for a rectangle with finite `x`, `y`, `width` and `height`.
+ * @param {*} b The candidate.
+ * @returns {boolean} True for a usable rectangle.
+ */
 function isBounds(b) {
   return !!b && ['x', 'y', 'width', 'height'].every((k) => typeof b[k] === 'number' && Number.isFinite(b[k]));
 }
 
+/**
+ * Area two rectangles share.
+ * @param {object} a The first rectangle.
+ * @param {object} b The second rectangle.
+ * @returns {number} The overlap in square pixels, 0 when they don't touch.
+ */
 function overlapArea(a, b) {
   const w = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const h = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
   return w > 0 && h > 0 ? w * h : 0;
 }
 
-// The screen holding most of `bounds`, or null when it's on none of them.
+/**
+ * The screen holding most of `bounds`, or null when it's on none of them.
+ * @param {Array<object>} displays The connected displays.
+ * @param {?object} bounds The window rectangle.
+ * @returns {?object} The display, or null.
+ */
 function displayForBounds(displays, bounds) {
   if (!isBounds(bounds)) return null;
   let best = null;
@@ -61,10 +94,16 @@ function displayForBounds(displays, bounds) {
   return best;
 }
 
-// Normal bounds on `display`: the saved ones when they still sit mostly on
-// its work area (clamped to fit), otherwise the work area scaled by `fill`
-// and centred. fill 1 is the whole work area, which is what a fresh box opens
-// at; a forced relocation uses less so it reads as a window, not a takeover.
+/**
+ * Normal bounds on `display`: the saved ones when they still sit mostly on
+ * its work area (clamped to fit), otherwise the work area scaled by `fill`
+ * and centred. fill 1 is the whole work area, which is what a fresh box opens
+ * at; a forced relocation uses less so it reads as a window, not a takeover.
+ * @param {object} display The target display.
+ * @param {?object} saved The saved normal bounds for it.
+ * @param {number} [fill=1] Fraction of the work area to use without saved bounds.
+ * @returns {object} `{ x, y, width, height }`.
+ */
 function boundsFor(display, saved, fill = 1) {
   const area = display.workArea;
   if (isBounds(saved) && overlapArea(saved, area) >= (saved.width * saved.height) / 2) {
@@ -87,9 +126,15 @@ function boundsFor(display, saved, fill = 1) {
   };
 }
 
-// The saved record for `display`. A window-state.json written before
-// per-screen records existed has only top-level bounds, which count for
-// whichever screen they sit on.
+/**
+ * The saved record for `display`. A window-state.json written before
+ * per-screen records existed has only top-level bounds, which count for
+ * whichever screen they sit on.
+ * @param {?object} state The window-state.json contents.
+ * @param {?object} display The display.
+ * @param {Array<object>} displays The connected displays.
+ * @returns {?object} `{ bounds, isMaximized, isFullScreen }`, or null.
+ */
 function recordFor(state, display, displays) {
   if (!state || !display) return null;
   const screens = state.screens || {};
@@ -104,10 +149,17 @@ function recordFor(state, display, displays) {
   return null;
 }
 
-// Where the window opens. The target is the chosen screen, else the one it
-// was last on. When the target isn't connected (the TV is off at launch) the
-// window opens where the cursor is and `pendingReturn` names the screen to
-// move to once it appears.
+/**
+ * Where the window opens. The target is the chosen screen, else the one it
+ * was last on. When the target isn't connected (the TV is off at launch) the
+ * window opens where the cursor is and `pendingReturn` names the screen to
+ * move to once it appears.
+ * @param {object} opts Inputs.
+ * @param {Array<object>} opts.displays The connected displays.
+ * @param {?object} opts.state The window-state.json contents.
+ * @param {?object} opts.cursorDisplay The display under the cursor.
+ * @returns {object} `{ display, bounds, isMaximized, isFullScreen, pendingReturn }`.
+ */
 function planLaunch({ displays, state, cursorDisplay }) {
   const s = state || {};
   const legacy = !s.screens && isBounds(s) ? displayRef(displayForBounds(displays, s)) : null;
@@ -124,9 +176,17 @@ function planLaunch({ displays, state, cursorDisplay }) {
   };
 }
 
-// Returns a new state with `display`'s record updated. `last` stays put while
-// a return is pending, so a relaunch still aims for the missing screen. The
-// top-level bounds mirror the latest record for anything reading the old shape.
+/**
+ * Returns a new state with `display`'s record updated. `last` stays put while
+ * a return is pending, so a relaunch still aims for the missing screen. The
+ * top-level bounds mirror the latest record for anything reading the old shape.
+ * @param {?object} state The current window state.
+ * @param {object} display The display the window is on.
+ * @param {object} placement The window's `{ bounds, isMaximized, isFullScreen }`.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.pending=false] Whether a return to another screen is pending.
+ * @returns {object} The new window state.
+ */
 function recordState(state, display, { bounds, isMaximized, isFullScreen }, { pending = false } = {}) {
   const prev = state || {};
   const id = String(display.id);
@@ -146,13 +206,25 @@ function recordState(state, display, { bounds, isMaximized, isFullScreen }, { pe
 
 // ---------- Controller ----------
 
-// Takes over window-state persistence for `win` and follows screens coming
-// and going. `plan` is planLaunch's result, used to create the window.
-// onScreenChange({ id, label }) fires whenever the window ends up on a
-// different screen than before. onScreenPower('lost' | 'returned', { id, label })
-// fires when the screen the window was on goes away, and when that screen
-// comes back and the window returns to it (the renderer can follow the TV's
-// power with the box's own).
+/**
+ * Takes over window-state persistence for `win` and follows screens coming
+ * and going. `plan` is planLaunch's result, used to create the window.
+ * onScreenChange({ id, label }) fires whenever the window ends up on a
+ * different screen than before. onScreenPower('lost' | 'returned', { id, label })
+ * fires when the screen the window was on goes away, and when that screen
+ * comes back and the window returns to it (the renderer can follow the TV's
+ * power with the box's own).
+ * @param {BrowserWindow} win The main window.
+ * @param {object} opts Wiring.
+ * @param {object} opts.screen Electron's `screen` module.
+ * @param {?object} opts.state The loaded window state.
+ * @param {Function} opts.saveState Persists a new window state.
+ * @param {object} opts.plan The `planLaunch` result.
+ * @param {boolean} [opts.kiosk=false] Whether the window is in kiosk mode (fullscreen is left alone).
+ * @param {Function} [opts.onScreenChange] See above.
+ * @param {Function} [opts.onScreenPower] See above.
+ * @returns {object} `{ listScreens, setPreferred }`.
+ */
 function trackScreenPlacement(win, {
   screen, state: initialState, saveState, plan, kiosk = false,
   onScreenChange = () => {}, onScreenPower = () => {},

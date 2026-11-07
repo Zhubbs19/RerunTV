@@ -1,3 +1,6 @@
+// LAN addresses and ports: the viewer port, the list of phone-reachable IPv4 addresses, and
+// the IPC handlers that hand the viewer, control and Companion URLs to the renderer.
+
 const os = require('os');
 const { handoffInfo, saveRemoteProfile } = require('./tv-client');
 
@@ -33,6 +36,10 @@ const NON_LAN_ADAPTER_NAME = /vpn|tailscale|nordlynx|wireguard|zerotier|hyper-v|
 // machine that hit this), VMware's are 00:0c:29/00:50:56/00:05:69, Hyper-V's
 // default switch is 00:15:5d, Parallels' is 00:1c:42.
 const NON_LAN_MAC_OUI = /^(08:00:27|0a:00:27|00:0c:29|00:50:56|00:05:69|00:15:5d|00:1c:42)/i;
+/**
+ * Non-internal IPv4 addresses that a phone on the LAN could plausibly reach, skipping link-local, VPN and virtual adapters (see above).
+ * @returns {Array<object>} `{ name, address }` per candidate adapter.
+ */
 function getLanAddresses() {
   const nets = os.networkInterfaces();
   const candidates = [];
@@ -47,16 +54,29 @@ function getLanAddresses() {
   }
   return candidates;
 }
+/**
+ * LAN viewer URLs for this machine, without pairing codes.
+ * @returns {Array<object>} `{ name, url }` LAN viewer URL per candidate adapter.
+ */
 function getViewerUrls() {
   return getLanAddresses().map((c) => ({ name: c.name, url: `http://${c.address}:${VIEWER_PORT}` }));
 }
 
-// viewer:getUrl and companion:getUrl both just expose a boot-populated URL
-// list back to the renderer — the lists themselves (viewerAccessUrls,
-// pluginServicesRef.companionAccessUrls) live as reassignable `let`s in
-// main.js, populated inside app.whenReady() well after this handler is
-// registered, so accessor functions (not the current value) are what main.js
-// hands over here — see CLAUDE.md's registerXIpc note on stale closures.
+/**
+ * viewer:getUrl and companion:getUrl both just expose a boot-populated URL
+ * list back to the renderer — the lists themselves (viewerAccessUrls,
+ * pluginServicesRef.companionAccessUrls) live as reassignable `let`s in
+ * main.js, populated inside app.whenReady() well after this handler is
+ * registered, so accessor functions (not the current value) are what main.js
+ * hands over here — see CLAUDE.md's registerXIpc note on stale closures.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ * @param {object} deps Accessors and helpers from main.js.
+ * @param {Function} deps.getViewerAccessUrls Returns the viewer access URL list.
+ * @param {Function} [deps.getViewerControlAccessUrls] Returns the control-scope pairing URL list.
+ * @param {Function} deps.getCompanionAccessUrls Returns the Companion access URL list.
+ * @param {Function} deps.getUserDataDir Returns the userData folder.
+ * @param {object} deps.QRCode The `qrcode` module.
+ */
 function registerLanIpc(ipcMain, { getViewerAccessUrls, getViewerControlAccessUrls, getCompanionAccessUrls, getUserDataDir, QRCode }) {
   ipcMain.handle('viewer:getUrl', async () => getViewerAccessUrls());
   // The control pairing code (docs/design/06 §4), for the setup screen's

@@ -1,3 +1,6 @@
+// PLUGINS-tab settings for the text ticker: on/off, text, speed, position,
+// size, colours and whether it hides during ad breaks.
+
 import { applyTickerState } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('ticker', {

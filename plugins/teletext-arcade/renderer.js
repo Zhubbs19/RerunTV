@@ -5,21 +5,33 @@
 // the generic onKey hook (see plugins.js's registerChannelType doc
 // comment) instead of app.js special-casing this channel's number.
 let currentContainer = null;
+// Teletext page number currently on screen.
 let teletextPage = 100;
+// Snake game state for page 999: tick timer, direction, body cells (head first), food cell and score.
 let snakeTimer = null;
 let snakeDir = { x: 1, y: 0 };
 let snakeBody = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
 let snakeFood = { x: 15, y: 15 };
 let snakeScore = 0;
 
+/**
+ * Stops the Snake game's tick timer.
+ */
 function stopSnakeGame() {
   if (snakeTimer) { clearInterval(snakeTimer); snakeTimer = null; }
 }
 
+/**
+ * Moves the food to a random cell of the 20x12 board.
+ */
 function spawnFood() {
   snakeFood = { x: Math.floor(Math.random() * 20), y: Math.floor(Math.random() * 12) };
 }
 
+/**
+ * Advances the Snake game one step and redraws its canvas.
+ * The board wraps at the edges; running into the body resets the snake and the score.
+ */
 function tickSnakeGame() {
   if (!currentContainer) return;
   const canvas = currentContainer.querySelector('#snake-canvas');
@@ -55,6 +67,9 @@ function tickSnakeGame() {
   ctx.fillRect(snakeFood.x * 20 + 2, snakeFood.y * 20 + 2, 16, 16);
 }
 
+/**
+ * Resets the snake, score and food, then starts the tick timer.
+ */
 function startSnakeGame() {
   snakeBody = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
   snakeDir = { x: 1, y: 0 };
@@ -64,6 +79,10 @@ function startSnakeGame() {
   snakeTimer = setInterval(tickSnakeGame, 120);
 }
 
+/**
+ * Shows a teletext page, starting the Snake game when the page is 999.
+ * @param {number} pageNum The page number to show.
+ */
 function updatePage(pageNum) {
   if (!currentContainer) return;
   teletextPage = pageNum;

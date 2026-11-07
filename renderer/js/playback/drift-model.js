@@ -13,6 +13,19 @@ export const DRIFT_TAIL_GUARD_S = 5;
 // Consecutive ticks of "no data while supposedly playing" before a nudge.
 export const STALL_TICKS_BEFORE_NUDGE = 2;
 
+/**
+ * Decides what the drift watchdog should do this tick, as one of the actions listed above.
+ * @param {object} snap Snapshot of the player and the schedule.
+ * @param {boolean} snap.paused Whether the player is paused.
+ * @param {boolean} snap.seeking Whether a seek is in progress.
+ * @param {boolean} snap.ended Whether the player has ended.
+ * @param {number} snap.readyState The media element's `readyState`.
+ * @param {number} snap.currentTime The player's position in seconds.
+ * @param {number} snap.duration The loaded file's duration in seconds.
+ * @param {number} snap.expected Where the schedule says the player should be, in seconds.
+ * @param {number} [snap.stallTicks=0] Consecutive earlier ticks with no data while playing.
+ * @returns {string} One of 'resume', 'nudge', 'seek' or 'none'.
+ */
 export function decideDriftAction({
   paused, seeking, ended, readyState, currentTime, duration, expected, stallTicks = 0,
 }) {

@@ -264,12 +264,21 @@ const HELP_GUIDE = [
   ] },
 ];
 
+/**
+ * Whether a guide entry's group, title or body contains the search text.
+ * @param {object} entry A `HELP_GUIDE` entry (`group`, `title`, `body`).
+ * @param {string} q Lower-case search text; empty matches everything.
+ * @returns {boolean} True when the entry matches.
+ */
 function guideMatchesQuery(entry, q) {
   if (!q) return true;
   const haystack = `${entry.group} ${entry.title} ${entry.body.join(' ')}`.toLowerCase();
   return haystack.includes(q);
 }
 
+/**
+ * Draws the feature guide, filtered by the guide search box, with a group heading above each run of same-group entries.
+ */
 function renderHelpGuide() {
   if (!helpGuideListEl) return;
   const q = (helpGuideSearchEl && helpGuideSearchEl.value.trim().toLowerCase()) || '';
@@ -362,9 +371,13 @@ function renderHelpGuide() {
 
 if (helpGuideSearchEl) helpGuideSearchEl.addEventListener('input', renderHelpGuide);
 
-// Renders the same manual-voice callout ("STEP 1:", "NOTE:", "TIP:",
-// "CAUTION:") that renderHelpGuide bolds on screen, so the printed page
-// keeps that visual distinction too instead of reading as flat prose.
+/**
+ * Renders the same manual-voice callout ("STEP 1:", "NOTE:", "TIP:",
+ * "CAUTION:") that renderHelpGuide bolds on screen, so the printed page
+ * keeps that visual distinction too instead of reading as flat prose.
+ * @param {string} para One guide paragraph.
+ * @returns {string} An escaped HTML `<p>` element.
+ */
 function paraToHtml(para) {
   const calloutMatch = para.match(/^((?:STEP \d+|NOTE|TIP|CAUTION):)\s*/);
   if (!calloutMatch) return `<p>${escapeHtml(para)}</p>`;
@@ -377,16 +390,19 @@ function paraToHtml(para) {
   return `<p class="callout callout-${kind}"><strong>${label}</strong> ${rest}</p>`;
 }
 
-// Builds a complete, self-contained (inline CSS, no external assets) HTML
-// document styled like the perfect-bound owner's manual that used to ship
-// taped inside a real cable box — reuses HELP_GUIDE verbatim rather than
-// keeping a second hand-written copy of the same instructions, so the
-// on-screen guide and the printable one can never drift out of sync with
-// each other. Handed to window.api.openPrintableManual (main.js writes it
-// to a temp file and opens it with the OS's default browser, since a
-// sandboxed renderer can't write files or reliably open a real
-// window.open() window itself) rather than rendered inside this app's own
-// window, so Ctrl+P / the browser's own print dialog works normally.
+/**
+ * Builds a complete, self-contained (inline CSS, no external assets) HTML
+ * document styled like the perfect-bound owner's manual that used to ship
+ * taped inside a real cable box — reuses HELP_GUIDE verbatim rather than
+ * keeping a second hand-written copy of the same instructions, so the
+ * on-screen guide and the printable one can never drift out of sync with
+ * each other. Handed to window.api.openPrintableManual (main.js writes it
+ * to a temp file and opens it with the OS's default browser, since a
+ * sandboxed renderer can't write files or reliably open a real
+ * window.open() window itself) rather than rendered inside this app's own
+ * window, so Ctrl+P / the browser's own print dialog works normally.
+ * @returns {string} The full HTML document.
+ */
 function buildPrintableManualHtml() {
   const today = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   let sectionsHtml = '';
@@ -723,20 +739,28 @@ const CHANGELOG = [
   ] },
 ];
 
-// 'off' also disables CHECK NOW — "never" means no update network requests,
-// including user-triggered ones. main-updater.js enforces the same rule.
+/**
+ * 'off' also disables CHECK NOW — "never" means no update network requests,
+ * including user-triggered ones. main-updater.js enforces the same rule.
+ */
 function refreshUpdateModeUI() {
   const strategy = (S.config.updates && S.config.updates.strategy) || 'startup-auto';
   if (checkUpdatesBtn) checkUpdatesBtn.disabled = strategy === 'off';
 }
 
+/**
+ * Sets the update panel's status line.
+ * @param {string} text The status text; '' clears it.
+ */
 function setUpdateStatus(text) {
   if (updateStatusLineEl) updateStatusLineEl.textContent = text;
 }
 
-// Bound once (renderHelpTab's helpTabRendered guard keeps this from
-// double-firing) — config.updates itself can still change afterward via
-// undo/import, same caveat as the rest of this once-rendered tab.
+/**
+ * Bound once (renderHelpTab's helpTabRendered guard keeps this from
+ * double-firing) — config.updates itself can still change afterward via
+ * undo/import, same caveat as the rest of this once-rendered tab.
+ */
 function initUpdateSettingsPanel() {
   if (updateModeSelect) {
     updateModeSelect.value = (S.config.updates && S.config.updates.strategy) || 'startup-auto';
@@ -778,17 +802,26 @@ function initUpdateSettingsPanel() {
   }
 }
 
+// Month abbreviations for release dates.
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/**
+ * Formats a release's ISO date as "Mon D, YYYY".
+ * @param {?string} iso The ISO timestamp.
+ * @returns {string} The formatted date, or '' when missing or invalid.
+ */
 function formatReleaseDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
-// Live GitHub Releases feed — fetched once per HELP-tab visit (main
-// process caches the actual HTTP call for an hour regardless, see
-// main-updater.js's RELEASE_NOTES_TTL_MS), so re-opening HELP later in the
-// same session still shows current data without hammering GitHub's API.
+/**
+ * Live GitHub Releases feed — fetched once per HELP-tab visit (main
+ * process caches the actual HTTP call for an hour regardless, see
+ * main-updater.js's RELEASE_NOTES_TTL_MS), so re-opening HELP later in the
+ * same session still shows current data without hammering GitHub's API.
+ * @returns {Promise<void>}
+ */
 async function renderReleaseNotes() {
   if (!helpReleaseNotesListEl) return;
   helpReleaseNotesListEl.textContent = 'Loading…';
@@ -822,6 +855,9 @@ async function renderReleaseNotes() {
   });
 }
 
+/**
+ * Builds the HELP tab's content the first time it is opened; later calls do nothing.
+ */
 export function renderHelpTab() {
   if (helpTabRendered) return; // static content — no need to rebuild on every visit
   helpTabRendered = true;

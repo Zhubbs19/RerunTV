@@ -21,30 +21,55 @@ const MAX_DELAY_SEC = 120;
 
 // ---------- Pure ----------
 
+/**
+ * Turns a requested countdown into whole seconds within the allowed range.
+ * @param {*} delaySec The requested delay in seconds.
+ * @returns {number} The delay, or the default when it isn't a number.
+ */
 function clampDelay(delaySec) {
   const n = Number(delaySec);
   if (!Number.isFinite(n)) return DEFAULT_DELAY_SEC;
   return Math.min(MAX_DELAY_SEC, Math.max(MIN_DELAY_SEC, Math.round(n)));
 }
 
-// The OS command that shuts the machine down. On Windows it carries the
-// countdown itself; elsewhere it is immediate and runs when our timer fires.
+/**
+ * The OS command that shuts the machine down. On Windows it carries the
+ * countdown itself; elsewhere it is immediate and runs when our timer fires.
+ * @param {string} platform A `process.platform` value.
+ * @param {number} delaySec The countdown in seconds (Windows only).
+ * @returns {object} `{ file, args, osCountdown }`.
+ */
 function shutdownCommand(platform, delaySec) {
   if (platform === 'win32') return { file: 'shutdown', args: ['/s', '/t', String(clampDelay(delaySec))], osCountdown: true };
   if (platform === 'darwin') return { file: 'osascript', args: ['-e', 'tell application "System Events" to shut down'], osCountdown: false };
   return { file: 'systemctl', args: ['poweroff'], osCountdown: false };
 }
 
-// How a scheduled OS countdown is undone, or null when ours is the only timer.
+/**
+ * How a scheduled OS countdown is undone, or null when ours is the only timer.
+ * @param {string} platform A `process.platform` value.
+ * @returns {?object} `{ file, args }` on Windows, else null.
+ */
 function cancelCommand(platform) {
   return platform === 'win32' ? { file: 'shutdown', args: ['/a'] } : null;
 }
 
 // ---------- Controller ----------
 
-// createShutdownController({ platform, execFile, now, setTimer, clearTimer,
-//   isAllowed, onChange }) → { schedule, cancel, status, isAllowed }
-// Every dependency is injectable so tests never touch a real command.
+/**
+ * createShutdownController({ platform, execFile, now, setTimer, clearTimer,
+ *   isAllowed, onChange }) → { schedule, cancel, status, isAllowed }
+ * Every dependency is injectable so tests never touch a real command.
+ * @param {object} [opts={}] Injectable dependencies.
+ * @param {string} [opts.platform] The platform; `process.platform` by default.
+ * @param {Function} [opts.execFile] Runs an OS command; `child_process.execFile` by default.
+ * @param {Function} [opts.now] The clock.
+ * @param {Function} [opts.setTimer] `setTimeout` replacement.
+ * @param {Function} [opts.clearTimer] `clearTimeout` replacement.
+ * @param {Function} [opts.isAllowed] Returns whether SYSTEM › POWER allows shutting down.
+ * @param {Function} [opts.onChange] Called with the status after every change.
+ * @returns {object} `{ schedule, cancel, status, isAllowed }`.
+ */
 function createShutdownController(opts = {}) {
   const platform = opts.platform || process.platform;
   const execFile = opts.execFile || nodeExecFile;
@@ -127,9 +152,13 @@ function createShutdownController(opts = {}) {
 
 // ---------- IPC ----------
 
-// The host window's half (preload.js's shutdownPc / cancelPcShutdown /
-// getPcShutdownStatus). `broadcast` is how a change reaches the window when
-// a remote started or cancelled the countdown.
+/**
+ * The host window's half (preload.js's shutdownPc / cancelPcShutdown /
+ * getPcShutdownStatus). `broadcast` is how a change reaches the window when
+ * a remote started or cancelled the countdown.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} controller The controller from `createShutdownController`.
+ */
 function registerShutdownIpc(ipcMain, controller) {
   ipcMain.handle('system:shutdownPc', async (event, opts) => controller.schedule(opts && typeof opts === 'object' ? opts : {}));
   ipcMain.handle('system:cancelPcShutdown', async () => controller.cancel());

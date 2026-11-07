@@ -15,6 +15,9 @@ const pickerEl = document.getElementById('era-picker');
 const notesEl = document.getElementById('era-notes');
 const fieldsEl = document.getElementById('era-fields-list');
 
+/**
+ * Re-applies theme, CRT and display mode after an era change, and asks the setup controls to resync.
+ */
 function applyVisualSubsystems() {
   applyTheme();
   applyCrtState();
@@ -29,6 +32,15 @@ function applyVisualSubsystems() {
   window.dispatchEvent(new Event('reruntv:era-applied'));
 }
 
+/**
+ * Creates a button, optionally marked active.
+ * @param {string} label The button text.
+ * @param {Function} run Click handler.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.active=false] Adds the `active` class.
+ * @param {string} [opts.className='btn'] Base CSS class list.
+ * @returns {HTMLButtonElement} The new button.
+ */
 function button(label, run, { active = false, className = 'btn' } = {}) {
   const el = document.createElement('button');
   el.type = 'button';
@@ -38,6 +50,9 @@ function button(label, run, { active = false, className = 'btn' } = {}) {
   return el;
 }
 
+/**
+ * Draws the ERA panel: one button per era plus NO ERA, the active era's notes, and the fields it sets with RESET TO ERA for overridden ones.
+ */
 export function renderEraPanel() {
   if (!pickerEl) return;
   const active = S.config.era;

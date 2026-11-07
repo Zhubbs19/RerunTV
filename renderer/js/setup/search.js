@@ -19,18 +19,36 @@ import { displayValue } from './override-row.js';
 // Earlier behavior temporarily exposed every matching panel from every tab
 // in one stacked page, which removed navigation context and produced a very
 // long, surprising layout for broad queries.
+/**
+ * Lists every setup panel card that search can match.
+ * @returns {HTMLElement[]} The `.panel` elements inside setup tab panels.
+ */
 function searchableUnits() {
   return Array.from(document.querySelectorAll('.setup-tab-panel .panel'));
 }
 
+/**
+ * Lists every setting row that search can match.
+ * @returns {HTMLElement[]} The `.setting-row` elements inside setup tab panels.
+ */
 function searchableRows() {
   return Array.from(document.querySelectorAll('.setup-tab-panel .setting-row'));
 }
 
+/**
+ * Collapses whitespace and trims text for display and matching.
+ * @param {*} text The text to clean; null or undefined becomes an empty string.
+ * @returns {string} The cleaned text.
+ */
 function cleanSearchText(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Builds a search entry for a panel card: its tab, sub-tab, breadcrumb path, preview and lower-case haystack.
+ * @param {HTMLElement} panel The panel (or row) element.
+ * @returns {object} The search entry.
+ */
 function searchEntryForPanel(panel) {
   const tabPanel = panel.closest('.setup-tab-panel[data-tab-panel]');
   const subPanel = panel.closest('.setup-subtab-panel[data-subtab-panel]');
@@ -49,8 +67,12 @@ function searchEntryForPanel(panel) {
   };
 }
 
-// A single setting (ui/field.js): its label, help and synonyms are what
-// search matches; opening it focuses the control itself.
+/**
+ * A single setting (ui/field.js): its label, help and synonyms are what
+ * search matches; opening it focuses the control itself.
+ * @param {HTMLElement} row The `.setting-row` element.
+ * @returns {object} The search entry, with `kind: 'setting'` and the control to focus.
+ */
 function searchEntryForRow(row) {
   const panelEntry = searchEntryForPanel(row.closest('.panel') || row);
   const { label, help, haystack } = settingRowSearchText(row);
@@ -80,10 +102,20 @@ const SEARCH_GROUPS = [
   ['program', 'PROGRAMS', 5],
 ];
 
+/**
+ * Tests whether a haystack contains every search word.
+ * @param {string} haystack Lower-case text to search.
+ * @param {string[]} words Lower-case query words.
+ * @returns {boolean} True when every word is found.
+ */
 function matchesWords(haystack, words) {
   return words.every((word) => haystack.includes(word));
 }
 
+/**
+ * Builds search entries for the command palette's setup actions.
+ * @returns {Array<object>} Action entries with a `run` callback.
+ */
 function actionEntries() {
   return searchActions().map((action) => ({
     kind: 'action',
@@ -96,6 +128,11 @@ function actionEntries() {
   }));
 }
 
+/**
+ * Builds search entries for channels whose number or name matches every word, in channel order.
+ * @param {string[]} words Lower-case query words.
+ * @returns {Array<object>} Channel entries that open the channel in setup.
+ */
 function channelEntries(words) {
   return ((S.config && S.config.channels) || [])
     .filter((ch) => matchesWords(`ch ${ch.number} ${formatChannelNumber(ch.number)} ${ch.name || ''}`.toLowerCase(), words))
@@ -109,11 +146,15 @@ function channelEntries(words) {
     }));
 }
 
-// A channel's own value for a box-wide setting (the registry's overrides,
-// docs/design/14 §3): "Shows pause for ad breaks · CH 67". Without a channel
-// number or name in the query only the channels that actually change it are
-// listed, so a word like "pause" finds the channels that differ.
 const OVERRIDE_PAGES = { ads: 'breaks', credits: 'breaks', fit: 'breaks', logo: 'look', advanced: 'advanced' };
+/**
+ * Search results for a channel's own value for a box-wide setting (the registry's overrides,
+ * docs/design/14 §3): "Shows pause for ad breaks · CH 67". Without a channel
+ * number or name in the query only the channels that actually change it are
+ * listed, so a word like "pause" finds the channels that differ.
+ * @param {string[]} words The query's words, in lower case.
+ * @returns {Array<object>} The `channel-setting` results.
+ */
 function channelSettingEntries(words) {
   const channels = (S.config && S.config.channels) || [];
   const out = [];
@@ -141,9 +182,13 @@ function channelSettingEntries(words) {
   return out;
 }
 
-// Plugins by name and description, and the settings plugins registered
-// search entries for (ctx.search.registerEntries). Both open the plugin in
-// Plug-ins, so its settings need not be on screen to be found.
+/**
+ * Plugins by name and description, and the settings plugins registered
+ * search entries for (ctx.search.registerEntries). Both open the plugin in
+ * Plug-ins, so its settings need not be on screen to be found.
+ * @param {string[]} words Lower-case query words.
+ * @returns {Array<object>} Plugin and plugin-setting entries that open the plugin.
+ */
 function pluginEntries(words) {
   return getPluginSearchEntries()
     .filter((entry) => matchesWords(entry.haystack, words))
@@ -156,6 +201,11 @@ function pluginEntries(words) {
     }));
 }
 
+/**
+ * Builds search entries for upcoming programs matching the query, from `viewNow()` onward. Needs at least three characters.
+ * @param {string} query The trimmed, lower-case query.
+ * @returns {Array<object>} Up to five program entries that open their channel.
+ */
 function programEntries(query) {
   if (query.length < 3) return [];
   let results;
@@ -173,6 +223,10 @@ function programEntries(query) {
   }));
 }
 
+/**
+ * Opens the Channels section with a channel selected and its list item focused, clearing the channel filter.
+ * @param {number} number The channel number.
+ */
 function openChannelFromSearch(number) {
   S.setupSelectedChannel = number;
   S.setupFilterQuery = '';
@@ -183,6 +237,11 @@ function openChannelFromSearch(number) {
   document.querySelector(`#channel-list-pane .channel-list-item[data-channel-number="${number}"]`)?.focus();
 }
 
+/**
+ * Collects every search result for a query: settings (best label matches first), channels, plugins, actions, sections and programs. An empty query lists the enabled actions.
+ * @param {string} query The raw query text.
+ * @returns {Array<object>} The matching entries.
+ */
 function allSearchEntries(query) {
   const q = query.trim().toLowerCase();
   const words = q.split(/\s+/).filter(Boolean);
@@ -207,6 +266,10 @@ function allSearchEntries(query) {
   return [...rows, ...channelEntries(words), ...channelSettingEntries(words), ...pluginEntries(words), ...actions, ...panels, ...programEntries(q)];
 }
 
+/**
+ * Opens a search result: runs its action, or switches to its tab and sub-tab, scrolls to it, focuses its control and flashes it.
+ * @param {object} entry The search entry.
+ */
 function navigateToSearchEntry(entry) {
   if (entry.run) {
     setupSearchEl.value = '';
@@ -233,6 +296,9 @@ function navigateToSearchEntry(entry) {
   });
 }
 
+/**
+ * Renders the search results list for the current query, grouped by kind and capped per group, and updates the input's ARIA state.
+ */
 function renderSettingsSearch() {
   const query = setupSearchEl.value;
   const showActionsOnly = !query.trim();

@@ -11,8 +11,17 @@
 // - Nothing touches the DOM at import time, so tests can import any file.
 
 // ---------- Pure ----------
-// Where focus goes in a one-dimensional list for a key, or null when the key
-// isn't a navigation key. wrap: ▼ on the last item goes to the first.
+/**
+ * Where focus goes in a one-dimensional list for a key, or null when the key
+ * isn't a navigation key. wrap: ▼ on the last item goes to the first.
+ * @param {number} count Number of items.
+ * @param {number} current Focused index, or -1 for none.
+ * @param {string} key A `KeyboardEvent.key` value.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.orientation='vertical'] `'vertical'` (▲▼) or `'horizontal'` (◀▶).
+ * @param {boolean} [opts.wrap=true] Whether moving past either end wraps around.
+ * @returns {?number} The index to focus, or null.
+ */
 export function rovingIndex(count, current, key, { orientation = 'vertical', wrap = true } = {}) {
   if (count <= 0) return null;
   const next = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown';
@@ -33,8 +42,17 @@ export function rovingIndex(count, current, key, { orientation = 'vertical', wra
   return null;
 }
 
-// Stepping a number by `direction` steps, clamped and snapped to step so
-// float noise (0.1 + 0.2) never leaks into config.
+/**
+ * Stepping a number by `direction` steps, clamped and snapped to step so
+ * float noise (0.1 + 0.2) never leaks into config.
+ * @param {*} value The current value; non-numeric counts as 0.
+ * @param {object} [bounds] Range.
+ * @param {number} [bounds.min=-Infinity] Minimum.
+ * @param {number} [bounds.max=Infinity] Maximum.
+ * @param {number} [bounds.step=1] Step size.
+ * @param {number} [direction=1] Steps to move; 0 just snaps and clamps.
+ * @returns {number} The new value, rounded to the step's decimals.
+ */
 export function stepValue(value, { min = -Infinity, max = Infinity, step = 1 } = {}, direction = 1) {
   const decimals = (String(step).split('.')[1] || '').length;
   const base = Number.isFinite(min) ? min : 0;
@@ -43,15 +61,28 @@ export function stepValue(value, { min = -Infinity, max = Infinity, step = 1 } =
   return Number(Math.min(max, Math.max(min, next)).toFixed(decimals));
 }
 
+// Counter behind nextId's unique element ids.
 let idCounter = 0;
+/**
+ * A unique element id for this page.
+ * @param {string} [prefix='ui'] Id prefix.
+ * @returns {string} For example `'ui-3'`.
+ */
 export function nextId(prefix = 'ui') {
   idCounter += 1;
   return `${prefix}-${idCounter}`;
 }
 
 // ---------- DOM ----------
-// h('button', { className: 'btn', text: 'OK', attrs: { 'aria-label': … },
-//   dataset: { … }, on: { click: fn } }, ...children)
+/**
+ * Small element builder.
+ * h('button', { className: 'btn', text: 'OK', attrs: { 'aria-label': … },
+ *   dataset: { … }, on: { click: fn } }, ...children)
+ * @param {string} tag The tag name.
+ * @param {object} [props={}] `className`, `text`, `attrs`, `dataset`, `on`, `style`; anything else is set as a property.
+ * @param {...(Node|string|Array|null)} children Children; strings become text nodes, null and false are skipped.
+ * @returns {HTMLElement} The element.
+ */
 export function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   const { className, text, attrs, dataset, on, style, ...rest } = props || {};
@@ -69,14 +100,22 @@ export function h(tag, props = {}, ...children) {
   return el;
 }
 
+/**
+ * Whether the page is in TV mode, read from `html[data-mode]`.
+ * @returns {boolean} True in TV mode.
+ */
 export function isTvMode() {
   return typeof document !== 'undefined' && document.documentElement.dataset.mode === 'tv';
 }
 
-// The one way a kit control is activated. A native <button> already turns
-// Enter and Space into click, and tv-input's dialog context turns the remote's
-// OK into click on the focused control, so every path lands on this listener.
-// Non-button hosts (a row, a swatch) get Enter/Space mapped here.
+/**
+ * The one way a kit control is activated. A native <button> already turns
+ * Enter and Space into click, and tv-input's dialog context turns the remote's
+ * OK into click on the focused control, so every path lands on this listener.
+ * Non-button hosts (a row, a swatch) get Enter/Space mapped here.
+ * @param {HTMLElement} el The element to press.
+ * @param {?Function} onPress Called with the click event; nothing is bound if not a function.
+ */
 export function bindPress(el, onPress) {
   if (typeof onPress !== 'function') return;
   el.addEventListener('click', (event) => {
@@ -92,6 +131,10 @@ export function bindPress(el, onPress) {
   }
 }
 
+/**
+ * Presses a control programmatically by clicking it.
+ * @param {?HTMLElement} el The control.
+ */
 export function press(el) {
   if (el && typeof el.click === 'function') el.click();
 }

@@ -31,6 +31,11 @@ import {
 } from './schedule.js';
 import { addDays } from './schedule-query.js';
 
+/**
+ * Zero-pads a number to two digits.
+ * @param {number} n The number.
+ * @returns {string} The padded string.
+ */
 function pad2(n) {
   return String(n).padStart(2, '0');
 }
@@ -41,6 +46,11 @@ function pad2(n) {
 // { dates: ['MM-DD', 'MM-DD'], hours?: [s, e], days? }   a calendar range, optionally narrowed
 // { tags: [...], untagged: 'matches' | 'excluded' }      the airing file's tags (for break rules)
 
+/**
+ * Translates a block's trigger into a rule `when` (a time slot or a calendar range).
+ * @param {object} t The block trigger (`timeSlot` or `dateRange` fields).
+ * @returns {object} The `when` object.
+ */
 function whenFromTrigger(t) {
   if (t.type === 'dateRange') {
     const when = { dates: [`${pad2(t.startMonth)}-${pad2(t.startDay)}`, `${pad2(t.endMonth)}-${pad2(t.endDay)}`] };
@@ -53,12 +63,23 @@ function whenFromTrigger(t) {
   return when;
 }
 
-// Month/day ordering in a leap reference year, as schedule.js's inDateRange
-// does, so Feb 29 and ranges wrapping New Year compare the same way.
+/**
+ * Month/day ordering in a leap reference year, as schedule.js's inDateRange
+ * does, so Feb 29 and ranges wrapping New Year compare the same way.
+ * @param {number} month The month, 1-12.
+ * @param {number} day The day of the month.
+ * @returns {number} A sortable value for that month and day.
+ */
 function mdOrdinal(month, day) {
   return new Date(2000, month - 1, day).getTime();
 }
 
+/**
+ * Whether an instant's month/day falls in an inclusive 'MM-DD' range, which may wrap New Year.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {string[]} range The [from, to] pair of 'MM-DD' strings.
+ * @returns {boolean} True when inside the range.
+ */
 function inDates(atMs, [from, to]) {
   const d = new Date(atMs);
   const [fm, fd] = from.split('-').map(Number);
@@ -69,6 +90,14 @@ function inDates(atMs, [from, to]) {
   return start <= end ? (cur >= start && cur <= end) : (cur >= start || cur <= end);
 }
 
+/**
+ * Whether a rule's `when` matches an instant (and, for a tag condition, the airing file's tags).
+ * @param {string|object} when The rule's `when`: `always`, a time slot, a date range or a tag
+ *   condition.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {string[]} [fileTags=[]] The airing file's tags.
+ * @returns {boolean} True when the rule applies.
+ */
 export function matchesWhen(when, atMs, fileTags = []) {
   if (when === 'always') return true;
   if (!when || typeof when !== 'object') return false;
@@ -90,18 +119,23 @@ export function matchesWhen(when, atMs, fileTags = []) {
 
 // ---------- translation ----------
 
-// The rule order that reproduces today's layers exactly:
-//   ads off (if the channel's ads switch is off)    breaks only
-//   flows that can apply to this channel, in order  breaks only
-//   presets that can apply, in order                breaks only
-//   blocks, highest priority first (ties by order)  play, plus breaks when the block has its own ads
-//   the default lineup and cadence                  play + breaks
-// Content rules and break rules keep their own relative orders, which is all
-// first-match-per-kind resolution needs.
-//
-// Flows and presets are box-wide lists. A channel's rules name the ones whose
-// channel scope includes it at translation time; their tag scope stays in the
-// rule. That snapshot is the design question step 3b has to settle (§5.4).
+/**
+ * The rule order that reproduces today's layers exactly:
+ *   ads off (if the channel's ads switch is off)    breaks only
+ *   flows that can apply to this channel, in order  breaks only
+ *   presets that can apply, in order                breaks only
+ *   blocks, highest priority first (ties by order)  play, plus breaks when the block has its own ads
+ *   the default lineup and cadence                  play + breaks
+ * Content rules and break rules keep their own relative orders, which is all
+ * first-match-per-kind resolution needs.
+ *
+ * Flows and presets are box-wide lists. A channel's rules name the ones whose
+ * channel scope includes it at translation time; their tag scope stays in the
+ * rule. That snapshot is the design question step 3b has to settle (§5.4).
+ * @param {object} ch The channel config.
+ * @param {object} config The app config (for the box-wide flows and presets).
+ * @returns {{signOff: ?object, rules: Array<object>}} The rule stack.
+ */
 export function rulesFromLayers(ch, config) {
   const rules = [];
   const n = ch.number;
@@ -143,17 +177,35 @@ export function rulesFromLayers(ch, config) {
 
 // ---------- resolution ----------
 
+/**
+ * Whether the channel is on the air at an instant, by the rule stack's sign-off hours.
+ * @param {object} programming The rule stack ({ signOff, rules }) from `rulesFromLayers`.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {boolean} True when not signed off.
+ */
 export function rulesOnAir(programming, atMs) {
   const off = programming.signOff;
   if (!off) return true;
   return !hourInRange(new Date(atMs).getHours(), { startHour: off.hours[0], endHour: off.hours[1] });
 }
 
+/**
+ * Finds a channel's schedule block by id.
+ * @param {object} ch The channel config.
+ * @param {string} id The block id.
+ * @returns {?object} The block, or null.
+ */
 function findBlock(ch, id) {
   return (ch.blocks || []).find((b) => b && b.id === id) || null;
 }
 
-// The same { files, anchor, key, block } shape resolveActiveSource returns.
+/**
+ * The same { files, anchor, key, block } shape resolveActiveSource returns.
+ * @param {object} ch The channel config.
+ * @param {object} programming The rule stack ({ signOff, rules }) from `rulesFromLayers`.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {object} The content source ({ files, anchor, key, block }).
+ */
 export function rulesSource(ch, programming, atMs) {
   // The same last step resolveActiveSource takes: fit to time slots, else the break plan.
   const airs = (source) => applyBreakPlan(ch, applyFit(ch, source));
@@ -168,7 +220,15 @@ export function rulesSource(ch, programming, atMs) {
   return airs({ files: ch.files, anchor: ch.anchor, key: -1, block: null });
 }
 
-// The same { commercials, key } shape resolveActiveCommercials returns.
+/**
+ * The same { commercials, key } shape resolveActiveCommercials returns.
+ * @param {object} ch The channel config.
+ * @param {object} programming The rule stack ({ signOff, rules }) from `rulesFromLayers`.
+ * @param {object} config The app config (box-wide interstitials and commercials).
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {string[]} [fileTags=[]] The airing file's tags.
+ * @returns {{commercials: object, key: *}} The ad policy and its cache key.
+ */
 export function rulesCommercials(ch, programming, config, atMs, fileTags = []) {
   const interstitials = (config && config.interstitials) || {};
   for (const rule of programming.rules) {
@@ -199,6 +259,12 @@ export function rulesCommercials(ch, programming, config, atMs, fileTags = []) {
 
 // ---------- equivalence ----------
 
+/**
+ * Every local hour start in [from, to).
+ * @param {number} from Range start, in ms.
+ * @param {number} to Range end, in ms.
+ * @returns {number[]} The hour starts, in ms.
+ */
 function localHourStarts(from, to) {
   const out = [];
   const d = new Date(from);
@@ -210,10 +276,16 @@ function localHourStarts(from, to) {
   return out;
 }
 
-// Every instant in [from, to) at which what a channel resolves to can change:
-// triggers and broadcast hours move only on the hour, a daily block's day can
-// unlock at its own minute, and a weekly run changes at its window's start
-// hour — so the hour starts, the half hours, and each unlock minute cover it.
+/**
+ * Every instant in [from, to) at which what a channel resolves to can change:
+ * triggers and broadcast hours move only on the hour, a daily block's day can
+ * unlock at its own minute, and a weekly run changes at its window's start
+ * hour — so the hour starts, the half hours, and each unlock minute cover it.
+ * @param {object} ch The channel config.
+ * @param {number} from Range start, in ms.
+ * @param {number} to Range end, in ms.
+ * @returns {number[]} The instants, ascending.
+ */
 export function decisionInstants(ch, from, to) {
   const instants = new Set();
   localHourStarts(from, to).forEach((t) => { instants.add(t); instants.add(t + 30 * 60000); instants.add(t + 3600000 - 1); });
@@ -233,8 +305,12 @@ export function decisionInstants(ch, from, to) {
   return [...instants].sort((a, b) => a - b);
 }
 
-// Every distinct tag list an airing on this channel can carry, as the ad
-// resolvers see it (file tags plus the channel's own content tags).
+/**
+ * Every distinct tag list an airing on this channel can carry, as the ad
+ * resolvers see it (file tags plus the channel's own content tags).
+ * @param {object} ch The channel config.
+ * @returns {Array<string[]>} The distinct tag lists.
+ */
 export function tagSetsFor(ch) {
   const sets = new Map([['', effectiveContentTags(ch, null)]]);
   const add = (file) => {
@@ -246,10 +322,19 @@ export function tagSetsFor(ch) {
   return [...sets.values()];
 }
 
-// Compares the rule stack against today's resolvers over [from, to). The
-// layered resolvers read S.config (the caller's config must be it). Returns
-// { instants, checks, mismatches: [{ atMs, what, layers, rules }] } with at
-// most `limit` mismatches listed.
+/**
+ * Compares the rule stack against today's resolvers over [from, to). The
+ * layered resolvers read S.config (the caller's config must be it). Returns
+ * { instants, checks, mismatches: [{ atMs, what, layers, rules }] } with at
+ * most `limit` mismatches listed.
+ * @param {object} ch The channel config.
+ * @param {object} config The app config; must be S.config.
+ * @param {number} from Range start, in ms.
+ * @param {number} to Range end, in ms.
+ * @param {object} [opts] Options.
+ * @param {number} [opts.limit=20] Most mismatches to list.
+ * @returns {object} The comparison summary, including the mismatches found.
+ */
 export function compareRulesToLayers(ch, config, from, to, { limit = 20 } = {}) {
   const programming = rulesFromLayers(ch, config);
   const instants = decisionInstants(ch, from, to);

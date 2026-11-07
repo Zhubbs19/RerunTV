@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the SAP / alternate audio plugin: which audio
+// track a file starts on.
 window.RCBPlugins.registerPluginSettings('sap-audio', {
   sections: [{
     id: 'general',

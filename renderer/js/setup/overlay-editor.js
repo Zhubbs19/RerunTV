@@ -5,6 +5,14 @@ import { isVideoMediaPath } from '../core/channels.js';
 import { S } from '../core/state.js';
 import { randomId } from '../core/util.js';
 
+/**
+ * Switches to the TV screen and lets the person place one dynamic-overlay rule by dragging or with the keyboard.
+ * @param {object} opts Options.
+ * @param {object} opts.rule The dynamic-overlay rule being placed.
+ * @param {(x: number, y: number) => void} opts.onApply Called with the new position (percent of the screen) when the change is kept.
+ * @param {?number} opts.channelNumber Channel to tune first, if any.
+ * @returns {Promise<void>} Resolves once the editor is showing, not when it closes.
+ */
 export async function openDynamicOverlayPositionEditor({ rule, onApply, channelNumber }) {
   const returnFocus = document.activeElement;
   const { showSetupScreen, showTvScreen } = await import('../app.js');

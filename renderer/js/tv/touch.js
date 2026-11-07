@@ -11,14 +11,22 @@
 import { crtContainer, guideMuteEl, player, tvScreen } from '../core/dom.js';
 import { autoHideAfter } from '../core/util.js';
 
+/**
+ * Dispatches a synthetic keydown on the window so `handleKey` treats it like a real key.
+ * @param {string} key The `KeyboardEvent.key` value to send.
+ */
 function sendKey(key) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
 }
 
-// Only fire our own gesture handling for taps/swipes that land on the bare
-// picture itself — not on any button, guide row, or setup-screen control,
-// which already have their own real click handlers and shouldn't also be
-// reinterpreted as a swipe/tap gesture underneath.
+/**
+ * Only fire our own gesture handling for taps/swipes that land on the bare
+ * picture itself — not on any button, guide row, or setup-screen control,
+ * which already have their own real click handlers and shouldn't also be
+ * reinterpreted as a swipe/tap gesture underneath.
+ * @param {EventTarget} el The touch event's target.
+ * @returns {boolean} True when the target is the picture itself.
+ */
 function isBackgroundTarget(el) {
   return el === player || el === crtContainer || el === tvScreen;
 }
@@ -28,10 +36,14 @@ const TAP_MAX_MOVE_PX = 12;
 const TAP_MAX_MS = 300;
 const BAR_AUTOHIDE_MS = 4000;
 
+// The on-screen control bar, its MUTE button, and its auto-hide timer.
 let controlBarEl = null;
 let muteBtnEl = null;
 let barHideTimer = null;
 
+/**
+ * Builds the touch control bar (channel, guide, info, mute, fullscreen) and adds it to the page hidden.
+ */
 function buildControlBar() {
   const bar = document.createElement('div');
   bar.className = 'touch-control-bar hidden';
@@ -70,11 +82,17 @@ function buildControlBar() {
   controlBarEl = bar;
 }
 
+/**
+ * Updates the MUTE button's label to match the player's mute state.
+ */
 function refreshMuteLabel() {
   if (!muteBtnEl) return;
   muteBtnEl.textContent = player.muted ? 'UNMUTE' : 'MUTE';
 }
 
+/**
+ * Shows the control bar and restarts its auto-hide timer.
+ */
 function showControlBar() {
   if (!controlBarEl) return;
   refreshMuteLabel();
@@ -82,17 +100,22 @@ function showControlBar() {
   barHideTimer = autoHideAfter(barHideTimer, BAR_AUTOHIDE_MS, () => controlBarEl.classList.add('hidden'));
 }
 
+/**
+ * Shows the control bar if hidden, otherwise hides it.
+ */
 function toggleControlBar() {
   if (!controlBarEl) return;
   if (controlBarEl.classList.contains('hidden')) showControlBar();
   else controlBarEl.classList.add('hidden');
 }
 
-// Feature-detected, not device/user-agent sniffed — enables touch controls
-// on any browser reporting a real touch-capable pointer (phones, tablets,
-// touchscreen laptops), and stays a no-op everywhere else (a plain mouse/
-// keyboard LAN browser, or the host itself, though this is only ever called
-// from app.js's window.__isViewer branch to begin with).
+/**
+ * Feature-detected, not device/user-agent sniffed — enables touch controls
+ * on any browser reporting a real touch-capable pointer (phones, tablets,
+ * touchscreen laptops), and stays a no-op everywhere else (a plain mouse/
+ * keyboard LAN browser, or the host itself, though this is only ever called
+ * from app.js's window.__isViewer branch to begin with).
+ */
 export function initTouchControls() {
   if (!('ontouchstart' in window) && !(navigator.maxTouchPoints > 0)) return;
 

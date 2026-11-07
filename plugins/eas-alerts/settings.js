@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the EAS alerts plugin: random self-test toggle,
+// interval, tone length, voiceover, alert message and a test button.
 import { runEasAlert, scheduleNextEasAlert } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('eas-alerts', {

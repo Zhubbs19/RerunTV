@@ -16,12 +16,14 @@ import { beginTask } from './tasks.js';
 import { enhanceTabs } from '../ui/tabs.js';
 import { listDetailBehavior } from '../ui/list-detail.js';
 
-// Full re-render of every setup-screen panel from S.config — used after
-// undo/redo rewinds S.config (in place) under whatever's currently on screen.
-// Deliberately the same five calls showSetupScreen (app.js) makes, minus the
-// TV-screen teardown/breadcrumb-reset parts of it that only matter when the
-// setup screen is first opening, not while it's already open and just had
-// its data rewound.
+/**
+ * Full re-render of every setup-screen panel from S.config — used after
+ * undo/redo rewinds S.config (in place) under whatever's currently on screen.
+ * Deliberately the same five calls showSetupScreen (app.js) makes, minus the
+ * TV-screen teardown/breadcrumb-reset parts of it that only matter when the
+ * setup screen is first opening, not while it's already open and just had
+ * its data rewound.
+ */
 export function refreshSetupScreen() {
   resetSetupTabs();
   renderChannelList();
@@ -30,6 +32,10 @@ export function refreshSetupScreen() {
   renderSettingsPanels();
 }
 
+/**
+ * Whether the setup screen is currently shown.
+ * @returns {boolean} True when the setup screen is not hidden.
+ */
 function setupVisible() {
   return !setupScreen.classList.contains('hidden');
 }
@@ -61,6 +67,9 @@ onRemoteConfigChange((reason) => {
 const undoBtn = document.getElementById('setup-undo-btn');
 const redoBtn = document.getElementById('setup-redo-btn');
 
+/**
+ * Enables or disables the undo/redo buttons and labels their tooltips with the next step.
+ */
 export function refreshUndoRedoButtons() {
   if (undoBtn) {
     undoBtn.disabled = !canUndo();
@@ -74,9 +83,15 @@ export function refreshUndoRedoButtons() {
   }
 }
 
+/**
+ * Undoes one step and re-renders the setup screen if anything was undone.
+ */
 function doUndo() {
   if (performUndo()) { refreshSetupScreen(); refreshUndoRedoButtons(); }
 }
+/**
+ * Redoes one step and re-renders the setup screen if anything was redone.
+ */
 function doRedo() {
   if (performRedo()) { refreshSetupScreen(); refreshUndoRedoButtons(); }
 }
@@ -151,10 +166,16 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------- Tab-bar keyboard nav (ARIA "tabs" pattern) ----------
-// The kit's Tabs behaviour (ui/tabs.js) on the static bars: only the active tab
-// is a Tab stop; Left/Right (Up/Down on the vertical sidebar) Home End move
-// *and* activate. Other code moves .active with plain click handlers
-// (setup-settings.js), which the bar re-syncs from.
+/**
+ * Finds the panel a tab-bar button shows.
+ * The kit's Tabs behaviour (ui/tabs.js) on the static bars: only the active tab
+ * is a Tab stop; Left/Right (Up/Down on the vertical sidebar) Home End move
+ * *and* activate. Other code moves .active with plain click handlers
+ * (setup-settings.js), which the bar re-syncs from.
+ * @param {HTMLElement} bar The tab bar holding the button.
+ * @param {HTMLElement} btn The tab button (`data-tab` or `data-subtab`).
+ * @returns {?HTMLElement} The panel the tab controls, or null.
+ */
 function controlledPanelForTab(bar, btn) {
   if (btn.dataset.tab) return document.querySelector(`.setup-tab-panel[data-tab-panel="${btn.dataset.tab}"]`);
   if (btn.dataset.subtab) return bar.parentElement.querySelector(`:scope > .setup-subtab-panel[data-subtab-panel="${btn.dataset.subtab}"]`);
@@ -165,6 +186,7 @@ const sidebarTabs = document.getElementById('setup-tabs');
 enhanceTabs(sidebarTabs, { tabSelector: '.setup-tab-btn', panelFor: (btn) => controlledPanelForTab(sidebarTabs, btn) });
 document.querySelectorAll('.setup-subtabs').forEach((bar) => enhanceTabs(bar, { tabSelector: '.setup-subtab-btn', panelFor: (btn) => controlledPanelForTab(bar, btn) }));
 
+// Accessible names for unlabelled controls, keyed by a class name the control carries.
 const CONTROL_LABELS = new Map([
   ['rating-select', 'Content rating'],
   ['aspect-select', 'Video aspect ratio'],
@@ -172,6 +194,12 @@ const CONTROL_LABELS = new Map([
   ['display-aspect-select', 'Display aspect override'],
 ]);
 
+/**
+ * Finds a readable name for a setup control that has no label of its own.
+ * Checks known class names, the title, the placeholder, the plugin row name and finally nearby label text.
+ * @param {HTMLElement} control The input, select or textarea.
+ * @returns {string} The label text, or an empty string when none was found.
+ */
 function nearbyControlLabel(control) {
   for (const className of control.classList) {
     if (CONTROL_LABELS.has(className)) return CONTROL_LABELS.get(className);
@@ -194,6 +222,10 @@ function nearbyControlLabel(control) {
     .join(' ');
 }
 
+/**
+ * Gives every unlabelled setup control an `aria-label` taken from the text around it.
+ * @param {HTMLElement} [root=setupScreen] The element to scan (itself included when it is a control).
+ */
 function syncSetupControlNames(root = setupScreen) {
   const controls = [];
   if (root.matches && root.matches('input, select, textarea')) controls.push(root);
@@ -214,13 +246,20 @@ new MutationObserver((mutations) => {
 }).observe(setupScreen, { childList: true, subtree: true });
 
 // ---------- List roving-tabindex nav (channel rows / interstitial cards) ----------
-// Up/Down/Home/End move focus between rows, Enter/Space activates the row's
-// primary action (its EDIT button / summary bar — whatever activateSelector
-// picks out), Delete triggers its remove button if it has one. A
-// MutationObserver (rather than re-wiring after each render) means this
-// keeps working no matter which module re-renders the list or when, since
-// renderChannelList/renderInterstitialsList tear down and rebuild their
-// rows from scratch on essentially every edit.
+/**
+ * Makes a list's rows keyboard-navigable with a roving focus.
+ * Up/Down/Home/End move focus between rows, Enter/Space activates the row's
+ * primary action (its EDIT button / summary bar — whatever activateSelector
+ * picks out), Delete triggers its remove button if it has one. A
+ * MutationObserver (rather than re-wiring after each render) means this
+ * keeps working no matter which module re-renders the list or when, since
+ * renderChannelList/renderInterstitialsList tear down and rebuild their
+ * rows from scratch on essentially every edit.
+ * @param {?HTMLElement} containerEl The list container; does nothing when missing.
+ * @param {string} rowSelector Selector for the focusable rows.
+ * @param {string} activateSelector Selector, within a row, for the control Enter/Space clicks.
+ * @param {?string} deleteSelector Selector, within a row, for the control Delete clicks.
+ */
 function enableRovingList(containerEl, rowSelector, activateSelector, deleteSelector) {
   if (!containerEl) return;
 
@@ -276,12 +315,14 @@ document.querySelectorAll('.setup-tab-btn').forEach((btn) => {
 // details are marked data-ui-list-detail/-list/-detail in index.html; these
 // are each collection's rows, and which one is selected.
 const ROWS = '.channel-list-item, .interstitial-card-summary, .flow-list-item, .backup-list-item, .plugin-row';
+// Selector for the selected row of any list+detail screen, used by the list/detail keyboard behaviour.
 const SELECTED_ROW = '.channel-list-item.selected, .interstitial-card.selected .interstitial-card-summary, .flow-list-item.selected, .backup-list-item.selected, .plugin-entry.selected .plugin-row';
 const listDetail = listDetailBehavior({ rows: ROWS, selectedRow: SELECTED_ROW });
 // Narrow windows (docs/design/03 §4): below 900 px a list + detail page shows
 // the list, and choosing a row swaps to that row's editor with a Back button.
 listDetail.install(setupScreen);
 
+// Time (ms) until which a "go to" key chord is still waiting for its second key.
 let goPendingUntil = 0;
 window.addEventListener('keydown', (e) => {
   if (!setupVisible() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;

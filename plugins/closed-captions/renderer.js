@@ -7,6 +7,10 @@
 // already applies to SAP/closed-caption-adjacent features.
 const { S, player, saveConfigDebounced } = window.RCBPlugins.ctx;
 
+/**
+ * This plugin's live config object, created as `{ enabled: false }` when absent.
+ * @returns {object} `S.config.closedCaptions`.
+ */
 function cfg() {
   // Lazily defaulted, not core-migrated — this key is entirely owned by this
   // plugin (same pattern other optional-config plugins use for their own
@@ -18,6 +22,9 @@ function cfg() {
 
 let activeTrackEl = null;
 
+/**
+ * Removes the caption track currently attached to the player.
+ */
 function clearActiveTrack() {
   if (activeTrackEl) {
     activeTrackEl.remove();
@@ -25,6 +32,10 @@ function clearActiveTrack() {
   }
 }
 
+/**
+ * Turns captions on or off, saves the config and drops the current track when turning off.
+ * @param {boolean} enabled Whether captions should show.
+ */
 export function setCaptionsEnabled(enabled) {
   const captionsConfig = cfg();
   captionsConfig.enabled = !!enabled;
@@ -32,9 +43,13 @@ export function setCaptionsEnabled(enabled) {
   if (!captionsConfig.enabled) clearActiveTrack();
 }
 
-// Prefers a sidecar file (an intentional, purpose-made caption file) over an
-// embedded stream, and among embedded streams prefers one already tagged
-// 'eng' if present — otherwise just the first one found.
+/**
+ * Prefers a sidecar file (an intentional, purpose-made caption file) over an
+ * embedded stream, and among embedded streams prefers one already tagged
+ * 'eng' if present — otherwise just the first one found.
+ * @param {Array<object>} tracks The non-empty track list from the scan.
+ * @returns {object} The track to show.
+ */
 function pickTrack(tracks) {
   const sidecar = tracks.find((t) => t.type === 'sidecar');
   if (sidecar) return sidecar;
@@ -45,6 +60,14 @@ function pickTrack(tracks) {
   return preferred || tracks[0];
 }
 
+/**
+ * Finds, extracts and attaches captions for the file that just started, when captions are on.
+ * Gives up quietly on any failure, and when the channel changed while waiting.
+ * @param {object} event The `content-playing` hook payload.
+ * @param {object} event.file The schedule file now playing (uses `path`).
+ * @param {object} event.ch The channel config.
+ * @returns {Promise<void>}
+ */
 async function onContentPlaying({ file, ch }) {
   clearActiveTrack();
   if (!cfg().enabled || !file || !file.path) return;
@@ -105,10 +128,13 @@ const DEFAULT_CAPTION_STYLE = {
   textShadow: 'none',
 };
 
-// User-chosen size multiplier on top of whatever the active theme's own
-// captionStyle.fontSize specifies — theme picks the *look*, this scales the
-// *legibility* independent of it, applied via calc() so it works regardless
-// of what unit the theme's fontSize happens to use.
+/**
+ * User-chosen size multiplier on top of whatever the active theme's own
+ * captionStyle.fontSize specifies — theme picks the *look*, this scales the
+ * *legibility* independent of it, applied via calc() so it works regardless
+ * of what unit the theme's fontSize happens to use.
+ * Writes the result into a `#cc-style` style element.
+ */
 export function applyCaptionStyle() {
   const pack = window.RCBPlugins.getThemePack ? window.RCBPlugins.getThemePack(S.config.theme) : null;
   const style = (pack && pack.captionStyle) || DEFAULT_CAPTION_STYLE;

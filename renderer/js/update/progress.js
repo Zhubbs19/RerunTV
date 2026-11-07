@@ -1,3 +1,7 @@
+// Script for the separate update-progress window (update-progress.html): draws
+// the progress bar from the state main sends over `window.updateProgress` and
+// reskins itself to the app's active theme colours.
+
 (function initUpdateProgress() {
   const title = document.getElementById('update-progress-title');
   const detail = document.getElementById('update-progress-detail');

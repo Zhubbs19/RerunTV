@@ -24,12 +24,16 @@
 // slowest thing actually routed over this channel.
 const DEFAULT_TIMEOUT_MS = 20000;
 
-// ctx.services can also hold host-only bridges containing functions (for
-// example viewerRemoteBridge). Those values are useful to same-process
-// plugins but cannot cross utilityProcess.postMessage's structured-clone
-// boundary. Snapshot only independently cloneable values for an isolated
-// plugin; callable cross-process services use registerService/callService
-// and the RPC provider registry instead.
+/**
+ * ctx.services can also hold host-only bridges containing functions (for
+ * example viewerRemoteBridge). Those values are useful to same-process
+ * plugins but cannot cross utilityProcess.postMessage's structured-clone
+ * boundary. Snapshot only independently cloneable values for an isolated
+ * plugin; callable cross-process services use registerService/callService
+ * and the RPC provider registry instead.
+ * @param {?object} services The `ctx.services` values.
+ * @returns {object} A structured-clone copy of every value that can be cloned.
+ */
 function cloneableServiceSnapshot(services) {
   const snapshot = {};
   Object.entries(services || {}).forEach(([key, value]) => {
@@ -38,6 +42,14 @@ function cloneableServiceSnapshot(services) {
   return snapshot;
 }
 
+/**
+ * Creates one side of the request/response and event channel described above.
+ * @param {Function} post Sends one message envelope to the other side.
+ * @param {Function} subscribe Called once with a listener for incoming envelopes.
+ * @param {object} [options={}] Channel options.
+ * @param {number} [options.timeoutMs] Default request timeout, 20 s when absent.
+ * @returns {object} `{ request, emit, handle, on, dispose }`.
+ */
 function createRpc(post, subscribe, options = {}) {
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
   let nextId = 1;

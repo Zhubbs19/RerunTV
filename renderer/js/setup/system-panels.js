@@ -17,13 +17,15 @@ import { currentProfile, personalCommand } from '../personal/state.js';
 import { renderSettingsPanels } from './settings.js';
 
 // ---------- Program reminders (GUIDE & THEME) ----------
-// Reminders are created from the guide's program search (guide.js's
-// addProgramReminder) and used to be invisible from the moment they were set
-// until the moment they fired — no list, no way to cancel one added by
-// mistake, no way to check whether one was still pending. They live in
-// S.config.reminders and clear themselves a few minutes after their own
-// program ends (checkProgramReminders, guide.js), so this is a view of
-// pending ones only and needs no expiry logic of its own.
+/**
+ * Reminders are created from the guide's program search (guide.js's
+ * addProgramReminder) and used to be invisible from the moment they were set
+ * until the moment they fired — no list, no way to cancel one added by
+ * mistake, no way to check whether one was still pending. They live in
+ * S.config.reminders and clear themselves a few minutes after their own
+ * program ends (checkProgramReminders, guide.js), so this is a view of
+ * pending ones only and needs no expiry logic of its own.
+ */
 export function renderRemindersPanel() {
   if (reminderAutoTuneEl) reminderAutoTuneEl.checked = !!S.config.reminderAutoTune;
   if (reminderNotifyEl) reminderNotifyEl.checked = S.config.reminderNotify !== false;
@@ -94,6 +96,9 @@ remindersClearAllBtn?.addEventListener('click', async () => {
 // and this is a "what have I been watching" readout, not an audit trail.
 const HISTORY_PANEL_ROWS = 40;
 
+/**
+ * Shows the viewing history toggle, a summary of the log and its most recent rows. Fetches the log asynchronously and fills the panel when it arrives.
+ */
 export function renderViewingHistoryPanel() {
   if (viewingHistoryEnabledEl) {
     viewingHistoryEnabledEl.checked = !S.config.viewingHistory || S.config.viewingHistory.enabled !== false;
@@ -151,10 +156,12 @@ historyClearBtn?.addEventListener('click', async () => {
 });
 
 // ---------- Air checks (SYSTEM > AIR CHECK) ----------
-// The TV menu offers the most recent few as one-press recalls; this is the
-// full list, and the only place a mark can be deleted. Same shape as the
-// reminders list above on purpose — both are "things you marked while
-// watching that you may want to undo later".
+/**
+ * The TV menu offers the most recent few as one-press recalls; this is the
+ * full list, and the only place a mark can be deleted. Same shape as the
+ * reminders list above on purpose — both are "things you marked while
+ * watching that you may want to undo later".
+ */
 export function renderAirChecksPanel() {
   if (!airChecksListEl) return;
   const marks = airChecks();
@@ -252,6 +259,9 @@ if (keepDisplayAwakeEl && pcShutdownAvailable()) {
   pcShutdownWithBoxEl.addEventListener('change', () => setShutsDownPcWithBox(pcShutdownWithBoxEl.checked));
 }
 
+/**
+ * Shows the saved PC shutdown choices in their two rows and updates which dependent rows are enabled.
+ */
 export function renderPcShutdownRows() {
   pcShutdownEnabledEl.checked = pcShutdownEnabled();
   pcShutdownWithBoxEl.checked = shutsDownPcWithBox();
@@ -259,13 +269,16 @@ export function renderPcShutdownRows() {
 }
 
 // ---------- Config backups (AUDIO & SYSTEM tab) ----------
-// See main.js's backupCurrentConfig/listBackups/restoreBackup — rotating,
-// rate-limited snapshots of channels.json taken automatically at session
-// start and at most every 15 minutes during active editing.
-// Set right before a renderBackupsList() triggered by an actual new
-// snapshot, so only that row plays a reveal — not every row on a plain
-// refresh/tab-switch re-list (listBackups sorts newest-first, so a new
-// snapshot is always index 0).
+/**
+ * See main.js's backupCurrentConfig/listBackups/restoreBackup — rotating,
+ * rate-limited snapshots of channels.json taken automatically at session
+ * start and at most every 15 minutes during active editing.
+ * Set right before a renderBackupsList() triggered by an actual new
+ * snapshot, so only that row plays a reveal — not every row on a plain
+ * refresh/tab-switch re-list (listBackups sorts newest-first, so a new
+ * snapshot is always index 0).
+ * @returns {*} Whatever `backups.js`'s `renderBackupsList` returns.
+ */
 export function renderBackupsList() {
   return renderBackupsListFeature();
 }

@@ -51,11 +51,16 @@ ensureMediaSourceProvidersLoaded(() => {
   if (S.config && S.config.interstitials) renderInterstitialsList();
 });
 
-// A breadcrumb-free "pick one" list — unlike a channel's folder scan (which
-// wants every file), a single bumper/ad/promo slot wants exactly one, so a
-// folder with more than one match needs a way to choose among them. Reuses
-// the app's own confirm-dialog/folder-row CSS classes (setup.css) for visual
-// consistency with a media-source plugin's own breadcrumb picker.
+/**
+ * A breadcrumb-free "pick one" list — unlike a channel's folder scan (which
+ * wants every file), a single bumper/ad/promo slot wants exactly one, so a
+ * folder with more than one match needs a way to choose among them. Reuses
+ * the app's own confirm-dialog/folder-row CSS classes (setup.css) for visual
+ * consistency with a media-source plugin's own breadcrumb picker.
+ * @param {string[]} refs The candidate media refs.
+ * @param {string[]} labels A display label per ref.
+ * @returns {Promise<?string>} The chosen ref, or null when cancelled.
+ */
 function pickOneFromList(refs, labels) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -111,10 +116,14 @@ function pickOneFromList(refs, labels) {
   });
 }
 
-// Scans a plugin folder for a SINGLE bumper/ad/promo slot — auto-picks if
-// only one file matched, otherwise shows pickOneFromList above. Returns
-// {path, source, duration, title?} (same shape a channel's own file entry
-// uses) or null if the user cancelled anywhere along the way.
+/**
+ * Scans a plugin folder for a SINGLE bumper/ad/promo slot — auto-picks if
+ * only one file matched, otherwise shows pickOneFromList above. Returns
+ * {path, source, duration, title?} (same shape a channel's own file entry
+ * uses) or null if the user cancelled anywhere along the way.
+ * @param {string} providerId The media-source provider's id.
+ * @returns {Promise<?object>} The picked file entry, or null.
+ */
 async function pickSingleFileFromProvider(providerId) {
   const folderRef = await pickFolderRefForProvider(providerId);
   if (!folderRef) return null;
@@ -150,15 +159,19 @@ async function pickSingleFileFromProvider(providerId) {
   return { path: chosenRef, source: providerId, duration, ...(title ? { title } : {}) };
 }
 
-// Asked once per bulk import (a whole folder's worth, local or plugin-
-// sourced) rather than per file — lets the whole batch land pre-tagged
-// with a channel affinity/type/tag instead of importing everything as
-// generic ANY-CHANNEL commercials and then having to bulk-select and
-// bulk-apply those same three things afterward via the SELECT ENTRIES
-// toolbar below. Returns null if cancelled, in which case the caller
-// should abort the import entirely rather than falling back to defaults —
-// cancelling here means "I didn't mean to import this batch," not "use
-// plain defaults."
+/**
+ * Asked once per bulk import (a whole folder's worth, local or plugin-
+ * sourced) rather than per file — lets the whole batch land pre-tagged
+ * with a channel affinity/type/tag instead of importing everything as
+ * generic ANY-CHANNEL commercials and then having to bulk-select and
+ * bulk-apply those same three things afterward via the SELECT ENTRIES
+ * toolbar below. Returns null if cancelled, in which case the caller
+ * should abort the import entirely rather than falling back to defaults —
+ * cancelling here means "I didn't mean to import this batch," not "use
+ * plain defaults."
+ * @param {number} count How many files are being imported (shown in the title).
+ * @returns {Promise<?object>} `{ type, channelAffinity, contentTags }` for every new entry, or null when cancelled.
+ */
 async function promptBatchImportOptions(count) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -260,10 +273,14 @@ async function promptBatchImportOptions(count) {
   });
 }
 
-// Bulk pool import — the plugin-sourced counterpart to the existing
-// interstitialsAddFolderBtn (local-only, unchanged). Adds every video file
-// in the chosen folder as its own pool entry, same as scanning a local
-// folder already does.
+/**
+ * Bulk pool import — the plugin-sourced counterpart to the existing
+ * interstitialsAddFolderBtn (local-only, unchanged). Adds every video file
+ * in the chosen folder as its own pool entry, same as scanning a local
+ * folder already does.
+ * @param {string} providerId The media-source provider's id.
+ * @returns {Promise<void>}
+ */
 async function importPoolFromProvider(providerId) {
   const folderRef = await pickFolderRefForProvider(providerId);
   if (!folderRef) return;
@@ -305,10 +322,12 @@ async function importPoolFromProvider(providerId) {
   renderInterstitialsList();
 }
 
-// Small select inserted right after the existing (local-only) ADD FOLDER
-// button — only exists once at least one media-source provider is active,
-// same "don't show it if there's nothing to show" rule buildChooseSourceControl
-// (setup-channels.js) already follows for the per-channel equivalent.
+/**
+ * Small select inserted right after the existing (local-only) ADD FOLDER
+ * button — only exists once at least one media-source provider is active,
+ * same "don't show it if there's nothing to show" rule buildChooseSourceControl
+ * (setup-channels.js) already follows for the per-channel equivalent.
+ */
 function renderMediaSourceImportControl() {
   const existing = document.getElementById('interstitials-source-select');
   if (existing) existing.remove();
@@ -322,33 +341,48 @@ function renderMediaSourceImportControl() {
   interstitialsAddFolderBtn.insertAdjacentElement('afterend', select);
 }
 
-// A plugin-sourced entry.file/entry.bgFile carries a resolved `title` when
-// its provider implements getDisplayName (pickSingleFileFromProvider above)
-// — falls back to basenameNoExt(path) same as a local file, which for an
-// opaque provider ref (a Drive file id, a Jellyfin item id) with no title
-// resolved would otherwise show the raw ref string.
+/**
+ * The display label for a pool entry's file.
+ * A plugin-sourced entry.file/entry.bgFile carries a resolved `title` when
+ * its provider implements getDisplayName (pickSingleFileFromProvider above)
+ * — falls back to basenameNoExt(path) same as a local file, which for an
+ * opaque provider ref (a Drive file id, a Jellyfin item id) with no title
+ * resolved would otherwise show the raw ref string.
+ * @param {object} file A pool entry's `file` or `bgFile`.
+ * @returns {string} The label to show.
+ */
 function interstitialFileLabel(file) {
   return file.title || basenameNoExt(file.path);
 }
 
-// A small "IMPORT FROM SOURCE" select dropped next to CHOOSE FILE/CHOOSE
-// BACKGROUND CLIP — only ever built when at least one provider is active
-// (callers already check getMediaSourceProviders().length first). Kept as
-// its own <select> rather than folding into the CHOOSE FILE button itself,
-// same reasoning buildChooseSourceControl (setup-channels.js) has for a
-// channel's own folder picker: a single control can't be "a local file
-// dialog" and "a themed provider list" at once.
+/**
+ * A small "IMPORT FROM SOURCE" select dropped next to CHOOSE FILE/CHOOSE
+ * BACKGROUND CLIP — only ever built when at least one provider is active
+ * (callers already check getMediaSourceProviders().length first). Kept as
+ * its own <select> rather than folding into the CHOOSE FILE button itself,
+ * same reasoning buildChooseSourceControl (setup-channels.js) has for a
+ * channel's own folder picker: a single control can't be "a local file
+ * dialog" and "a themed provider list" at once.
+ * @param {(providerId: string) => void} onPick Called with the chosen provider's id.
+ * @returns {HTMLSelectElement} The provider select.
+ */
 function buildMediaSourcePickButton(onPick) {
   return buildProviderSelect({ title: 'IMPORT FROM SOURCE', leadingOptions: [{ value: '', text: 'FROM SOURCE…' }], onPick });
 }
 
-// A folder import's new entries, as one undoable step.
+/**
+ * A folder import's new entries, as one undoable step.
+ * @param {Array<object>} entries New pool entries to insert.
+ */
 function addPoolEntries(entries) {
   if (!entries.length) return;
   dispatch(entries.map((item) => ({ type: 'item.insert', collection: 'pool', item })),
     { label: `Import ${entries.length} ad pool entr${entries.length === 1 ? 'y' : 'ies'}` });
 }
 
+/**
+ * Fills the box-wide commercials controls (interval, no-repeat toggles, fade snapping, found credits) from config.
+ */
 export function renderCommercialsPanel() {
   renderProgramFitPanel();
   const cm = S.config.commercials;
@@ -423,6 +457,7 @@ findFadesBtn?.addEventListener('click', async () => {
   }
 });
 
+// Each no-repeat checkbox and the `commercials` field it sets.
 const NO_REPEAT_TOGGLES = [
   [commercialsNoRepeatEl, 'noRepeatCommercials'],
   [bumpersNoRepeatEl, 'noRepeatBumpers'],
@@ -487,9 +522,13 @@ const INTERSTITIAL_TYPE_DEFS = [
   { id: 'sweepsPromo', label: 'SWEEPS EVENT PROMO', contentKind: 'video' },
 ];
 
-// Exported so setup-interstitials-flowbuilder.js can label its own tag
-// fields with the exact pool-editor label they resolve against (e.g. "matches
-// pool: AD POD — BUMP IN") instead of duplicating this lookup table.
+/**
+ * Exported so setup-interstitials-flowbuilder.js can label its own tag
+ * fields with the exact pool-editor label they resolve against (e.g. "matches
+ * pool: AD POD — BUMP IN") instead of duplicating this lookup table.
+ * @param {string} type A pool entry type id.
+ * @returns {object} The type's definition; the first definition when the id is unknown.
+ */
 export function interstitialTypeDef(type) {
   return INTERSTITIAL_TYPE_DEFS.find((t) => t.id === type) || INTERSTITIAL_TYPE_DEFS[0];
 }
@@ -508,6 +547,14 @@ const TYPE_COLORS = {
 // Exported for setup-interstitials-flowbuilder.js, which builds its own
 // step-editor form rows the same way.
 let fieldLabelId = 0;
+/**
+ * Wraps a control in a labelled field and points the control's `aria-labelledby` at the label.
+ * @param {string} labelText The label text.
+ * @param {HTMLElement} controlEl The control, or an element containing controls.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.wide] Makes the field span the full row.
+ * @returns {HTMLDivElement} The field wrapper.
+ */
 export function labeledField(labelText, controlEl, opts) {
   const wrap = document.createElement('div');
   wrap.className = 'field' + (opts && opts.wide ? ' field-span-full' : '');
@@ -559,11 +606,22 @@ const selectedInterstitialEntries = new Set();
 // pool grows into the hundreds, re-diffing/re-filtering on every single
 // keypress starts to visibly lag typing. A short debounce keeps typing snappy
 // without giving up "search re-filters live" responsiveness.
+
+/**
+ * Lower-case text a pool entry is searched by: its text and its file paths.
+ * @param {object} entry A pool entry.
+ * @returns {string} The searchable text.
+ */
 function entrySearchHaystack(entry) {
   const parts = [entry.text, entry.file && entry.file.path, entry.bgFile && entry.bgFile.path];
   return parts.filter(Boolean).join(' ').toLowerCase();
 }
 
+/**
+ * Whether a pool entry passes the type, channel and search filters.
+ * @param {object} entry A pool entry.
+ * @returns {boolean} True when the entry should be listed.
+ */
 function entryMatchesFilters(entry) {
   if (interstitialsFilterType !== 'any' && entry.type !== interstitialsFilterType) return false;
   if (interstitialsFilterChannel === 'any' && entry.channelAffinity !== 'any') return false;
@@ -573,6 +631,9 @@ function entryMatchesFilters(entry) {
   return true;
 }
 
+/**
+ * Rebuilds the type and channel filter selects, keeping their current choices.
+ */
 function populateInterstitialsFilterOptions() {
   const typeVal = interstitialsFilterTypeEl.value || 'any';
   interstitialsFilterTypeEl.innerHTML = '<option value="any">ALL TYPES</option>';
@@ -595,10 +656,14 @@ function populateInterstitialsFilterOptions() {
   interstitialsFilterChannelEl.value = chVal;
 }
 
-// Groups the pool by channel affinity (ANY first, then each channel that
-// actually has entries, in channel order) so a box with many channels' worth
-// of interstitials reads as sections instead of one undifferentiated list —
-// the filter bar above narrows within that, this just organizes what's left.
+/**
+ * Groups the pool by channel affinity (ANY first, then each channel that
+ * actually has entries, in channel order) so a box with many channels' worth
+ * of interstitials reads as sections instead of one undifferentiated list —
+ * the filter bar above narrows within that, this just organizes what's left.
+ * @param {Array<object>} pool The pool entries.
+ * @returns {Array<object>} `{ key, label, items }` groups, where `items` are `{ entry, idx }` pairs that pass the filters.
+ */
 function groupInterstitialsByChannel(pool) {
   const groups = new Map();
   pool.forEach((entry, idx) => {
@@ -618,9 +683,13 @@ function groupInterstitialsByChannel(pool) {
   return ordered;
 }
 
-// "9 COMMERCIAL, 2 STATION ID, 1 UP NEXT" — lets a channel group's header
-// convey what's actually in it without opening it, which matters once a
-// channel has dozens of entries of several different types mixed together.
+/**
+ * "9 COMMERCIAL, 2 STATION ID, 1 UP NEXT" — lets a channel group's header
+ * convey what's actually in it without opening it, which matters once a
+ * channel has dozens of entries of several different types mixed together.
+ * @param {Array<object>} items `{ entry, idx }` pairs from a channel group.
+ * @returns {string} Counts per type, largest first.
+ */
 function typeBreakdownText(items) {
   const counts = new Map();
   items.forEach(({ entry }) => counts.set(entry.type, (counts.get(entry.type) || 0) + 1));
@@ -630,12 +699,24 @@ function typeBreakdownText(items) {
     .join(', ');
 }
 
+/**
+ * One-line title for a pool entry's summary row: its file or background clip name, or its text.
+ * @param {object} entry A pool entry.
+ * @param {object} typeDef The entry's type definition.
+ * @returns {string} The title.
+ */
 function entrySummaryTitle(entry, typeDef) {
   if (entry.dynamic) return entry.bgFile ? basenameNoExt(entry.bgFile.path) : '(no background clip)';
   if (typeDef.contentKind === 'video') return entry.file ? basenameNoExt(entry.file.path) : '(no file)';
   return entry.text ? entry.text : '(auto text)';
 }
 
+/**
+ * Builds the thumbnail for a pool entry (a placeholder for text-only types).
+ * @param {object} entry A pool entry.
+ * @param {object} typeDef The entry's type definition.
+ * @returns {HTMLElement} The thumbnail element.
+ */
 function buildInterstitialThumbnail(entry, typeDef) {
   const file = entry.dynamic ? entry.bgFile : entry.file;
   return buildMediaThumbnail(typeDef.contentKind === 'video' && file ? file.path : null, {
@@ -644,8 +725,17 @@ function buildInterstitialThumbnail(entry, typeDef) {
   });
 }
 
-// detail: build the open editor for the detail pane; otherwise the compact
-// summary row for the list.
+/**
+ * Builds a pool entry's card.
+ * detail: build the open editor for the detail pane; otherwise the compact
+ * summary row for the list.
+ * @param {object} entry The pool entry.
+ * @param {number} idx The entry's index in `pool`.
+ * @param {Array<object>} pool The pool array.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.detail=false] Build the full editor instead of the summary row.
+ * @returns {HTMLDivElement} The card element.
+ */
 function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     const typeDef = interstitialTypeDef(entry.type);
     const card = document.createElement('div');
@@ -1134,11 +1224,20 @@ let bulkPreviewCancelled = false;
 // The wait is sliced so STOP, leaving setup, or tuning away ends it within a tick
 // instead of letting the remaining entries keep taking over #player on the TV.
 let bulkPreviewWake = null;
+/**
+ * Whether the setup screen is currently showing.
+ * @returns {boolean} True when `#setup-screen` is visible.
+ */
 const setupScreenVisible = () => {
   const el = document.getElementById('setup-screen');
   return !!el && !el.classList.contains('hidden');
 };
 
+/**
+ * Waits up to `ms`, ending early when the preview is stopped or the setup screen is hidden.
+ * @param {number} ms Longest wait in milliseconds.
+ * @returns {Promise<void>}
+ */
 function abortableWait(ms) {
   return new Promise((resolve) => {
     const startedAt = Date.now();
@@ -1153,6 +1252,12 @@ function abortableWait(ms) {
   });
 }
 
+/**
+ * Plays each entry's video on the TV player in turn, up to eight seconds each, until stopped.
+ * @param {Array<object>} entries Pool entries with a `file` or `bgFile`.
+ * @param {?HTMLButtonElement} btn The STOP PREVIEW button, relabelled with progress.
+ * @returns {Promise<void>}
+ */
 async function startBulkPreview(entries, btn) {
   bulkPreviewActive = true;
   bulkPreviewCancelled = false;
@@ -1177,17 +1282,25 @@ async function startBulkPreview(entries, btn) {
   renderInterstitialsList(); // resets every group's preview button back to its default label
 }
 
+/**
+ * Stops a running bulk preview and wakes its current wait.
+ */
 function stopBulkPreview() {
   bulkPreviewCancelled = true;
   if (bulkPreviewWake) bulkPreviewWake();
 }
 
-// Ends a running preview immediately. Safe to call anywhere (no-op when idle);
-// the run also notices on its own when #setup-screen is hidden.
+/**
+ * Ends a running preview immediately. Safe to call anywhere (no-op when idle);
+ * the run also notices on its own when #setup-screen is hidden.
+ */
 export function cancelBulkPreview() {
   if (bulkPreviewActive) stopBulkPreview();
 }
 
+/**
+ * Redraws the pool list (grouped by channel, filtered) and the selected entry's editor in the detail pane.
+ */
 export function renderInterstitialsList() {
   interstitialsListEl.innerHTML = '';
   if (interstitialsDetailEl) interstitialsDetailEl.innerHTML = '';
@@ -1308,8 +1421,13 @@ export function renderInterstitialsList() {
   }
 }
 
-// An edit in a detail pane changes what its list row summarizes (weight,
-// title, tags); rebuild just that row, leaving the editor and its focus alone.
+/**
+ * An edit in a detail pane changes what its list row summarizes (weight,
+ * title, tags); rebuild just that row, leaving the editor and its focus alone.
+ * @param {HTMLElement} detailCard The detail pane's editor card.
+ * @param {HTMLElement} listEl The list containing the matching row.
+ * @param {() => ?HTMLElement} buildRow Builds a fresh summary row.
+ */
 function keepListRowInStep(detailCard, listEl, buildRow) {
   const refresh = () => {
     const id = detailCard.dataset.itemId;
@@ -1321,6 +1439,7 @@ function keepListRowInStep(detailCard, listEl, buildRow) {
   detailCard.addEventListener('input', debounce(refresh, 250));
 }
 
+// Debounced list re-render for the search box (see the note above entrySearchHaystack).
 const debouncedRenderInterstitialsList = debounce(() => renderInterstitialsList(), 150);
 interstitialsSearchEl.addEventListener('input', () => {
   interstitialsSearchText = interstitialsSearchEl.value.trim().toLowerCase();
@@ -1342,10 +1461,17 @@ interstitialsFilterChannelEl.addEventListener('change', () => {
 
 // ---------- Bulk select mode ----------
 
+/**
+ * Pool entries that pass the current filters.
+ * @returns {Array<object>} The visible pool entries.
+ */
 function visibleInterstitialEntries() {
   return S.config.interstitials.pool.filter((entry) => entryMatchesFilters(entry));
 }
 
+/**
+ * Shows or hides the pool's bulk-edit bar and refreshes its count and channel select.
+ */
 function renderInterstitialsBulkBar() {
   const count = selectedInterstitialEntries.size;
   interstitialsBulkBarEl.classList.toggle('hidden', !interstitialsBulkMode || count === 0);
@@ -1362,6 +1488,10 @@ function renderInterstitialsBulkBar() {
   interstitialsBulkChannelSelectEl.value = chVal;
 }
 
+/**
+ * The pool entries currently selected in bulk mode.
+ * @returns {Array<object>} Selected pool entries, in pool order.
+ */
 function selectedInterstitialEntryObjs() {
   const pool = S.config.interstitials.pool;
   return pool.filter((entry) => selectedInterstitialEntries.has(entry.id));
@@ -1478,10 +1608,19 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
 // resolveActiveCommercials, schedule.js) plus channels + contentTags + a
 // name, so it's a drop-in match for the exact same resolution code with zero
 // special-casing at playback time.
+
+/**
+ * Makes a new unique ad preset id.
+ * @returns {string} The id.
+ */
 function randomPresetId() {
   return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * A new, empty ad preset with default timing.
+ * @returns {object} The preset config.
+ */
 function freshPreset() {
   return {
     id: randomPresetId(), name: '', enabled: true, channels: [], contentTags: [],
@@ -1500,12 +1639,26 @@ let selectedPresetId = null;
 // reveal, not a search-driven rebuild.
 let justToggledPresetId = null;
 
+/**
+ * Whether a preset's name or content tags contain the preset search text.
+ * @param {object} preset The ad preset config.
+ * @returns {boolean} True when it matches (or there is no search).
+ */
 function presetMatchesSearch(preset) {
   if (!presetsSearchText) return true;
   const haystack = [preset.name, ...(preset.contentTags || [])].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(presetsSearchText);
 }
 
+/**
+ * Builds an ad preset's summary row, or its full editor for the detail pane.
+ * @param {object} preset The ad preset config.
+ * @param {number} idx The preset's index in `presets`.
+ * @param {Array<object>} presets The presets array.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.detail=false] Build the full editor instead of the summary row.
+ * @returns {HTMLDivElement} The row or editor element.
+ */
 function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
   const isOpen = detail;
   const card = document.createElement('div');
@@ -1836,6 +1989,9 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
   return card;
 }
 
+/**
+ * Redraws the ad preset list and the selected preset's editor in the detail pane.
+ */
 export function renderPresetsList() {
   presetsListEl.innerHTML = '';
   if (presetsDetailEl) presetsDetailEl.innerHTML = '';
@@ -1874,6 +2030,7 @@ export function renderPresetsList() {
   }
 }
 
+// Debounced list re-render for the preset search box.
 const debouncedRenderPresetsList = debounce(() => renderPresetsList(), 150);
 presetsSearchEl.addEventListener('input', () => {
   presetsSearchText = presetsSearchEl.value.trim().toLowerCase();
@@ -1888,9 +2045,11 @@ presetsAddBtn.addEventListener('click', () => {
   renderPresetsList();
 });
 
-// Rebuilt each time the setup screen shows, same as renderLogoBugEditor/
-// renderDynamicOverlaysEditor (setup-settings.js) — this editor only
-// mutates the array it's handed, it doesn't re-read S.config on its own.
+/**
+ * Rebuilt each time the setup screen shows, same as renderLogoBugEditor/
+ * renderDynamicOverlaysEditor (setup-settings.js) — this editor only
+ * mutates the array it's handed, it doesn't re-read S.config on its own.
+ */
 export function renderPreemptionWindowsEditor() {
   if (!preemptionWindowsEditorEl) return;
   preemptionWindowsEditorEl.innerHTML = '';
@@ -1903,6 +2062,9 @@ export function renderPreemptionWindowsEditor() {
   ));
 }
 
+/**
+ * Fills the auto-standby controls from config.
+ */
 export function renderStandbyPanel() {
   const sb = S.config.autoStandby;
   standbyEnabledEl.checked = !!sb.enabled;

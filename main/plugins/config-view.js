@@ -21,6 +21,12 @@ const { sanitizeViewerConfig } = require('../lan/viewer-projection');
 const SHARED_SECTIONS = ['ffmpeg', 'youtubeMusic', 'party', 'network', 'theme'];
 const CHANNEL_FIELDS = ['number', 'name', 'quickAccess', 'favorite'];
 
+/**
+ * Builds the reduced config an isolated plugin gets from `ctx.loadConfig()`.
+ * @param {?object} config The full channels.json config.
+ * @param {string} pluginId The plugin asking.
+ * @returns {object} Shared sections (sanitized), the lineup's identifying fields and the plugin's own settings.
+ */
 function isolatedConfigView(config, pluginId) {
   const source = config && typeof config === 'object' ? config : {};
   const view = {};

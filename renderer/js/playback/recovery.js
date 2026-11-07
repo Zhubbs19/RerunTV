@@ -2,6 +2,12 @@
 // cancellation, and transient RPC failures have one focused boundary.
 import { parseMediaRef } from '../core/channels.js';
 
+/**
+ * Asks a media-source plugin how far it is with fetching a ref, swallowing RPC errors.
+ * @param {string} source The media-source provider id.
+ * @param {string} ref The provider's opaque ref.
+ * @returns {Promise<object>} `{ ok, progress }`; `ok` is false when the call failed.
+ */
 async function tryGetFetchProgress(source, ref) {
   try {
     return { ok: true, progress: await window.api.callMediaSourceHook(source, 'getFetchProgress', ref) };
@@ -10,6 +16,19 @@ async function tryGetFetchProgress(source, ref) {
   }
 }
 
+/**
+ * Waits for a provider-backed file to finish fetching, showing a PREPARING status meanwhile.
+ * Local files, and providers that report no progress or fail the first call, count as ready.
+ * @param {object} ch The channel config being tuned.
+ * @param {object} file The channel file entry (with `source` and `path`).
+ * @param {object} callbacks Hooks into the tune pipeline.
+ * @param {Function} callbacks.clearPlayer Empties the player before polling starts.
+ * @param {Function} callbacks.isActive Returns false once this tune has been superseded.
+ * @param {Function} callbacks.markVisualReady Marks the screen as showing something.
+ * @param {Function} callbacks.showStatus Shows a status card `(title, detail, kind)`.
+ * @param {Function} callbacks.clearStatus Hides the status card.
+ * @returns {Promise<boolean>} True when the file is ready, false if the tune was cancelled.
+ */
 export async function waitForMediaSourceReady(ch, file, callbacks) {
   if (!file.source || file.source === 'local') return true;
   const rawRef = parseMediaRef(file.path).ref;

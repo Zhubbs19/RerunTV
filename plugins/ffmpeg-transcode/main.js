@@ -10,6 +10,12 @@
 // and hands the already-resolved absolute path in via ctx — this plugin's
 // only job is deciding whether to actually publish it, which is what makes
 // disabling this plugin a real, meaningful toggle rather than a fake one.
+/**
+ * Publishes the configured or bundled ffmpeg path onto `ctx.services.ffmpegPath`.
+ * @param {object} ctx The plugin's main-process context.
+ * @returns {Promise<void>} Resolves once the path is published.
+ * @throws {Error} When no ffmpeg binary exists at the resolved path.
+ */
 async function activate(ctx) {
   // A user-configured path (settings.js's FFMPEG PATH field, config.ffmpeg.ffmpegPath)
   // wins over the bundled/system path core resolved, if it actually exists.

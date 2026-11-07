@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for closed captions: on/off, language, position and
+// the caption look (size, font, color, edge, background, all caps).
 import { setCaptionsEnabled, applyCaptionStyle } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('closed-captions', {

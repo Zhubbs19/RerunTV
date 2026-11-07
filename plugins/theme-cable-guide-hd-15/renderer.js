@@ -1,3 +1,6 @@
+// Theme pack for the HD cable-guide skin: palette, layout choice, CRT bias and
+// sounds. See plugins.js's registerThemePack doc comment for the fields.
+
 const { playTone } = window.RCBPlugins.ctx;
 
 // Skin for the cable-guide layout (renderer/css/cable-guide.css). `ui` turns

@@ -15,6 +15,11 @@ const MIME_TYPES = {
   '.mov': 'video/quicktime', '.ogv': 'video/ogg',
 };
 
+/**
+ * Looks up the Content-Type for a file by its extension.
+ * @param {string} filePath The file's path or name.
+ * @returns {string} The MIME type, or `application/octet-stream` when unknown.
+ */
 function mimeFor(filePath) {
   return MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
 }

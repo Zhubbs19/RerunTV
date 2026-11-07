@@ -67,10 +67,20 @@ export const DENSITY_TOKENS = Object.freeze(new Set([
   '--control-h', '--target-min', '--font-size-body', '--font-size-label', '--safe-x', '--safe-y',
 ]));
 
+/**
+ * Removes CSS block comments.
+ * @param {string} css Stylesheet text.
+ * @returns {string} The text without comments.
+ */
 function stripComments(css) {
   return String(css).replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
+/**
+ * Splits a rule body into declarations, ignoring semicolons inside parentheses.
+ * @param {string} body The text between a rule's braces.
+ * @returns {Array<object>} `{ name, value }` pairs; names are lower-cased.
+ */
 function declarations(body) {
   return body.split(/;(?![^(]*\))/).map((d) => d.trim()).filter(Boolean).map((d) => {
     const at = d.indexOf(':');
@@ -78,7 +88,11 @@ function declarations(body) {
   });
 }
 
-// Top-level blocks with their at-rule context: [{ at: ['@media …'], selector, body }].
+/**
+ * Top-level blocks with their at-rule context: [{ at: ['@media …'], selector, body }].
+ * @param {string} css Stylesheet text with comments already stripped.
+ * @returns {Array<object>} `{ at, selector, body }` per rule block.
+ */
 function blocks(css) {
   const out = [];
   const stack = [];
@@ -102,6 +116,11 @@ function blocks(css) {
   return out;
 }
 
+/**
+ * Splits a selector list on top-level commas, keeping `:is(a, b)` whole.
+ * @param {string} selector A selector list.
+ * @returns {string[]} Trimmed selectors.
+ */
 function splitSelectors(selector) {
   const parts = [];
   let depth = 0;
@@ -115,7 +134,12 @@ function splitSelectors(selector) {
   return parts;
 }
 
-// Returns [{ selector, problem }]; empty when the CSS keeps the contract.
+/**
+ * Returns [{ selector, problem }]; empty when the CSS keeps the contract.
+ * @param {string} themeId The theme id the CSS must be scoped to.
+ * @param {string} cssText The theme pack's stylesheet text.
+ * @returns {Array<object>} Problems found.
+ */
 export function lintThemeCss(themeId, cssText) {
   const problems = [];
   const root = `html[data-theme="${themeId}"]`;

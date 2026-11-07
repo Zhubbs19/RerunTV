@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { isPathContained } = require('../util/path-safety');
 
+// Extensions a viewer may be sent from a plugin folder.
 const SERVABLE_EXTENSIONS = new Set([
   '.js', '.mjs', '.css', '.json', '.html', '.svg',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico',
@@ -22,6 +23,12 @@ const SERVABLE_EXTENSIONS = new Set([
 // plugin folder name -> { mtimeMs, mainRel }
 const manifestCache = new Map();
 
+/**
+ * The `main` entry a plugin's manifest declares, cached by manifest mtime.
+ * @param {string} pluginsDir The plugins folder.
+ * @param {string} folder The plugin's folder name.
+ * @returns {?string} The normalised POSIX-relative main path, or null when none is declared.
+ */
 function mainEntryOf(pluginsDir, folder) {
   const manifestPath = path.join(pluginsDir, folder, 'manifest.json');
   let stat;
@@ -37,8 +44,13 @@ function mainEntryOf(pluginsDir, folder) {
   return mainRel;
 }
 
-// Resolves a /plugins/<folder>/<file> request path (already URL-decoded) to a
-// file the viewer may be sent, or null.
+/**
+ * Resolves a /plugins/<folder>/<file> request path (already URL-decoded) to a
+ * file the viewer may be sent, or null.
+ * @param {string} pluginsDir The plugins folder.
+ * @param {string} rel The request path below `/plugins/`.
+ * @returns {?string} The absolute file path, or null when it may not be served.
+ */
 function resolveViewerPluginFile(pluginsDir, rel) {
   if (!pluginsDir || typeof rel !== 'string' || !rel || rel.includes('\0')) return null;
   const segments = rel.split(/[\\/]+/).filter(Boolean);
@@ -54,9 +66,13 @@ function resolveViewerPluginFile(pluginsDir, rel) {
   return resolved;
 }
 
-// The fields a viewer's plugin loader actually reads (renderer/js/plugin/
-// host.js). Capabilities, approval state, integrity hashes, data directories,
-// the main entry and raw error text stay on the host.
+/**
+ * The fields a viewer's plugin loader actually reads (renderer/js/plugin/
+ * host.js). Capabilities, approval state, integrity hashes, data directories,
+ * the main entry and raw error text stay on the host.
+ * @param {object} plugin A discovered plugin record.
+ * @returns {?object} The viewer-safe subset, or null for a non-object.
+ */
 function projectPluginForViewer(plugin) {
   if (!plugin || typeof plugin !== 'object') return null;
   if (plugin.error) {

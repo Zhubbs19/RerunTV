@@ -21,9 +21,13 @@ const fs = require('fs');
 // cheap on a spinning disk and on a provider root fetched over the network.
 const HEAD_BYTES = 1024 * 1024;
 
-// Reads the first HEAD_BYTES of a file and hashes them. A file shorter than
-// that hashes whatever it has, which is why `size` is part of the fingerprint:
-// a truncated copy has the same head hash as the original but a different size.
+/**
+ * Reads the first HEAD_BYTES of a file and hashes them. A file shorter than
+ * that hashes whatever it has, which is why `size` is part of the fingerprint:
+ * a truncated copy has the same head hash as the original but a different size.
+ * @param {string} filePath Absolute path of a local file.
+ * @returns {Promise<string>} `sha1:<hex>` of the first `HEAD_BYTES`.
+ */
 async function hashHead(filePath) {
   const handle = await fs.promises.open(filePath, 'r');
   try {
@@ -35,61 +39,93 @@ async function hashHead(filePath) {
   }
 }
 
+/**
+ * Fingerprint of a local file: size, rounded mtime and head hash.
+ * @param {string} filePath Absolute path of a local file.
+ * @returns {Promise<object>} `{ size, mtime, head }`.
+ */
 async function fingerprintLocal(filePath) {
   const stat = await fs.promises.stat(filePath);
   return { size: stat.size, mtime: Math.round(stat.mtimeMs), head: await hashHead(filePath) };
 }
 
-// A provider root has no filesystem to read (docs/design/07 §4). Its listing
-// supplies an id and an etag/modified stamp, and those stand in for the
-// fingerprint — with `head: null`, which classify() treats as "no content
-// evidence", so a provider item is never relinked across refs on size alone.
+/**
+ * A provider root has no filesystem to read (docs/design/07 §4). Its listing
+ * supplies an id and an etag/modified stamp, and those stand in for the
+ * fingerprint — with `head: null`, which classify() treats as "no content
+ * evidence", so a provider item is never relinked across refs on size alone.
+ * @param {object} entry A provider listing entry.
+ * @param {string} [entry.id] The provider's item id.
+ * @param {string} [entry.etag] Its etag or modified stamp.
+ * @param {number} [entry.size] Its size in bytes.
+ * @returns {object} `{ size, mtime: null, head, providerId }`.
+ */
 function fingerprintProvider({ id, etag, size }) {
   return { size: Number.isFinite(size) ? size : null, mtime: null, head: etag ? `etag:${etag}` : null, providerId: id || null };
 }
 
-// Do two fingerprints agree about the CONTENT? mtime is deliberately not part
-// of this: it is a cheap pre-filter for deciding what to re-hash, never
-// evidence that bytes differ. A file that was copied, restored from a backup or
-// touched by a sync client has a new mtime and the same content.
+/**
+ * Do two fingerprints agree about the CONTENT? mtime is deliberately not part
+ * of this: it is a cheap pre-filter for deciding what to re-hash, never
+ * evidence that bytes differ. A file that was copied, restored from a backup or
+ * touched by a sync client has a new mtime and the same content.
+ * @param {?object} a One fingerprint.
+ * @param {?object} b The other fingerprint.
+ * @returns {boolean} True when both have content evidence and it matches.
+ */
 function sameContent(a, b) {
   if (!a || !b) return false;
   if (!a.head || !b.head) return false; // no content evidence either side
   return a.head === b.head && a.size === b.size;
 }
 
-// Whether a stored fingerprint needs re-reading before it can be trusted. Size
-// or mtime moving is the signal to go and look; it is not itself a verdict.
+/**
+ * Whether a stored fingerprint needs re-reading before it can be trusted. Size
+ * or mtime moving is the signal to go and look; it is not itself a verdict.
+ * @param {?object} stored The catalogued fingerprint.
+ * @param {?fs.Stats} stat The file's current stat.
+ * @returns {boolean} True when it must be re-hashed.
+ */
 function needsRehash(stored, stat) {
   if (!stored || !stat) return true;
   if (!stored.head) return true;
   return stored.size !== stat.size || Math.round(stat.mtimeMs) !== stored.mtime;
 }
 
-// Whether a fingerprint carries any content evidence at all. A migrated item
-// has none until its first scan, and a provider item without an etag never
-// does.
+/**
+ * Whether a fingerprint carries any content evidence at all. A migrated item
+ * has none until its first scan, and a provider item without an etag never
+ * does.
+ * @param {?object} fingerprint A fingerprint.
+ * @returns {boolean} True when it has a head hash or etag.
+ */
 function hasContentEvidence(fingerprint) {
   return !!(fingerprint && fingerprint.head);
 }
 
 // ---------- Classification ----------
-// `candidates` are existing items whose fingerprint could match `observed`.
-// Returns one of:
-//   same       the item is still at the ref it was catalogued at
-//   moved      exactly one item elsewhere has this content — safe to relink
-//   ambiguous  more than one item has this content, and they are not all the
-//              same item: a human decides, nothing moves on its own
-//   replaced   an item is catalogued at this ref, but the content there is now
-//              different. The item is NOT repointed and its metadata is NOT
-//              transferred to the new content — that is how a re-encode or a
-//              recycled filename silently inherits the wrong title otherwise.
-//   new        nothing known matches
-//
-// `presentRefs` (optional Set) is every ref the current scan actually listed. A
-// content match whose own ref is still listed has not gone anywhere: this file
-// is a second copy (a duplicate), so it is `new`, never a `moved` that would
-// repoint the original item at the copy and strand the first file.
+/**
+ * `candidates` are existing items whose fingerprint could match `observed`.
+ * Returns one of:
+ *   same       the item is still at the ref it was catalogued at
+ *   moved      exactly one item elsewhere has this content — safe to relink
+ *   ambiguous  more than one item has this content, and they are not all the
+ *              same item: a human decides, nothing moves on its own
+ *   replaced   an item is catalogued at this ref, but the content there is now
+ *              different. The item is NOT repointed and its metadata is NOT
+ *              transferred to the new content — that is how a re-encode or a
+ *              recycled filename silently inherits the wrong title otherwise.
+ *   new        nothing known matches
+ *
+ * `presentRefs` (optional Set) is every ref the current scan actually listed. A
+ * content match whose own ref is still listed has not gone anywhere: this file
+ * is a second copy (a duplicate), so it is `new`, never a `moved` that would
+ * repoint the original item at the copy and strand the first file.
+ * @param {object} observed What the scan saw: `{ ref, fingerprint }`.
+ * @param {Array<object>} [candidates=[]] Catalogued items `{ id, ref, fingerprint }` that could match.
+ * @param {?Set<string>} [presentRefs=null] Every ref the current scan listed.
+ * @returns {object} `{ kind, confidence, item?, items?, from?, to?, reason?, adopt? }`.
+ */
 function classify(observed, candidates = [], presentRefs = null) {
   const atRef = candidates.filter((item) => item.ref === observed.ref);
   const allByContent = candidates.filter((item) => sameContent(item.fingerprint, observed.fingerprint));
@@ -139,9 +175,13 @@ function classify(observed, candidates = [], presentRefs = null) {
   return { kind: 'new', confidence: 'high' };
 }
 
-// Only these two may be applied without asking. Kept as a function rather than
-// a set the caller reads, so "what relinks automatically" has exactly one
-// definition in the codebase.
+/**
+ * Only these two may be applied without asking. Kept as a function rather than
+ * a set the caller reads, so "what relinks automatically" has exactly one
+ * definition in the codebase.
+ * @param {object} result A `classify` result.
+ * @returns {boolean} True for `same` and `moved`.
+ */
 function isAutoApplicable(result) {
   return result.kind === 'same' || result.kind === 'moved';
 }
@@ -164,13 +204,22 @@ const PROVENANCE_RANK = {
   unknown: 0,
 };
 
+/**
+ * Numeric rank of a provenance name (higher wins), 0 for unknown names.
+ * @param {string} name A provenance name from `PROVENANCE_RANK`.
+ * @returns {number} Its rank.
+ */
 function provenanceRank(name) {
   return PROVENANCE_RANK[name] === undefined ? PROVENANCE_RANK.unknown : PROVENANCE_RANK[name];
 }
 
-// candidates: [{ value, provenance, editedAt, sourceKey }]. sourceKey is the
-// deterministic tiebreak — the channel number the copy came from, as a string.
-// Returns the winning candidate, or null when there is nothing to choose from.
+/**
+ * candidates: [{ value, provenance, editedAt, sourceKey }]. sourceKey is the
+ * deterministic tiebreak — the channel number the copy came from, as a string.
+ * Returns the winning candidate, or null when there is nothing to choose from.
+ * @param {Array<object>} [candidates=[]] `{ value, provenance, editedAt, sourceKey }` entries.
+ * @returns {?object} The winning candidate, or null.
+ */
 function resolveConflict(candidates = []) {
   const usable = candidates.filter((entry) => entry && entry.value !== undefined && entry.value !== null);
   if (!usable.length) return null;

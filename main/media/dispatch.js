@@ -47,32 +47,50 @@ const {
 // for providers that don't exist.
 let approvedProviders = {};
 
+/**
+ * Replaces the providerId-to-pluginId map of media-source providers that activated this boot.
+ * @param {?object} map Map of providerId to the plugin id that declared it; falsy clears it.
+ */
 function setApprovedMediaSourceProviders(map) {
   approvedProviders = map || {};
 }
 
-// A local ref is any string that doesn't match the mediasource: scheme
-// prefix — every existing config's raw local path parses as 'local' by
-// construction, so this needs no migration flag or version marker of its
-// own. `ref` (the opaque part after the second colon) can itself contain
-// colons (e.g. a Windows drive letter path, a URL) — captured greedily via
-// [\s\S]* rather than a colon-excluding class.
+/**
+ * A local ref is any string that doesn't match the mediasource: scheme
+ * prefix — every existing config's raw local path parses as 'local' by
+ * construction, so this needs no migration flag or version marker of its
+ * own. `ref` (the opaque part after the second colon) can itself contain
+ * colons (e.g. a Windows drive letter path, a URL) — captured greedily via
+ * [\s\S]* rather than a colon-excluding class.
+ * @param {string} ref A channel file path or `mediasource:<providerId>:<ref>` string.
+ * @returns {object} `{ source: 'local', path }` for a local path, else `{ source: providerId, ref }`.
+ */
 function parseMediaRef(ref) {
   const m = /^mediasource:([a-zA-Z0-9_-]+):([\s\S]*)$/.exec(ref);
   if (!m) return { source: 'local', path: ref };
   return { source: m[1], ref: m[2] };
 }
 
-// Wraps a provider's own natural, unprefixed ref (whatever list()/readRange
-// etc. work with — e.g. a WebDAV path or a Drive file id) with the
-// mediasource: scheme prefix so it round-trips through ch.files[].path and
-// back through parseMediaRef correctly. A provider author never constructs
-// this themselves — it's applied once, here, at the point a ref first
-// enters config (fs:scanFolder's non-local branch, main.js).
+/**
+ * Wraps a provider's own natural, unprefixed ref (whatever list()/readRange
+ * etc. work with — e.g. a WebDAV path or a Drive file id) with the
+ * mediasource: scheme prefix so it round-trips through ch.files[].path and
+ * back through parseMediaRef correctly. A provider author never constructs
+ * this themselves — it's applied once, here, at the point a ref first
+ * enters config (fs:scanFolder's non-local branch, main.js).
+ * @param {string} providerId The media-source provider id.
+ * @param {string} rawRef The provider's own unprefixed ref.
+ * @returns {string} The `mediasource:<providerId>:<rawRef>` string.
+ */
 function wrapMediaRef(providerId, rawRef) {
   return `mediasource:${providerId}:${rawRef}`;
 }
 
+/**
+ * Checks that a media-source provider id belongs to an approved, activated plugin.
+ * @param {string} providerId The media-source provider id.
+ * @throws {Error} When no activated plugin declares that provider.
+ */
 function assertKnownProvider(providerId) {
   if (!approvedProviders[providerId]) {
     throw new Error(`No approved, activated plugin declares media source provider "${providerId}".`);
@@ -102,21 +120,35 @@ const MEDIA_CHECK_TIMEOUT_MS = 10000;
 // multi-gigabyte structured-clone payload for an isolated plugin.
 const DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024;
 
-// `pluginServices` is the same shared object every other cross-process
-// plugin call already resolves against (main.js's `services`) — passed in
-// by each call site rather than imported, since main-media-dispatch.js has
-// no reason to hold its own reference to it.
+/**
+ * `pluginServices` is the same shared object every other cross-process
+ * plugin call already resolves against (main.js's `services`) — passed in
+ * by each call site rather than imported, since main-media-dispatch.js has
+ * no reason to hold its own reference to it.
+ * @param {object} pluginServices The shared plugin service registry.
+ * @param {string} providerId The media-source provider id.
+ * @param {string} verb One of `list`, `probe`, `readRange` or `checkAvailable`.
+ * @param {Array} args Arguments passed to the provider's service.
+ * @param {number} [timeoutMsOverride] RPC timeout for this call, in milliseconds.
+ * @returns {Promise<*>} The provider service's result.
+ * @throws {Error} When the provider is not approved and activated.
+ */
 function callMediaService(pluginServices, providerId, verb, args, timeoutMsOverride) {
   assertKnownProvider(providerId);
   return callAnyService(pluginServices, `mediaSource:${providerId}:${verb}`, args, timeoutMsOverride);
 }
 
-// Turns a ref's own trailing segment (or, for an opaque ref with no
-// path-like shape — a Drive file id, a Jellyfin item id — the caller's
-// suggested display name) into a safe local filename with a real video
-// extension. `suggestedName` already carries whatever extension a
-// path-shaped ref's basename has (setup-panels.js passes ref's own
-// basename first); this only needs to backfill one when neither has it.
+/**
+ * Turns a ref's own trailing segment (or, for an opaque ref with no
+ * path-like shape — a Drive file id, a Jellyfin item id — the caller's
+ * suggested display name) into a safe local filename with a real video
+ * extension. `suggestedName` already carries whatever extension a
+ * path-shaped ref's basename has (setup-panels.js passes ref's own
+ * basename first); this only needs to backfill one when neither has it.
+ * @param {string} ref The provider's unprefixed ref.
+ * @param {?string} suggestedName A display name offered by the caller.
+ * @returns {string} A filename with Windows-illegal characters replaced and a video extension.
+ */
 function safeDownloadFilename(ref, suggestedName) {
   const refBase = String(ref).split('/').pop() || '';
   const refExt = path.extname(refBase);
@@ -128,8 +160,13 @@ function safeDownloadFilename(ref, suggestedName) {
   return /\.[a-z0-9]{2,4}$/i.test(cleaned) ? cleaned : `${cleaned}${refExt || '.mp4'}`;
 }
 
-// Never overwrites an existing file — appends " (2)", " (3)", etc. before
-// the extension, same convention a browser's own downloads folder uses.
+/**
+ * Never overwrites an existing file — appends " (2)", " (3)", etc. before
+ * the extension, same convention a browser's own downloads folder uses.
+ * @param {string} destDir The folder the file will be written to.
+ * @param {string} filename The wanted filename.
+ * @returns {string} An absolute path in `destDir` that does not exist yet.
+ */
 function uniqueDestinationPath(destDir, filename) {
   const ext = path.extname(filename);
   const stem = filename.slice(0, filename.length - ext.length);
@@ -142,10 +179,18 @@ function uniqueDestinationPath(destDir, filename) {
   return candidate;
 }
 
-// `deps.getPluginServicesRef`/`deps.getViewerProjectionRef`/
-// `deps.getMediaBridgePort`/`deps.getMainWindow` are accessors, not raw
-// values — reassigned inside app.whenReady() well after this is called, so
-// a snapshot taken at registration time would silently stay stale forever.
+/**
+ * `deps.getPluginServicesRef`/`deps.getViewerProjectionRef`/
+ * `deps.getMediaBridgePort`/`deps.getMainWindow` are accessors, not raw
+ * values — reassigned inside app.whenReady() well after this is called, so
+ * a snapshot taken at registration time would silently stay stale forever.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} deps Accessors for values assigned after registration.
+ * @param {Function} deps.getPluginServicesRef Returns the shared plugin service registry.
+ * @param {Function} deps.getViewerProjectionRef Returns the LAN viewer projection.
+ * @param {Function} deps.getMediaBridgePort Returns the media bridge port.
+ * @param {Function} deps.getMainWindow Returns the main `BrowserWindow`.
+ */
 function registerMediaDispatchIpc(ipcMain, {
   getPluginServicesRef, getViewerProjectionRef, getMediaBridgePort, getMainWindow,
 }) {

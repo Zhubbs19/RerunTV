@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for Cast to TV: receiver scan and choice, mirror
+// source and quality, mirror or direct-file casting, stop, disconnect and auto-sync.
 window.RCBPlugins.registerPluginSettings('cast-to-tv', {
   schemaVersion: 4,
   defaults: { deviceHost: '', deviceName: '', autoSync: true, mirrorQuality: '1080p60', mirrorSource: 'app' },

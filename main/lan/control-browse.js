@@ -39,11 +39,21 @@ const MAX_ENTRIES = 2000;
 const FOLDER_KEY = /^(?:folders?|dirs?|directory|directories|roots?|[A-Za-z]*(?:Folders?|Dirs?|Directory))$/;
 const FILE_KEY = /^(?:path|file|src|[A-Za-z]*(?:Path|File))$/;
 
+/**
+ * Normalised absolute path from a config string, or null for anything else (relative, empty, `mediasource:` refs).
+ * @param {*} value A config value.
+ * @returns {?string} The normalised path, or null.
+ */
 function absolutePathOrNull(value) {
   if (typeof value !== 'string' || !value || value.includes('\0') || value.startsWith('mediasource:')) return null;
   return path.isAbsolute(value) || value.startsWith('\\') ? path.normalize(value) : null;
 }
 
+/**
+ * Directories a config refers to, found as described above.
+ * @param {object} config The config.
+ * @returns {Set<string>} Resolved directory paths.
+ */
 function rootsFromConfig(config) {
   const roots = new Set();
   const addString = (key, value) => {
@@ -62,8 +72,12 @@ function rootsFromConfig(config) {
   return roots;
 }
 
-// Explicit roots the person at the host added. Only absolute paths count; a
-// relative one would resolve against wherever the process happens to be.
+/**
+ * Explicit roots the person at the host added. Only absolute paths count; a
+ * relative one would resolve against wherever the process happens to be.
+ * @param {object} config The config.
+ * @returns {string[]} Resolved `network.controlBrowseRoots` entries.
+ */
 function configuredRoots(config) {
   const declared = config && config.network && config.network.controlBrowseRoots;
   if (!Array.isArray(declared)) return [];
@@ -72,9 +86,13 @@ function configuredRoots(config) {
     .map((entry) => path.resolve(path.normalize(entry)));
 }
 
-// The roots a control client may browse, with any root that is inside another
-// dropped — keeping both would list the same tree twice and make the top level
-// read as if there were more separate places than there are.
+/**
+ * The roots a control client may browse, with any root that is inside another
+ * dropped — keeping both would list the same tree twice and make the top level
+ * read as if there were more separate places than there are.
+ * @param {object} config The config.
+ * @returns {string[]} Sorted root directories.
+ */
 function browseRoots(config) {
   // `network.controlBrowseRoots` is an allow-list when the person at the host
   // has set one: only those trees are browsable, and a directory the lineup
@@ -91,13 +109,26 @@ function browseRoots(config) {
     .sort();
 }
 
+/**
+ * Whether a path lies inside one of the roots.
+ * @param {string[]} roots Root directories.
+ * @param {string} target Resolved path to check.
+ * @returns {boolean} True when contained.
+ */
 function withinRoots(roots, target) {
   return roots.some((root) => isPathContained(root, target));
 }
 
-// Lists one directory. `target` null means "the roots themselves", which is the
-// top level a client starts at — there is no single filesystem root here on
-// purpose, because there is no single place a lineup's media lives.
+/**
+ * Lists one directory. `target` null means "the roots themselves", which is the
+ * top level a client starts at — there is no single filesystem root here on
+ * purpose, because there is no single place a lineup's media lives.
+ * @param {object} config The config the roots come from.
+ * @param {?string} target Directory to list, or null for the roots.
+ * @param {object} [opts] Options.
+ * @param {?Set<string>} [opts.extensions=null] Lowercase file extensions to keep; null keeps every file.
+ * @returns {object} `{ path, parent, roots, entries, truncated, total? }`, or `{ error }`.
+ */
 function listDirectory(config, target, { extensions = null } = {}) {
   const roots = browseRoots(config);
   if (!target) {

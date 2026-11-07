@@ -7,18 +7,21 @@ barEl.id = 'ticker-bar';
 barEl.className = 'ticker-bar hidden';
 barEl.innerHTML = '<div class="ticker-crawl" id="ticker-crawl"></div>';
 document.querySelector('.crt').appendChild(barEl);
+// The scrolling text element inside the bar.
 const crawlEl = barEl.querySelector('.ticker-crawl');
 
-// Guest bulletin captions/announcements optionally scroll into this same
-// ticker bar (see plugins/party-channel's pushToTickerFeed, which reads
-// window.S.config.party.feedTicker/window.S.partyTickerFeed and calls
-// window.applyTickerState() same as everything else here) — shown
-// regardless of what channel is tuned, same as the static ticker itself
-// already is, so party activity stays visible even while someone's
-// watching a real channel instead of PARTY_CH. Independent of the static
-// config.ticker.text/enabled toggle: live guest content should show up
-// even if the host never set a static ticker message, and vice versa — the
-// two are just concatenated.
+/**
+ * Guest bulletin captions/announcements optionally scroll into this same
+ * ticker bar (see plugins/party-channel's pushToTickerFeed, which reads
+ * window.S.config.party.feedTicker/window.S.partyTickerFeed and calls
+ * window.applyTickerState() same as everything else here) — shown
+ * regardless of what channel is tuned, same as the static ticker itself
+ * already is, so party activity stays visible even while someone's
+ * watching a real channel instead of PARTY_CH. Independent of the static
+ * config.ticker.text/enabled toggle: live guest content should show up
+ * even if the host never set a static ticker message, and vice versa — the
+ * two are just concatenated.
+ */
 export function applyTickerState() {
   const S = window.S;
   // ch.tickerContent (per-channel override, null = inherit) lets a channel
@@ -39,9 +42,11 @@ export function applyTickerState() {
   applyTickerStyle();
 }
 
-// Look of the bar (SETTINGS › Plug-ins › Text ticker), always the box-wide
-// config.ticker whichever text a channel runs. The size is a multiplier on a
-// base that follows the screen's height, so it reads the same on 1080p and 4K.
+/**
+ * Look of the bar (SETTINGS › Plug-ins › Text ticker), always the box-wide
+ * config.ticker whichever text a channel runs. The size is a multiplier on a
+ * base that follows the screen's height, so it reads the same on 1080p and 4K.
+ */
 function applyTickerStyle() {
   const S = window.S;
   const st = (S.config && S.config.ticker) || {};

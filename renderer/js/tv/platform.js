@@ -17,13 +17,22 @@ export const TIZEN_KEYS = [
   '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Minus',
 ];
 
+/**
+ * Detects which TV browser platform this page is running on.
+ * @param {Window} win The window to inspect for platform globals.
+ * @returns {?string} `'tizen'`, `'webos'`, or null on any other browser.
+ */
 export function detectTvPlatform(win) {
   if (win && win.tizen && win.tizen.tvinputdevice) return 'tizen';
   if (win && (win.webOS || win.PalmSystem)) return 'webos';
   return null;
 }
 
-// Registers what this TV supports of TIZEN_KEYS. Returns the names registered.
+/**
+ * Registers what this TV supports of TIZEN_KEYS. Returns the names registered.
+ * @param {object} tizen The global `tizen` object.
+ * @returns {string[]} Key names that registered successfully.
+ */
 export function registerTizenKeys(tizen) {
   const device = tizen && tizen.tvinputdevice;
   if (!device) return [];
@@ -41,7 +50,16 @@ export function registerTizenKeys(tizen) {
   return registered;
 }
 
-// hooks: { standby(), wake() }
+/**
+ * Sets up the detected TV platform: registers Tizen keys and follows page visibility into standby.
+ * hooks: { standby(), wake() }
+ * @param {Window} win The window to inspect for platform globals.
+ * @param {Document} doc The document whose visibility changes drive standby.
+ * @param {object} hooks Standby callbacks.
+ * @param {Function} hooks.standby Called when the page goes hidden.
+ * @param {Function} hooks.wake Called when the page becomes visible again.
+ * @returns {?string} The platform installed (`'tizen'` or `'webos'`), or null if none.
+ */
 export function installTvPlatform(win, doc, hooks) {
   const platform = detectTvPlatform(win);
   if (!platform) return null;

@@ -22,9 +22,13 @@ const CEC_CODES = {
   0x71: 'blue', 0x72: 'red', 0x73: 'green', 0x74: 'yellow',
 };
 
-// One line of cec-client output → { key, code } for a press, or null.
-// Presses look like "... key pressed: channel up (30)"; releases and every
-// other log line are ignored (repeats arrive as further "pressed" lines).
+/**
+ * One line of cec-client output → { key, code } for a press, or null.
+ * Presses look like "... key pressed: channel up (30)"; releases and every
+ * other log line are ignored (repeats arrive as further "pressed" lines).
+ * @param {string} line One line of output.
+ * @returns {?object} `{ key, code, name }` for a mapped press, else null.
+ */
 function parseCecLine(line) {
   const match = /key pressed:\s*(.+?)\s*\(([0-9a-f]+)\)/i.exec(String(line || ''));
   if (!match) return null;
@@ -33,8 +37,17 @@ function parseCecLine(line) {
   return key ? { key, code, name: match[1].trim() } : null;
 }
 
-// Starts cec-client and calls onKey({ key, code }) for each press. Returns
-// stop(). Missing cec-client is reported once through onError, not thrown.
+/**
+ * Starts cec-client and calls onKey({ key, code }) for each press. Returns
+ * stop(). Missing cec-client is reported once through onError, not thrown.
+ * @param {object} [opts] Options.
+ * @param {Function} opts.onKey Called with `{ key, code, name }` per press.
+ * @param {Function} [opts.onError] Called with an error when cec-client can't start or exits.
+ * @param {string} [opts.command='cec-client'] The program to run.
+ * @param {string[]} [opts.args] Its arguments.
+ * @param {Function} [opts.spawn] `child_process.spawn` replacement for tests.
+ * @returns {Function} Stops the helper.
+ */
 function startCecHelper({ onKey, onError = () => {}, command = 'cec-client', args = ['-d', '1'], spawn = nodeSpawn } = {}) {
   let child;
   try {

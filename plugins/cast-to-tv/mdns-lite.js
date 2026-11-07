@@ -12,17 +12,27 @@ const MDNS_ADDRESS = '224.0.0.251';
 const MDNS_PORT = 5353;
 const SERVICE = '_googlecast._tcp.local';
 
+/**
+ * Encodes a dotted DNS name as length-prefixed labels.
+ * @param {string} name The name, with or without a trailing dot.
+ * @returns {Buffer} The wire-format name.
+ */
 function encodeName(name) {
   const labels = name.replace(/\.$/, '').split('.');
   const parts = labels.map((l) => Buffer.concat([Buffer.from([l.length]), Buffer.from(l, 'utf8')]));
   return Buffer.concat([...parts, Buffer.from([0])]);
 }
 
-// Decodes a DNS name starting at `offset`, following RFC 1035 pointer
-// compression (a 0xC0-prefixed 2-byte offset back into the packet).
-// Returns { name, next } where `next` is the offset just past this name in
-// the ORIGINAL (unfollowed) position — i.e. where the caller should resume
-// reading the rest of the record.
+/**
+ * Decodes a DNS name starting at `offset`, following RFC 1035 pointer
+ * compression (a 0xC0-prefixed 2-byte offset back into the packet).
+ * Returns { name, next } where `next` is the offset just past this name in
+ * the ORIGINAL (unfollowed) position — i.e. where the caller should resume
+ * reading the rest of the record.
+ * @param {Buffer} buf The whole packet.
+ * @param {number} offset Where the name starts.
+ * @returns {object} `{ name, next }`.
+ */
 function decodeName(buf, offset) {
   const labels = [];
   let pos = offset;
@@ -44,6 +54,10 @@ function decodeName(buf, offset) {
   return { name: labels.join('.'), next: afterFirstPointer };
 }
 
+/**
+ * Builds a one-question mDNS PTR query for the Cast service.
+ * @returns {Buffer} The query packet.
+ */
 function buildPtrQuery() {
   const header = Buffer.alloc(12); // id=0, flags=0 (standard query), qdcount=1
   header.writeUInt16BE(1, 4);
@@ -55,9 +69,13 @@ function buildPtrQuery() {
   return Buffer.concat([header, question]);
 }
 
-// Parses one mDNS response packet, folding any PTR/SRV/A/TXT records it
-// contains into `state` (mutated in place — a device's SRV/A/TXT records
-// routinely arrive in separate packets, not all in one).
+/**
+ * Parses one mDNS response packet, folding any PTR/SRV/A/TXT records it
+ * contains into `state` (mutated in place — a device's SRV/A/TXT records
+ * routinely arrive in separate packets, not all in one).
+ * @param {Buffer} buf The response packet.
+ * @param {object} state The scan state `{ instances, addresses, txt }`, updated in place.
+ */
 function parseResponse(buf, state) {
   if (buf.length < 12) return;
   const ancount = buf.readUInt16BE(6);
@@ -109,6 +127,11 @@ function parseResponse(buf, state) {
   }
 }
 
+/**
+ * Turns the collected records into devices that have a port, a target and an address.
+ * @param {object} state The scan state `{ instances, addresses, txt }`.
+ * @returns {Array<object>} `{ name, host, port }` for each device.
+ */
 function buildDeviceList(state) {
   const devices = [];
   for (const [instanceName, info] of Object.entries(state.instances)) {
@@ -122,21 +145,27 @@ function buildDeviceList(state) {
   return devices;
 }
 
-// Broadcasts a PTR query for _googlecast._tcp.local and collects responses
-// for `timeoutMs`, resolving with whatever devices were assembled from
-// PTR+SRV+A(+TXT) records seen in that window. Devices already on the
-// network typically respond within a few hundred ms of the query, so the
-// default window is generous mainly for a device that's mid-boot.
-//
-// `interfaces`: local IPv4 addresses to join the multicast group on (pass
-// ctx.getLanAddresses().map(c => c.address) from main.js) — on a machine
-// with more than one network adapter (a VPN, a virtualization host-only
-// adapter, etc.), joining with no interface specified lets the OS pick
-// whichever default multicast route it likes, which is routinely NOT the
-// real LAN adapter the Chromecast is actually on. Found live: a socket
-// joined that way received zero mDNS traffic even after 6+ seconds on a
-// network with normal chatter, while explicitly joining the real Wi-Fi
-// adapter's address received responses within milliseconds.
+/**
+ * Broadcasts a PTR query for _googlecast._tcp.local and collects responses
+ * for `timeoutMs`, resolving with whatever devices were assembled from
+ * PTR+SRV+A(+TXT) records seen in that window. Devices already on the
+ * network typically respond within a few hundred ms of the query, so the
+ * default window is generous mainly for a device that's mid-boot.
+ *
+ * `interfaces`: local IPv4 addresses to join the multicast group on (pass
+ * ctx.getLanAddresses().map(c => c.address) from main.js) — on a machine
+ * with more than one network adapter (a VPN, a virtualization host-only
+ * adapter, etc.), joining with no interface specified lets the OS pick
+ * whichever default multicast route it likes, which is routinely NOT the
+ * real LAN adapter the Chromecast is actually on. Found live: a socket
+ * joined that way received zero mDNS traffic even after 6+ seconds on a
+ * network with normal chatter, while explicitly joining the real Wi-Fi
+ * adapter's address received responses within milliseconds.
+ * @param {object} [opts] Scan options.
+ * @param {number} [opts.timeoutMs=4000] How long to collect responses.
+ * @param {string[]} [opts.interfaces=[]] Local IPv4 addresses to join the multicast group on.
+ * @returns {Promise<Array<object>>} The devices found, as `{ name, host, port }`; never rejects.
+ */
 function discoverCastDevices({ timeoutMs = 4000, interfaces = [] } = {}) {
   return new Promise((resolve) => {
     const state = { instances: {}, addresses: {}, txt: {} };

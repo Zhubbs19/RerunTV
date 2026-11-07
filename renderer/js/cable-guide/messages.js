@@ -13,10 +13,20 @@ import { showUpdatePrompt, updateReadyVersion } from '../update/notice.js';
 import { guideRange } from './model.js';
 import { openCgPage, setMessageCounter } from './page.js';
 
+/**
+ * Formats a timestamp as `M/D`.
+ * @param {number} t Epoch milliseconds.
+ * @returns {string} Month and day.
+ */
 const monthDay = (t) => `${new Date(t).getMonth() + 1}/${new Date(t).getDate()}`;
 
-// Reminders keep to the real clock (guide.js): they are appointments in the
-// world, so the time machine neither fires nor hides them.
+/**
+ * Lists the downloaded update first, then pending reminders by start time.
+ * Reminders keep to the real clock (guide.js): they are appointments in the
+ * world, so the time machine neither fires nor hides them.
+ * @param {number} [now=Date.now()] The real-clock time to judge reminders against.
+ * @returns {Array<object>} Messages (`kind`, `date`, `title`, `body`, and for a reminder `reminder` and `onNow`).
+ */
 export function messageList(now = Date.now()) {
   const clock24 = !!(S.config.display && S.config.display.clock24);
   const items = [];
@@ -42,12 +52,20 @@ export function messageList(now = Date.now()) {
   return items;
 }
 
+/**
+ * Counts the messages the header envelope shows.
+ * @returns {number} The number of messages.
+ */
 export function messageCount() {
   return messageList().length;
 }
 
 setMessageCounter(messageCount);
 
+/**
+ * Opens the Message Center page.
+ * @returns {object} The open page, as returned by `openCgPage`.
+ */
 export function openMessagesPage() {
   let items = messageList();
   return openCgPage({

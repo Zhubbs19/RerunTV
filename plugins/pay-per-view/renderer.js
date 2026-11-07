@@ -11,15 +11,26 @@ const PPV_PARODY_EVENTS = [
   { title: 'EVENT #405: EXTREME MICROWAVE POPCORN CHAMPIONSHIP', price: '$14.95' },
 ];
 
-// SETTINGS › Plug-ins › Pay-per-view can replace the parody lineup, change how
-// often the featured event changes, and how long an order unscrambles for.
+/**
+ * SETTINGS › Plug-ins › Pay-per-view can replace the parody lineup, change how
+ * often the featured event changes, and how long an order unscrambles for.
+ * @returns {object} This plugin's settings, or an empty object.
+ */
 function ppvSettings() {
   return (window.RCBPlugins.ctx.getPluginSettings && window.RCBPlugins.ctx.getPluginSettings('pay-per-view')) || {};
 }
+/**
+ * The event lineup: the user's titled events from settings, or the built-in parody list.
+ * @returns {Array<object>} Events as `{ title, price }`.
+ */
 function ppvEvents() {
   const custom = (ppvSettings().events || []).filter((e) => e && String(e.title || '').trim());
   return custom.length ? custom : PPV_PARODY_EVENTS;
 }
+/**
+ * How long an order stays unscrambled, from settings, bounded to 5 to 600 seconds.
+ * @returns {number} Seconds; 30 by default.
+ */
 function unscrambleSeconds() {
   const n = Number(ppvSettings().unscrambleSeconds);
   return Number.isFinite(n) ? Math.min(600, Math.max(5, n)) : 30;
@@ -29,12 +40,19 @@ let ppvEventIdx = 0;
 let ppvUnscrambledUntil = 0;
 let currentContainer = null;
 
+/**
+ * Unscrambles the picture while an order's paid window is still open.
+ * The window is a real-time purchase timer, so this reads `Date.now()`.
+ */
 function updateScrambleState() {
   if (!currentContainer) return;
   const overlay = currentContainer.querySelector('[data-el="scramble"]');
   if (overlay) overlay.classList.toggle('unscrambled', Date.now() < ppvUnscrambledUntil);
 }
 
+/**
+ * Opens the order confirmation modal for the featured event.
+ */
 function openOrderModal() {
   if (!currentContainer) return;
   const event = ppvEvents()[ppvEventIdx] || ppvEvents()[0];
@@ -43,16 +61,25 @@ function openOrderModal() {
   currentContainer.querySelector('[data-el="modal"]').classList.remove('hidden');
 }
 
+/**
+ * Closes the order confirmation modal.
+ */
 function closeOrderModal() {
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="modal"]').classList.add('hidden');
 }
 
+/**
+ * Closes the order success modal.
+ */
 function closeSuccessModal() {
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="success-modal"]').classList.add('hidden');
 }
 
+/**
+ * Completes an order: plays the confirm sound, opens the unscrambled window and shows the success modal.
+ */
 function confirmOrder() {
   closeOrderModal();
   window.playPurchaseConfirmSound();
@@ -65,8 +92,12 @@ function confirmOrder() {
   currentContainer.querySelector('[data-el="success-modal"]').classList.remove('hidden');
 }
 
-// Event titles and prices are free text from settings, so they are escaped
-// before going into the template below.
+/**
+ * Event titles and prices are free text from settings, so they are escaped
+ * before going into the template below.
+ * @param {*} value The text to escape; null and undefined become empty.
+ * @returns {string} HTML-safe text.
+ */
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

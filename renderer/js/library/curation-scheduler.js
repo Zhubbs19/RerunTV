@@ -28,6 +28,10 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000;
 const INITIAL_CHECK_DELAY_MS = 20 * 1000; // let boot/plugin-load settle first
 
 let toastTimer = null;
+/**
+ * Shows a short-lived toast on screen.
+ * @param {string} text The toast text.
+ */
 function showCurationToast(text) {
   if (!funToastEl) return;
   funToastEl.textContent = text;
@@ -35,22 +39,33 @@ function showCurationToast(text) {
   toastTimer = autoHideAfter(toastTimer, 6000, () => funToastEl.classList.remove('show'));
 }
 
+/**
+ * Tells whether a scheduled curation profile is due to run.
+ * @param {object} profile The curation profile.
+ * @param {number} now The current real time, epoch ms.
+ * @returns {boolean} True when it is scheduled and its interval has passed.
+ */
 export function isDue(profile, now) {
   if (profile.regenerationMode !== 'scheduled') return false;
   const intervalMs = SCHEDULE_INTERVAL_MS[profile.scheduleInterval] || SCHEDULE_INTERVAL_MS.weekly;
   return !profile.lastRunAt || now - profile.lastRunAt >= intervalMs;
 }
 
+/**
+ * @returns {boolean} True while the setup screen is showing.
+ */
 function setupVisible() {
   return !!(setupScreen && !setupScreen.classList.contains('hidden'));
 }
 
-// Runs every due scheduled profile once. lastRunAt always advances for a
-// due profile regardless of outcome, so a profile that matches nothing (or
-// whose target channel was deleted) doesn't get retried on every single
-// check tick until its next real interval boundary — same "don't spin on a
-// no-op" reasoning as the manual wizard disabling APPLY when there's
-// nothing to add (setup-autocurate.js).
+/**
+ * Runs every due scheduled profile once. lastRunAt always advances for a
+ * due profile regardless of outcome, so a profile that matches nothing (or
+ * whose target channel was deleted) doesn't get retried on every single
+ * check tick until its next real interval boundary — same "don't spin on a
+ * no-op" reasoning as the manual wizard disabling APPLY when there's
+ * nothing to add (setup-autocurate.js).
+ */
 export function runScheduledCuration() {
   const profiles = S.config.curationProfiles || [];
   // Deliberately Date.now(), not viewNow() — a scheduled background

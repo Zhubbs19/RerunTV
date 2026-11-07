@@ -6,9 +6,28 @@ import { getDisplayTitle } from '../core/util.js';
 
 export const DVR_WINDOW_DAYS = 14;
 
+/**
+ * Returns the identity a series recording rule matches a file on.
+ * @param {object} file A playlist entry.
+ * @returns {?string} The series id or name, else the item id, else `null`.
+ */
 function seriesKey(file) { return (file.series && (file.series.id || file.series.name)) || file.item || null; }
+/**
+ * Returns a key unique to one airing.
+ * @param {object} channel The channel config.
+ * @param {object} entry A schedule entry.
+ * @returns {string} The key.
+ */
 function airingKey(channel, entry) { return `${channel.number}|${entry.start}|${entry.end}|${entry.file.item || entry.file.path}`; }
 
+/**
+ * Expands recording requests into the airings they match in a window.
+ * @param {Array<object>} requests The profile's recording requests; disabled ones are skipped.
+ * @param {Array<object>} channels Channel configs.
+ * @param {number} from Window start, epoch ms.
+ * @param {number} [to] Window end, epoch ms; defaults to `DVR_WINDOW_DAYS` after `from`.
+ * @returns {Array<object>} `{ key, requestId, channel, start, end, title, breaks }`, by start time.
+ */
 export function expandRecordingRequests(requests, channels, from, to = from + DVR_WINDOW_DAYS * 86400000) {
   const airings = [];
   const seen = new Set();
@@ -35,6 +54,12 @@ export function expandRecordingRequests(requests, channels, from, to = from + DV
   return airings.sort((a, b) => a.start - b.start || a.channel - b.channel);
 }
 
+/**
+ * Finds the airings that would need more tuners than the limit.
+ * @param {Array<object>} airings Airings from `expandRecordingRequests`.
+ * @param {number} [tunerLimit=0] Simultaneous recordings allowed; below 1 means no limit.
+ * @returns {Array<object>} The airings that don't fit.
+ */
 export function recordingConflicts(airings, tunerLimit = 0) {
   if (!Number.isInteger(tunerLimit) || tunerLimit < 1) return [];
   return (airings || []).filter((airing, index, all) => {

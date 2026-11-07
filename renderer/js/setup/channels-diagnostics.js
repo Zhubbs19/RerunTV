@@ -23,10 +23,13 @@ import { S, viewNow, commitConfigPatch } from '../core/state.js';
 import { formatSlotLabel, getDisplayTitle, titleNeedsMetadata } from '../core/util.js';
 
 // ---------- Cross-channel NOW/NEXT dashboard ----------
-// Reuses the exact same getChannelSchedule() call a program-guide-style
-// channel plugin already uses for its own now/next marquee — a
-// glance-at-everything view from inside setup, without paging through the
-// full guide or every channel row individually.
+/**
+ * Fills the NOW/NEXT dashboard with one row per channel: what airs now and what airs next.
+ * Reuses the exact same getChannelSchedule() call a program-guide-style
+ * channel plugin already uses for its own now/next marquee — a
+ * glance-at-everything view from inside setup, without paging through the
+ * full guide or every channel row individually.
+ */
 function renderNowNextDashboard() {
   nowNextRowsEl.innerHTML = '';
   sortedChannels().forEach((ch) => {
@@ -62,23 +65,36 @@ nowNextToggleBtn.addEventListener('click', () => {
   if (opening) renderNowNextDashboard();
 });
 // ---------- Channel health check ----------
-// A fast, box-wide complement to the existing per-channel FIX PLAYBACK
-// (which decode-probes one channel's files at a time to catch bad codecs) —
-// this instead does a cheap existence-only check across every channel's
-// files at once (a moved/renamed/deleted file never triggers a codec error,
-// it just silently becomes unreachable), plus flags config-level dangling
-// references that only surface today as confusing runtime behavior: an ad
-// preset OR pool entry whose contentTags never match any real content
-// anywhere (collectRealContentTags, setup-util.js — file tags plus channel-
-// level contentTags) will simply never fire, REGARDLESS of channel/block
-// scope also being set — resolveActiveCommercials/poolFor (schedule.js/
-// interstitials.js) both require an actual tag overlap whenever contentTags
-// is set at all, so a channel scope narrows WHEN an entry could fire, it
-// doesn't substitute for the tag match. (This is exactly the failure mode
-// that broke jump-to-break on a real channel: 30 pool entries scoped to one
-// channel via channelAffinity, but ALSO tagged with a contentTag nothing on
-// that channel carried — silently dead, not just narrowed.) Also flags pool
-// entries still targeting a channel/block that no longer exists.
+/**
+ * Renders the channel health check's findings into the results panel.
+ * A fast, box-wide complement to the existing per-channel FIX PLAYBACK
+ * (which decode-probes one channel's files at a time to catch bad codecs) —
+ * this instead does a cheap existence-only check across every channel's
+ * files at once (a moved/renamed/deleted file never triggers a codec error,
+ * it just silently becomes unreachable), plus flags config-level dangling
+ * references that only surface today as confusing runtime behavior: an ad
+ * preset OR pool entry whose contentTags never match any real content
+ * anywhere (collectRealContentTags, setup-util.js — file tags plus channel-
+ * level contentTags) will simply never fire, REGARDLESS of channel/block
+ * scope also being set — resolveActiveCommercials/poolFor (schedule.js/
+ * interstitials.js) both require an actual tag overlap whenever contentTags
+ * is set at all, so a channel scope narrows WHEN an entry could fire, it
+ * doesn't substitute for the tag match. (This is exactly the failure mode
+ * that broke jump-to-break on a real channel: 30 pool entries scoped to one
+ * channel via channelAffinity, but ALSO tagged with a contentTag nothing on
+ * that channel carried — silently dead, not just narrowed.) Also flags pool
+ * entries still targeting a channel/block that no longer exists.
+ * @param {object} results The check's findings.
+ * @param {Map<number, Set<string>>} results.missingByChannel Missing file paths keyed by channel number.
+ * @param {Map<string, object>} results.missingFolderGroups Missing local paths grouped by folder id, as `{ entry, paths }`.
+ * @param {Array<object>} results.orphanedPresets Enabled ad presets whose content tags match nothing.
+ * @param {Array<object>} results.orphanedPoolEntries Pool entries whose content tags match nothing.
+ * @param {Array<object>} results.danglingPoolEntries Pool entries targeting a channel or block that no longer exists.
+ * @param {Array<object>} results.missingPoolEntries `{ path, entry }` pool files that no longer exist.
+ * @param {Array<object>} results.duplicateFiles `{ path, channels }` paths assigned to more than one channel.
+ * @param {Map<number, Array<object>>} results.metadataByChannel Files with suspicious fallback titles, keyed by channel number.
+ * @param {boolean} [results.fileCheckFailed=false] True when the file-existence check itself failed.
+ */
 function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel, fileCheckFailed = false }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
@@ -243,6 +259,10 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
   }
 }
 
+/**
+ * Runs the channel health check with a progress task shown, and renders the results.
+ * @returns {Promise<number>} The total number of issues found.
+ */
 export async function checkChannelHealth() {
   const task = beginTask('CHECKING CHANNEL FILES…');
   try {
@@ -252,6 +272,10 @@ export async function checkChannelHealth() {
   }
 }
 
+/**
+ * Runs the health check with its button disabled for the duration.
+ * @returns {Promise<number>} The total number of issues found.
+ */
 async function runChannelHealthCheck() {
   healthCheckBtn.disabled = true;
   try {
@@ -261,6 +285,10 @@ async function runChannelHealthCheck() {
   }
 }
 
+/**
+ * Does the health check: checks every channel, block and pool file exists, then collects config-level dangling references and renders them.
+ * @returns {Promise<number>} The total number of issues found.
+ */
 async function runChannelHealthCheckInner() {
   healthCheckResultsEl.classList.remove('hidden');
   healthCheckResultsEl.innerHTML = '<div class="health-check-summary">SCANNING…</div>';
@@ -377,12 +405,11 @@ async function runChannelHealthCheckInner() {
 healthCheckBtn.addEventListener('click', () => checkChannelHealth());
 
 // ---------- Combined "BOX STATUS" summary (PERFORMANCE tab) ----------
-// Pulls together three things that otherwise lived in three separate tabs
-// (channel/file counts from CHANNELS, backup status from AUDIO & SYSTEM,
-// health-check issues from CHANNELS) into one glanceable summary — the
-// issue count is left blank until RUN HEALTH CHECK is actually clicked
-// (it's a real IPC round-trip per file path, not free) rather than firing
-// automatically every time this tab is opened.
+/**
+ * Describes a backup's age compactly ("JUST NOW", "5m AGO", "3h AGO", "2d AGO").
+ * @param {number} mtimeMs The backup's modification time in epoch milliseconds.
+ * @returns {string} The age text.
+ */
 function formatBackupAge(mtimeMs) {
   const mins = Math.round((Date.now() - mtimeMs) / 60000);
   if (mins < 1) return 'JUST NOW';
@@ -392,6 +419,14 @@ function formatBackupAge(mtimeMs) {
   return `${Math.round(hours / 24)}d AGO`;
 }
 
+/**
+ * Pulls together three things that otherwise lived in three separate tabs
+ * (channel/file counts from CHANNELS, backup status from AUDIO & SYSTEM,
+ * health-check issues from CHANNELS) into one glanceable summary — the
+ * issue count is left blank until RUN HEALTH CHECK is actually clicked
+ * (it's a real IPC round-trip per file path, not free) rather than firing
+ * automatically every time this tab is opened.
+ */
 export function renderBoxStatus() {
   if (!boxStatusChannelsEl) return;
   boxStatusChannelsEl.textContent = String(S.config.channels.length);

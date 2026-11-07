@@ -13,44 +13,72 @@ import { addDays, explainLayers } from '../core/schedule-query.js';
 import { S } from '../core/state.js';
 import { mapFitAir, plainFileEntry } from '../core/fit.js';
 
-// Local wall-clock hour `h` of the day starting at dayStart. setHours, not ms
-// arithmetic, so a DST day's hours land where the resolvers put them.
+/**
+ * Local wall-clock hour `h` of the day starting at dayStart. setHours, not ms
+ * arithmetic, so a DST day's hours land where the resolvers put them.
+ * @param {number} dayStart Local midnight of the day (ms).
+ * @param {number} h The hour, 0-24.
+ * @returns {number} The instant (ms).
+ */
 export function hourAt(dayStart, h) {
   const d = new Date(dayStart);
   d.setHours(h, 0, 0, 0);
   return d.getTime();
 }
 
+/**
+ * Makes a fresh id for a block created from the timeline.
+ * @returns {string} An id like `blk-xxxxxxxx`.
+ */
 export function randomTimelineBlockId() {
   return `blk-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * Tests whether a block has files to play.
+ * @param {?object} block The schedule block.
+ * @returns {boolean} True when it has at least one file.
+ */
 function hasContent(block) {
   return !!(block && block.files && block.files.length);
 }
 
+/**
+ * Tests whether a trigger names a start and end hour that differ.
+ * @param {?object} trigger A block trigger.
+ * @returns {boolean} True when it has an hour range.
+ */
 function hasHours(trigger) {
   return trigger && trigger.startHour != null && trigger.endHour != null && trigger.startHour !== trigger.endHour;
 }
 
-// Whether a block's hours are something the timeline can drag: a time block,
-// or a date-range block narrowed to hours. A date range that runs all day has
-// no hour edges.
+/**
+ * Whether a block's hours are something the timeline can drag: a time block,
+ * or a date-range block narrowed to hours. A date range that runs all day has
+ * no hour edges.
+ * @param {?object} block The schedule block.
+ * @returns {boolean} True when its hours can be dragged.
+ */
 export function blockHasHourEdges(block) {
   if (!block || !block.trigger) return false;
   if (block.trigger.type === 'dateRange') return hasHours(block.trigger);
   return hasHours(block.trigger);
 }
 
-// The lane drawn above one day's programs: which block owns each hour, merged
-// into spans. The owner is the block playback would use (resolveActiveSource),
-// or, where only a block with no content matches, that block flagged empty so
-// "exists but won't air" stays visible. Stretches with no owner are the
-// default lineup and aren't listed.
-//
-// Returns [{ block, start, end, empty, startEdge, endEdge }] where startEdge /
-// endEdge say that edge of the span is the block's own start/end hour (and so
-// draggable), not just where a higher block covers it or the day ends.
+/**
+ * The lane drawn above one day's programs: which block owns each hour, merged
+ * into spans. The owner is the block playback would use (resolveActiveSource),
+ * or, where only a block with no content matches, that block flagged empty so
+ * "exists but won't air" stays visible. Stretches with no owner are the
+ * default lineup and aren't listed.
+ * 
+ * Returns [{ block, start, end, empty, startEdge, endEdge }] where startEdge /
+ * endEdge say that edge of the span is the block's own start/end hour (and so
+ * draggable), not just where a higher block covers it or the day ends.
+ * @param {object} ch The channel config.
+ * @param {number} dayStart Local midnight of the day (ms).
+ * @returns {Array<object>} The block spans.
+ */
 export function blockSpansForDay(ch, dayStart) {
   const dayEnd = addDays(dayStart, 1);
   const spans = [];
@@ -83,10 +111,17 @@ export function blockSpansForDay(ch, dayStart) {
 
 // ---------- Creating a block from a dragged span ----------
 
-// Priority a new standing block needs to win its hours on that weekday: one
-// above every time block that could air there. Date-range blocks (holiday
-// specials, default priority 10) are left above it on purpose — a new weekly
-// slot shouldn't bury next December's takeover.
+/**
+ * Priority a new standing block needs to win its hours on that weekday: one
+ * above every time block that could air there. Date-range blocks (holiday
+ * specials, default priority 10) are left above it on purpose — a new weekly
+ * slot shouldn't bury next December's takeover.
+ * @param {object} ch The channel config.
+ * @param {number} weekday The weekday, 0 = Sunday.
+ * @param {number} startHour The new block's start hour.
+ * @param {number} endHour The new block's end hour.
+ * @returns {number} The priority to give it.
+ */
 export function priorityToWin(ch, weekday, startHour, endHour) {
   const probe = { startHour, endHour };
   const overlapping = (ch.blocks || []).filter((b) => {
@@ -100,11 +135,24 @@ export function priorityToWin(ch, weekday, startHour, endHour) {
   return Math.max(...overlapping.map((b) => b.priority || 0)) + 1;
 }
 
-// { name, files, folder } come from the source picker. `anchorMs` is when the
-// content starts counting; the view passes Date.now(), the same real-time
-// anchor the BLOCKS folder picker records (CLAUDE.md: anchors are one of the
-// deliberate Date.now() exceptions).
-// `id` lets a preview and the final edit build the same block (its id seeds ad picks).
+/**
+ * { name, files, folder } come from the source picker. `anchorMs` is when the
+ * content starts counting; the view passes Date.now(), the same real-time
+ * anchor the BLOCKS folder picker records (CLAUDE.md: anchors are one of the
+ * deliberate Date.now() exceptions).
+ * `id` lets a preview and the final edit build the same block (its id seeds ad picks).
+ * @param {object} ch The channel config.
+ * @param {object} spec The new block.
+ * @param {number} spec.dayStart Local midnight of the day dragged on (ms).
+ * @param {number} spec.startHour The start hour.
+ * @param {number} spec.endHour The end hour; 24 means midnight.
+ * @param {string} spec.name The block name.
+ * @param {Array<object>} spec.files The file entries; copied.
+ * @param {?string} [spec.folder=null] The folder the files came from.
+ * @param {number} spec.anchorMs When the content starts counting (real time).
+ * @param {string} [spec.id] The block id; a fresh one by default.
+ * @returns {object} A `block.create` command.
+ */
 export function createBlockCommand(ch, { dayStart, startHour, endHour, name, files, folder = null, anchorMs, id = randomTimelineBlockId() }) {
   const weekday = new Date(dayStart).getDay();
   const block = {
@@ -126,8 +174,14 @@ export function createBlockCommand(ch, { dayStart, startHour, endHour, name, fil
 
 // ---------- Dragging a span's edges and chip ----------
 
-// The hours a block would have with one edge moved to `hour` (0–24). Returns
-// null when that would leave it empty or covering the whole day by accident.
+/**
+ * The hours a block would have with one edge moved to `hour` (0–24). Returns
+ * null when that would leave it empty or covering the whole day by accident.
+ * @param {object} block The schedule block.
+ * @param {string} edge `'start'` or `'end'`.
+ * @param {number} hour The new hour for that edge.
+ * @returns {?object} `{ startHour, endHour }`, or null.
+ */
 export function resizedHours(block, edge, hour) {
   const t = block.trigger;
   const h = ((Math.round(hour) % 24) + 24) % 24;
@@ -137,6 +191,14 @@ export function resizedHours(block, edge, hour) {
   return { startHour, endHour };
 }
 
+/**
+ * Builds the command that moves one edge of a block's hours.
+ * @param {object} ch The channel config.
+ * @param {object} block The schedule block.
+ * @param {string} edge `'start'` or `'end'`.
+ * @param {number} hour The new hour for that edge.
+ * @returns {?object} A `block.setHours` command, or null when nothing would change.
+ */
 export function resizeCommand(ch, block, edge, hour) {
   const hours = resizedHours(block, edge, hour);
   if (!hours) return null;
@@ -144,15 +206,28 @@ export function resizeCommand(ch, block, edge, hour) {
   return { type: 'block.setHours', channel: ch.number, id: block.id, ...hours };
 }
 
-// A block's colour chip dropped on another day's row: add that weekday. Only a
-// block that already names its days can gain one (an every-day block already
-// airs there, and a plain date range has no weekdays to add to).
+/**
+ * A block's colour chip dropped on another day's row: add that weekday. Only a
+ * block that already names its days can gain one (an every-day block already
+ * airs there, and a plain date range has no weekdays to add to).
+ * @param {object} ch The channel config.
+ * @param {object} block The schedule block.
+ * @param {number} weekday The weekday to add, 0 = Sunday.
+ * @returns {?object} A `block.setDays` command, or null.
+ */
 export function copyToWeekdayCommand(ch, block, weekday) {
   const days = block.trigger && block.trigger.days;
   if (!days || !days.length || days.includes(weekday)) return null;
   return { type: 'block.setDays', channel: ch.number, id: block.id, days: [...days, weekday] };
 }
 
+/**
+ * Builds the command that takes one weekday off a block. A block left with no day is not allowed.
+ * @param {object} ch The channel config.
+ * @param {object} block The schedule block.
+ * @param {number} weekday The weekday to remove, 0 = Sunday.
+ * @returns {?object} A `block.setDays` command, or null when that day is not on it or is its only day.
+ */
 export function removeWeekdayCommand(ch, block, weekday) {
   const t = block.trigger;
   const days = t.days && t.days.length ? t.days : [0, 1, 2, 3, 4, 5, 6];
@@ -162,8 +237,13 @@ export function removeWeekdayCommand(ch, block, weekday) {
 
 // ---------- One airing: "Only this day", "Replace with…" ----------
 
-// The hours an exception for a program needs: the hour it starts in, through
-// the hour it ends in (triggers are whole hours), kept inside its own day.
+/**
+ * The hours an exception for a program needs: the hour it starts in, through
+ * the hour it ends in (triggers are whole hours), kept inside its own day.
+ * @param {object} program The schedule entry, with `start` and `end`.
+ * @param {number} dayStart Local midnight of the day (ms).
+ * @returns {object} `{ startHour, endHour }`; an airing that runs past midnight ends at 0.
+ */
 export function programHours(program, dayStart) {
   const dayEnd = addDays(dayStart, 1);
   const start = Math.max(program.start, dayStart);
@@ -175,15 +255,29 @@ export function programHours(program, dayStart) {
   return { startHour, endHour: endHour % 24 };
 }
 
+/**
+ * Finds the highest priority of the blocks matching an instant, at least 10.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant (ms).
+ * @returns {number} The priority.
+ */
 function topPriorityAt(ch, atMs) {
   return Math.max(10, ...(ch.blocks || []).filter((b) => matchesTrigger(atMs, b)).map((b) => b.priority || 0));
 }
 
-// A date-range block covering one date and the program's hours, above
-// everything that matches there, so the edit reaches only that airing's slot.
-// `source` is { name, files, folder, anchorMs } for a replacement, or omitted
-// for "Only this day", which copies what airs now (files and anchor alike, so
-// nothing changes until the copy is edited).
+/**
+ * A date-range block covering one date and the program's hours, above
+ * everything that matches there, so the edit reaches only that airing's slot.
+ * `source` is { name, files, folder, anchorMs } for a replacement, or omitted
+ * for "Only this day", which copies what airs now (files and anchor alike, so
+ * nothing changes until the copy is edited).
+ * @param {object} ch The channel config.
+ * @param {object} program The schedule entry being changed.
+ * @param {number} dayStart Local midnight of its day (ms).
+ * @param {?object} [source=null] The replacement, or null to copy what airs.
+ * @param {string} [id] The block id; a fresh one by default.
+ * @returns {object} A `block.create` command.
+ */
 export function exceptionBlockCommand(ch, program, dayStart, source = null, id = randomTimelineBlockId()) {
   const at = Math.max(program.start, dayStart) + 1;
   const live = resolveActiveSource(ch, at);
@@ -214,14 +308,26 @@ export function exceptionBlockCommand(ch, program, dayStart, source = null, id =
   return { type: 'block.create', channel: ch.number, block };
 }
 
-// On a daily/weekly date-range block the native "this day only" is its own
-// day override: pin one of the block's files for that date.
+/**
+ * On a daily/weekly date-range block the native "this day only" is its own
+ * day override: pin one of the block's files for that date.
+ * @param {object} ch The channel config.
+ * @param {object} block The daily or weekly date-range block.
+ * @param {number} dayMs A time on the day (ms).
+ * @param {string} filePath The file to pin.
+ * @returns {object} A `block.overrideDay` command.
+ */
 export function pinFileOverrideCommand(ch, block, dayMs, filePath) {
   const key = mdKey(dayMs);
   const current = (block.dayOverrides && block.dayOverrides[key]) || { file: null, title: '', unlockTime: '', skip: false, note: '' };
   return { type: 'block.overrideDay', channel: ch.number, id: block.id, key, override: { ...current, file: filePath } };
 }
 
+/**
+ * Tests whether a block is a date-range block in daily or weekly mode, which pins a file per date.
+ * @param {?object} block The schedule block.
+ * @returns {boolean} True for a daily or weekly date-range block.
+ */
 export function isDailyBlock(block) {
   return !!(block && block.trigger && block.trigger.type === 'dateRange' && (block.mode === 'daily' || block.mode === 'weekly'));
 }
@@ -231,8 +337,13 @@ export function isDailyBlock(block) {
 export const NO_BREAKS_TAG = 'no-breaks';
 const NO_BREAKS_PRESET_ID = 'preset-no-breaks';
 
-// Where the file object for an airing lives, for file.set: the channel's own
-// pool or the block that aired it.
+/**
+ * Where the file object for an airing lives, for file.set: the channel's own
+ * pool or the block that aired it.
+ * @param {object} ch The channel config.
+ * @param {object} program The schedule entry, with `file` and `block`.
+ * @returns {?object} `{ block, file }`: the owning block id (undefined for the channel) and the file entry, or null.
+ */
 function fileAddress(ch, program) {
   const owner = program.block && (program.block.files || []).some((f) => f.path === program.file.path) ? program.block : null;
   const pool = owner ? owner.files : (ch.files || []);
@@ -240,19 +351,35 @@ function fileAddress(ch, program) {
   return file ? { block: owner ? owner.id : undefined, file } : null;
 }
 
+/**
+ * Tests whether a config item belongs to a plugin.
+ * @param {?object} item A preset, flow or other config item.
+ * @returns {boolean} True when it names an owning plugin.
+ */
 function isPluginOwned(item) {
   return !!(item && (item.pluginId || item.ownerPlugin));
 }
 
+/**
+ * Gets the id of the plugin that owns a config item.
+ * @param {?object} item A preset, flow or other config item.
+ * @returns {?string} The plugin id, or null.
+ */
 export function pluginOwner(item) {
   return item ? (item.pluginId || item.ownerPlugin || null) : null;
 }
 
-// "No ad breaks in this show": the file gets a no-breaks tag, and a preset for
-// that tag places no breaks. Presets are consulted before a block's or the
-// channel's cadence but after flows, so where a flow decides this show's
-// breaks the timeline says so instead of pretending.
-// Returns { commands, label } or { disabled: reason }.
+/**
+ * "No ad breaks in this show": the file gets a no-breaks tag, and a preset for
+ * that tag places no breaks. Presets are consulted before a block's or the
+ * channel's cadence but after flows, so where a flow decides this show's
+ * breaks the timeline says so instead of pretending.
+ * Returns { commands, label } or { disabled: reason }.
+ * @param {object} ch The channel config.
+ * @param {object} program The schedule entry.
+ * @param {number} atMs A time inside the airing (ms), for the layer lookup.
+ * @returns {object} The commands and their label, or why the edit is disabled.
+ */
 export function noBreaksCommands(ch, program, atMs) {
   const address = fileAddress(ch, program);
   if (!address) return { disabled: 'This airing has no file entry to tag.' };
@@ -283,20 +410,37 @@ export function noBreaksCommands(ch, program, atMs) {
   return { label: 'No ad breaks in this show', commands };
 }
 
+/**
+ * Turns a title or path into a short lower-case tag fragment.
+ * @param {string} text The title or file name.
+ * @returns {string} The slug, at most 40 characters; `show` when empty.
+ */
 function slug(text) {
   return String(text || '').toLowerCase().replace(/\.[a-z0-9]+$/, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'show';
 }
 
+/**
+ * Rounds a percentage to one decimal place.
+ * @param {number} p The percentage.
+ * @returns {number} The rounded value.
+ */
 function roundPercent(p) {
   return Math.round(p * 10) / 10;
 }
 
-// "Add break here" at `atMs` inside a program. Edits the layer that decides the
-// show's breaks (§4.2): a set-points preset gains a point; a show on a timed
-// cadence gets its own set-points preset (tagged to that file) with this one
-// point, which the preview shows replacing the timed breaks. Flows and
-// plugin-owned presets are explained, not edited.
-// Returns { commands, label } or { disabled: reason }.
+/**
+ * "Add break here" at `atMs` inside a program. Edits the layer that decides the
+ * show's breaks (§4.2): a set-points preset gains a point; a show on a timed
+ * cadence gets its own set-points preset (tagged to that file) with this one
+ * point, which the preview shows replacing the timed breaks. Flows and
+ * plugin-owned presets are explained, not edited.
+ * Returns { commands, label } or { disabled: reason }.
+ * @param {object} ch The channel config.
+ * @param {object} program The schedule entry.
+ * @param {number} atMs Where the break goes (ms).
+ * @param {string} displayTitle The show's title, for names and labels.
+ * @returns {object} The commands and their label, or why the edit is disabled.
+ */
 export function addBreakHereCommands(ch, program, atMs, displayTitle) {
   const address = fileAddress(ch, program);
   if (!address) return { disabled: 'This airing has no file entry to attach a break to.' };
@@ -343,11 +487,16 @@ export function addBreakHereCommands(ch, program, atMs, displayTitle) {
 
 // ---------- Layer order ----------
 
-// Priorities that put `ordered` (blocks, highest first) in that order, changing
-// as few as possible: walking up from the bottom, a block keeps its priority if
-// it already beats the one below, otherwise it becomes one more. Ties would be
-// broken by array position, which a drag in the list doesn't express, so the
-// order is made strict.
+/**
+ * Priorities that put `ordered` (blocks, highest first) in that order, changing
+ * as few as possible: walking up from the bottom, a block keeps its priority if
+ * it already beats the one below, otherwise it becomes one more. Ties would be
+ * broken by array position, which a drag in the list doesn't express, so the
+ * order is made strict.
+ * @param {object} ch The channel config.
+ * @param {Array<object>} ordered The blocks, highest first.
+ * @returns {Array<object>} `block.setPriority` commands.
+ */
 export function reorderCommands(ch, ordered) {
   const commands = [];
   let floor = -Infinity;
@@ -363,6 +512,11 @@ export function reorderCommands(ch, ordered) {
 
 // ---------- Guardrails (§4.4) ----------
 
+/**
+ * Counts the days a date-range trigger spans, wrapping past the year end.
+ * @param {object} t The trigger, with start and end month and day.
+ * @returns {number} The day count, inclusive.
+ */
 function dateRangeDays(t) {
   const year = 2001; // not a leap year; a range's length is only a threshold here
   const start = new Date(year, t.startMonth - 1, t.startDay).getTime();
@@ -371,11 +525,17 @@ function dateRangeDays(t) {
   return Math.round((end - start) / 86400000) + 1;
 }
 
-// What a confirmation has to say before these commands apply, if anything:
-//   reanchor   an existing source's file list or anchor changes, so what's on
-//              now changes too
-//   beyondWeek a date-range block longer than a week is touched, so the
-//              week's preview can't show all of it
+/**
+ * What a confirmation has to say before these commands apply, if anything:
+ *   reanchor   an existing source's file list or anchor changes, so what's on
+ *              now changes too
+ *   beyondWeek a date-range block longer than a week is touched, so the
+ *              week's preview can't show all of it
+ * @param {object} config The config the commands will apply to.
+ * @param {number} channelNumber The channel being edited.
+ * @param {Array<object>} commands The commands.
+ * @returns {object} `{ reanchor, beyondWeek, confirm }`.
+ */
 export function guardrailsFor(config, channelNumber, commands) {
   const ch = (config.channels || []).find((c) => c.number === channelNumber);
   const blocks = (ch && ch.blocks) || [];
@@ -395,20 +555,34 @@ export function guardrailsFor(config, channelNumber, commands) {
 
 // ---------- Sources for the picker ----------
 
+/**
+ * Gets the last segment of a path, for either slash style.
+ * @param {string} p The path.
+ * @returns {string} The last segment.
+ */
 function basename(p) {
   return String(p).replace(/[\\/]+$/, '').split(/[\\/]/).pop();
 }
 
+/**
+ * Gets a file's folder, joined with backslashes.
+ * @param {string} p The file path.
+ * @returns {string} The folder path.
+ */
 function parentDir(p) {
   const parts = String(p).split(/[\\/]/);
   parts.pop();
   return parts.join('\\');
 }
 
-// Content the timeline can point a new block at without scanning anything:
-// every folder already in the library (each channel's folders, and the show
-// folders under them), and every tag some file carries. Files are copied per
-// source, never shared with the channel they came from.
+/**
+ * Content the timeline can point a new block at without scanning anything:
+ * every folder already in the library (each channel's folders, and the show
+ * folders under them), and every tag some file carries. Files are copied per
+ * source, never shared with the channel they came from.
+ * @param {object} config The config.
+ * @returns {object} `{ folders, tags }`: sources as `{ kind, key, label, folder, files }`, sorted by label.
+ */
 export function librarySources(config) {
   const folders = new Map();
   const tags = new Map();
@@ -443,16 +617,25 @@ export function librarySources(config) {
   return { folders: finish(folders), tags: finish(tags) };
 }
 
-// Programs in a day list whose airing overlaps any changed range, for the
-// impact outline.
+/**
+ * Programs in a day list whose airing overlaps any changed range, for the
+ * impact outline.
+ * @param {object} entry A schedule entry, with `start` and `end`.
+ * @param {Array<object>} ranges Changed ranges, `{ start, end }`.
+ * @returns {boolean} True when the entry overlaps one.
+ */
 export function overlapsAny(entry, ranges) {
   return ranges.some((r) => entry.end > r.start && entry.start < r.end);
 }
 
-// "Moves 6 programs and 2 breaks" — counts for a diff, programs counted once
-// per airing whichever side of the diff they're on. Signed-off hours are
-// counted as days whose sign-off changed: programs keep resolving through
-// them (ON AIR just doesn't draw them), so they'd otherwise read as no change.
+/**
+ * "Moves 6 programs and 2 breaks" — counts for a diff, programs counted once
+ * per airing whichever side of the diff they're on. Signed-off hours are
+ * counted as days whose sign-off changed: programs keep resolving through
+ * them (ON AIR just doesn't draw them), so they'd otherwise read as no change.
+ * @param {object} diff A `diffSchedules` result.
+ * @returns {object} `{ programs, breaks, signOffDays, ranges }` counts.
+ */
 export function diffCounts(diff) {
   const programs = new Set([...diff.added, ...diff.removed].map((e) => Math.round(e.start)));
   const breaks = new Set([...diff.breaksAdded, ...diff.breaksRemoved].map((e) => Math.round(e.start)));

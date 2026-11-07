@@ -27,9 +27,11 @@ const SETTINGS_VIEW_KEY = 'reruntv.settingsView';
 export let settingsView = 'advanced';
 installSettingDependencies(setupScreen);
 
-// Simple / Advanced comes from the settings registry's `level`: a row is in the
-// Simple view when its setting is 'basic', and a panel of registry rows is when
-// any of its rows is (docs/design/14 §5).
+/**
+ * Marks which rows and panels are in the Simple view. Simple / Advanced comes from the settings
+ * registry's `level`: a row is in the Simple view when its setting is 'basic', and a panel of
+ * registry rows is when any of its rows is (docs/design/14 §5).
+ */
 function applyRegistryLevels() {
   setupScreen.querySelectorAll('.setting-row[data-setting]').forEach((row) => {
     const entry = settingById(row.dataset.setting);
@@ -58,8 +60,12 @@ document.getElementById('setup-watch-btn')?.addEventListener('click', () => docu
 // whichever sub-tab is currently marked active.
 let lastSetupTab = 'channels';
 
-// This is a per-device navigation preference, not part of the shared channel
-// config. The same controls and save handlers are used in both views.
+/**
+ * This is a per-device navigation preference, not part of the shared channel
+ * config. The same controls and save handlers are used in both views.
+ * @param {string} view `'simple'` or `'advanced'`; anything else means advanced.
+ * @param {boolean} [persist=true] Save the choice to local storage and react to it (scroll to top, re-render channels). False when restoring at load.
+ */
 export function setSettingsView(view, persist = true) {
   const nextView = view === 'simple' ? 'simple' : 'advanced';
   const changed = settingsView !== nextView;
@@ -87,6 +93,11 @@ export function setSettingsView(view, persist = true) {
   }
 }
 
+/**
+ * Tests whether a search target is shown in the simple view, checking its tab, sub-tab and, on the display, guide and system sections, its panel and row.
+ * @param {HTMLElement} target The element a search result points at.
+ * @returns {boolean} True when the simple view shows it.
+ */
 export function isSimpleSearchTarget(target) {
   const tabPanel = target.closest('.setup-tab-panel');
   if (!tabPanel) return true;
@@ -118,6 +129,7 @@ const SETUP_SECTION_COPY = {
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP', 'How the box works, keyboard shortcuts, and what’s new.'],
 };
+// Shorter page descriptions for the simple view.
 const SIMPLE_SECTION_DESCRIPTIONS = {
   channels: 'Add a channel, choose its media, and start watching.',
   display: 'Adjust the picture, screen, speakers, and volume.',
@@ -127,7 +139,9 @@ const SIMPLE_SECTION_DESCRIPTIONS = {
   help: 'Get started and find keyboard shortcuts.',
 };
 
-// System › Diagnostics refreshes every second while it is on screen, and only then.
+/**
+ * System › Diagnostics refreshes every second while it is on screen, and only then.
+ */
 function syncDiagnosticsMonitor() {
   const statusPanel = document.querySelector('.setup-subtab-panel[data-subtab-panel="status"]');
   const tabPanel = statusPanel?.closest('.setup-tab-panel');
@@ -140,6 +154,10 @@ function syncDiagnosticsMonitor() {
   }
 }
 
+/**
+ * Sets the page title and description for a section, using the shorter simple-view description when that view is on.
+ * @param {string} tab The section's `data-tab` id.
+ */
 function updateSetupHeading(tab) {
   const [title, description] = SETUP_SECTION_COPY[tab] || SETUP_SECTION_COPY.channels;
   const titleEl = document.getElementById('setup-page-title');
@@ -148,6 +166,9 @@ function updateSetupHeading(tab) {
   if (descriptionEl) descriptionEl.textContent = settingsView === 'simple' ? (SIMPLE_SECTION_DESCRIPTIONS[tab] || description) : description;
 }
 
+/**
+ * Hides and empties the setup search results and resets the search box's ARIA state.
+ */
 export function closeSettingsSearch() {
   if (setupSearchResultsEl) {
     setupSearchResultsEl.classList.add('hidden');
@@ -158,9 +179,12 @@ export function closeSettingsSearch() {
   if (setupSearchEmptyEl) setupSearchEmptyEl.classList.add('hidden');
 }
 
-// Restarts the .panel-reveal fade — a plain class add is a no-op if the
-// panel already carries it from a previous switch, so force a reflow
-// between removing and re-adding (same technique as the guide crossfades).
+/**
+ * Restarts the .panel-reveal fade — a plain class add is a no-op if the
+ * panel already carries it from a previous switch, so force a reflow
+ * between removing and re-adding (same technique as the guide crossfades).
+ * @param {?HTMLElement} panel The panel to fade in; nothing happens when null.
+ */
 function revealPanel(panel) {
   if (!panel) return;
   panel.classList.remove('panel-reveal');
@@ -168,6 +192,9 @@ function revealPanel(panel) {
   panel.classList.add('panel-reveal');
 }
 
+/**
+ * Updates the page heading and the breadcrumb for the active section and sub-tab. A section with no sub-tab shows no breadcrumb.
+ */
 function updateBreadcrumb() {
   if (!setupBreadcrumbEl) return;
   const activeTabBtn = Array.from(setupTabBtns).find((b) => b.classList.contains('active'));
@@ -219,11 +246,13 @@ setupTabBtns.forEach((btn) => {
   });
 });
 
-// Resumes whichever top-level tab (and, within it, sub-tab) was last open
-// this session instead of always landing on CHANNELS — the setup screen's
-// tab/sub-tab nesting got deep enough (5 tabs × several sub-tabs × a
-// per-channel edit view with its own 6 tabs) that losing your place every
-// time you glance back at the TV screen and press S again got old.
+/**
+ * Resumes whichever top-level tab (and, within it, sub-tab) was last open
+ * this session instead of always landing on CHANNELS — the setup screen's
+ * tab/sub-tab nesting got deep enough (5 tabs × several sub-tabs × a
+ * per-channel edit view with its own 6 tabs) that losing your place every
+ * time you glance back at the TV screen and press S again got old.
+ */
 export function resetSetupTabs() {
   setupSearchEl.value = '';
   closeSettingsSearch();
@@ -268,9 +297,11 @@ settingsViewButtons.advanced?.addEventListener('click', () => setSettingsView('a
 try { setSettingsView(window.localStorage.getItem(SETTINGS_VIEW_KEY), false); }
 catch (e) { setSettingsView('advanced', false); }
 
-// Re-applies whichever sub-tab is currently marked active in each bar —
-// needed after the global search below temporarily reveals every sub-tab
-// panel at once (so a match hiding in an inactive sub-tab is still found).
+/**
+ * Re-applies whichever sub-tab is currently marked active in each bar —
+ * needed after the global search below temporarily reveals every sub-tab
+ * panel at once (so a match hiding in an inactive sub-tab is still found).
+ */
 function restoreActiveSubtabPanels() {
   document.querySelectorAll('.setup-subtabs').forEach((bar) => {
     const activeBtn = bar.querySelector('.setup-subtab-btn.active') || bar.querySelector('.setup-subtab-btn');
@@ -283,6 +314,9 @@ function restoreActiveSubtabPanels() {
 
 // The header shows a separating shadow once the page under it has scrolled.
 const setupNavEl = setupScreen.querySelector('.setup-nav');
+/**
+ * Toggles the header's `is-stuck` shadow from the content pane's scroll position.
+ */
 function syncSetupNavStickySurface() {
   if (!setupNavEl || !setupContentEl) return;
   setupNavEl.classList.toggle('is-stuck', setupContentEl.scrollTop > 0);

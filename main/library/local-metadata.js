@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 const { atomicWriteFile } = require('../util/atomic-write');
 
+// Size caps, timeout and cache bounds for the NFO and ffmetadata readers.
 const NFO_MAX_BYTES = 512 * 1024;
 const TAGS_MAX_BYTES = 256 * 1024;
 const TAGS_TIMEOUT_MS = 15000;
@@ -33,16 +34,25 @@ const MAX_CACHE_ENTRIES = 50000;
 // A tag title stamped on this many files of one batch is the collection's
 // name, not each file's.
 const SHARED_TITLE_LIMIT = 3;
+// Image extensions looked for when finding a poster beside a file.
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+// Folder names that are a season folder (so the show folder is one level up).
 const SEASON_DIR = /^(s(eason)?[ ._-]?\d{1,4}|specials?)$/i;
+// Video extensions counted when deciding whether a folder holds a single movie.
 const MEDIA_EXTENSIONS = new Set([
   '.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mpg', '.mpeg', '.wmv', '.flv', '.ts', '.m2ts', '.ogv', '.divx', '.asf', '.3gp',
 ]);
 
 // ---------- NFO ----------
 
+// Named XML entities decoded in NFO text.
 const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
+/**
+ * Decodes named and numeric XML entities.
+ * @param {string} text Raw element text.
+ * @returns {string} The decoded text.
+ */
 function decodeEntities(text) {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (whole, code) => {
     if (code[0] === '#') {
@@ -53,6 +63,11 @@ function decodeEntities(text) {
   });
 }
 
+/**
+ * Plain text of an element's inner XML: CDATA kept, nested tags removed, entities decoded, whitespace collapsed.
+ * @param {string} inner The element's inner XML.
+ * @returns {string} The text.
+ */
 function textOf(inner) {
   const cdata = inner.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (m, body) => body.replace(/</g, '\u0000'));
   // Anything still tagged inside is markup, not text.
@@ -60,6 +75,12 @@ function textOf(inner) {
   return decodeEntities(plain).replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Every element with a given tag name (regex-based, non-nesting).
+ * @param {string} xml The XML text.
+ * @param {string} name The tag name.
+ * @returns {Array<object>} `{ attrs, inner }` per element.
+ */
 function elements(xml, name) {
   const re = new RegExp(`<${name}(\\s[^>]*)?>([\\s\\S]*?)</${name}\\s*>`, 'gi');
   const out = [];
@@ -68,32 +89,63 @@ function elements(xml, name) {
   return out;
 }
 
+/**
+ * Text of the first element with a given name.
+ * @param {string} xml The XML text.
+ * @param {string} name The tag name.
+ * @returns {?string} The text, or null when missing or empty.
+ */
 function first(xml, name) {
   const found = elements(xml, name)[0];
   const text = found ? textOf(found.inner) : '';
   return text || null;
 }
 
+/**
+ * Non-empty texts of every element with a given name.
+ * @param {string} xml The XML text.
+ * @param {string} name The tag name.
+ * @returns {string[]} The texts.
+ */
 function all(xml, name) {
   return elements(xml, name).map((e) => textOf(e.inner)).filter(Boolean);
 }
 
+/**
+ * Parses a non-negative integer.
+ * @param {?string} text Text to parse.
+ * @returns {?number} A non-negative integer, or null.
+ */
 function intOrNull(text) {
   const n = Number.parseInt(text, 10);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
+/**
+ * Finds a plausible year in text.
+ * @param {*} text Text that may contain a year.
+ * @returns {?number} The first four-digit year from 1800 to 2099, or null.
+ */
 function yearOf(text) {
   const match = String(text || '').match(/\b(1[89]\d\d|20\d\d)\b/);
   return match ? Number(match[1]) : null;
 }
 
+/**
+ * Finds an ISO date in text.
+ * @param {*} text Text that may contain a date.
+ * @returns {?string} The first `YYYY-MM-DD` date found, or null.
+ */
 function isoDate(text) {
   const match = String(text || '').match(/\b(1[89]\d\d|20\d\d)-(\d\d)-(\d\d)\b/);
   return match ? `${match[1]}-${match[2]}-${match[3]}` : null;
 }
 
-// Several genres often arrive in one element ("Comedy / Family").
+/**
+ * Several genres often arrive in one element ("Comedy / Family").
+ * @param {string[]} values Raw element texts.
+ * @returns {string[]} The parts, deduplicated case-insensitively.
+ */
 function splitList(values) {
   const out = [];
   values.forEach((value) => String(value).split(/\s*[/;|,]\s*/).forEach((part) => {
@@ -110,6 +162,11 @@ function splitList(values) {
 const TV_RATINGS = ['TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'];
 const FILM_TO_TV = { G: 'TV-G', PG: 'TV-PG', 'PG-13': 'TV-14', R: 'TV-MA', 'NC-17': 'TV-MA' };
 
+/**
+ * Maps a certification string to the US TV rating vocabulary.
+ * @param {?string} raw The `mpaa`, `certification` or rating tag value.
+ * @returns {?string} A `TV-*` rating, or null when it does not map.
+ */
 function normalizeRating(raw) {
   if (!raw) return null;
   // Several countries arrive as "US:PG-13 / GB:12A"; a US entry wins, otherwise the first that maps.
@@ -131,6 +188,8 @@ function normalizeRating(raw) {
  * 'episode' | 'movie' | 'series' | 'music', or null when the file is not
  * media-center XML (many old .nfo files are a scene release's ASCII art, or a bare
  * IMDb link; the link is still worth keeping as an id).
+ * @param {*} text The NFO file's text.
+ * @returns {?object} `{ kind, title?, series?, season?, episode?, aired?, year?, description?, rating?, genre?, studio?, cast?, artist?, album?, ids? }`, or null when nothing useful was found.
  */
 function parseNfo(text) {
   const xml = String(text || '').replace(/^\uFEFF/, '');
@@ -210,6 +269,8 @@ function parseNfo(text) {
  * ffmpeg's `-f ffmetadata` output: the global `key=value` section only.
  * Stream and chapter sections are skipped. Values are unescaped (a backslash
  * escapes `=`, `;`, `#`, `\` and a newline).
+ * @param {*} text The muxer's output.
+ * @returns {object} Lowercase tag name to value (first occurrence wins).
  */
 function parseFfmetadata(text) {
   const tags = {};
@@ -249,6 +310,8 @@ const SET_NAME = /\b(\d+[- ](movie|film|disc|episode)s?|collection|complete (ser
  * that still carries one is a filename, not an episode's name), or a box
  * set's name. A trailing " - GROUP" in capitals and a trailing "(1998)" are
  * dropped.
+ * @param {*} raw The tag value.
+ * @returns {?string} The cleaned title, or null.
  */
 function cleanTagTitle(raw) {
   let title = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -262,7 +325,11 @@ function cleanTagTitle(raw) {
   return title.length >= 2 ? title : null;
 }
 
-/** What a file's container tags say, filtered for trust. */
+/**
+ * What a file's container tags say, filtered for trust.
+ * @param {object} tags Lowercase tag name to value, from `parseFfmetadata`.
+ * @returns {object} The trusted fields (`title`, `series`, `season`, `episode`, `aired`, `year`, `description`, `genre`, `studio`, `rating`, `artist`, `album`).
+ */
 function tagsToFields(tags) {
   const out = {};
   const title = cleanTagTitle(tags.title);
@@ -299,6 +366,11 @@ function tagsToFields(tags) {
 // show's overview, used only when the episode has no description of its own.
 const SERIES_FIELDS = ['series', 'genre', 'rating', 'studio', 'description', 'year'];
 
+/**
+ * Merges metadata layers, nearest first: each field comes from the first layer that has it.
+ * @param {Array<object>} layers `{ data, source, only? }`; `only` limits which fields that layer may supply.
+ * @returns {object} `{ fields, sources }`, where `sources` names the file each field came from.
+ */
 function merge(layers) {
   const fields = {};
   const sources = {};
@@ -317,6 +389,12 @@ function merge(layers) {
 
 // ---------- Reader ----------
 
+/**
+ * Runs ffmpeg's ffmetadata muxer on one file, bounded by size and time.
+ * @param {string} ffmpegPath Path of the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @returns {Promise<?string>} The muxer output (possibly truncated), or null on failure or timeout.
+ */
 function runFfmetadata(ffmpegPath, filePath) {
   return new Promise((resolve) => {
     let child;
@@ -348,6 +426,13 @@ function runFfmetadata(ffmpegPath, filePath) {
  * those of every sidecar that was found, so an edited .nfo is read again.
  *
  * read(refs, { nfo, tags }) -> { results: { [ref]: { fields, sources } | null }, tagsAvailable }
+ * @param {object} opts Options.
+ * @param {?string} opts.dir Folder for the cache file; null disables the cache.
+ * @param {Function} [opts.getFfmpegPath] Returns the ffmpeg path, or null when ffmpeg is missing.
+ * @param {object} [opts.fsImpl=fs] File system module (injected for tests).
+ * @param {Function} [opts.runTags=runFfmetadata] Tag reader `(ffmpegPath, filePath) -> Promise<?string>`.
+ * @param {Function} [opts.now] Clock in ms, for cache entry ages.
+ * @returns {object} `{ read(refs, opts) }`.
  */
 function createLocalMetadataReader({ dir, getFfmpegPath = () => null, fsImpl = fs, runTags = runFfmetadata, now = () => Date.now() }) {
   const cachePath = dir ? path.join(dir, 'local-metadata-cache.json') : null;

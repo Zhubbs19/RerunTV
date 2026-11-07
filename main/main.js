@@ -1,3 +1,7 @@
+// Electron main-process entry point: single-instance lock, portable userData migration, the
+// main window, the IPC handlers (grouped by section dividers below), LAN servers, plugin
+// loading and the boot sequence.
+
 const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, Notification } = require('electron');
 
 // Two running instances would each hold an independent in-memory config and
@@ -132,12 +136,17 @@ const { startCecHelper } = require('./ui/cec');
 // single-file version.
 registerAppSchemePrivileges();
 
-// overrides.hideTitleBar lets window:setTitleBarHidden (below) pass the
-// just-requested value straight through when it recreates the window —
-// frame is a BrowserWindow constructor-only option, so toggling it live has
-// no other way in than tearing down and rebuilding. Every other caller
-// (initial boot, macOS 'activate' with no windows open) omits it and falls
-// back to whatever's already saved in config, same as before this existed.
+/**
+ * overrides.hideTitleBar lets window:setTitleBarHidden (below) pass the
+ * just-requested value straight through when it recreates the window —
+ * frame is a BrowserWindow constructor-only option, so toggling it live has
+ * no other way in than tearing down and rebuilding. Every other caller
+ * (initial boot, macOS 'activate' with no windows open) omits it and falls
+ * back to whatever's already saved in config, same as before this existed.
+ * Creates (or recreates) the main window on its remembered screen and wires its lifecycle events.
+ * @param {object} [overrides={}] Options for this one creation.
+ * @param {boolean} [overrides.hideTitleBar] Frameless or not, overriding the saved setting.
+ */
 function createWindow(overrides = {}) {
   // Which screen, where on it, and whether maximized/fullscreen — per screen,
   // so a TV that was off at launch or went to sleep gets the window back once
@@ -303,6 +312,7 @@ let activatedMediaSourceProviders = {};
 // whenReady below, just referenced from a wider scope than before this
 // existed.
 let pluginServicesRef = {};
+// LAN viewer pairing URLs, one per adapter, filled in at boot once the viewer server is up.
 let viewerAccessUrls = [];
 // The control pairing code embedded in these (docs/design/06 §4) used to be
 // visible only on the loopback /server page — surfaced here too so it shows
@@ -323,6 +333,7 @@ let viewerProjectionRef = null;
 // path:toFileUrl (main-media-dispatch.js) targets for every mediaSource-
 // plugin ref played in the host window. Never null past whenReady().
 let mediaBridgePort = null;
+// Plugin ids that were disabled when this process booted, for the restart-required check.
 let pluginDisabledAtBoot = [];
 
 // Every IPC handler whose logic already lives in a focused main-*.js module
@@ -377,6 +388,10 @@ registerConfigIpc(ipcMain);
 // the portable-data migration at startup, and the library directory must be
 // resolved after that, not captured before it.
 let libraryService = null;
+/**
+ * The library service, created on first use (see above).
+ * @returns {object} The library service from `createLibraryService`.
+ */
 function getLibraryService() {
   if (!libraryService) {
     const { VIDEO_EXTENSIONS } = require('./media/media');
@@ -407,6 +422,10 @@ registerLibraryIpc(ipcMain, { getService: getLibraryService });
 // ffmpeg is the transcode plugin's once it's active, else core's own, like
 // the volume leveler's.
 let splicerService = null;
+/**
+ * The Video Splicer service, created on first use.
+ * @returns {object} The splicer service from `createSplicerService`.
+ */
 function getSplicerService() {
   if (!splicerService) {
     const { utilityProcess } = require('electron');
@@ -438,12 +457,21 @@ app.on('before-quit', () => { if (splicerService) splicerService.dispose(); });
 
 // ---------- Household profiles and personal state (docs/design/09) ----------
 let personalService = null;
+/**
+ * Sends a personal-state event to the host window and to paired LAN viewers.
+ * @param {string} channel The event channel name.
+ * @param {*} data The event payload.
+ */
 function publishPersonalEvent(channel, data) {
   const win = getMainWindow();
   if (win && !win.isDestroyed()) win.webContents.send(channel, data);
   const bridge = pluginServicesRef && pluginServicesRef.viewerRemoteBridge;
   if (bridge) bridge.publish(channel, data);
 }
+/**
+ * The household profiles service, created on first use.
+ * @returns {object} The personal service from `createPersonalService`.
+ */
 function getPersonalService() {
   if (!personalService) personalService = createPersonalService({
     dir: path.join(app.getPath('userData'), 'profiles'),
@@ -471,6 +499,10 @@ registerDiagnosticsIpc(ipcMain, {
   getPluginServicesRef: () => pluginServicesRef,
 });
 
+/**
+ * Runs the boot sequence once the app is ready: shared plugin services, the startup update check, the media bridge, the LAN viewer server, main-process plugins, discovery, then the first window (or headless mode).
+ * @returns {Promise<void>}
+ */
 async function bootApp() {
   // `services` is a single shared object, mutated in place by whichever
   // plugins publish a capability onto it (ffmpeg-transcode -> ffmpegPath,

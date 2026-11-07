@@ -84,6 +84,11 @@ const UPLOAD_KIND_BY_MIME = {
 // sees the body.
 const MAX_RAW_BODY_BYTES = 4 * 1024 * 1024;
 
+/**
+ * Buffers a request body for an extension-point route, capped at `MAX_RAW_BODY_BYTES`.
+ * @param {object} req The incoming HTTP request.
+ * @returns {Promise<Buffer>} The whole body.
+ */
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -110,6 +115,11 @@ function readRawBody(req) {
 // let alone hand it out by name.
 const PARTY_PORT = 8726;
 
+/**
+ * Starts the party guest server (when PARTY CHANNEL is enabled at boot), publishes its services and registers the party IPC handlers.
+ * @param {object} ctx The plugin's main-process context.
+ * @returns {Promise<void>} Resolves once the server is started and handlers are registered.
+ */
 async function activate(ctx) {
   const {
     ipcMain, spawn, createServer, fs: pluginFs, sendToMainWindow, trackConnection, mimeFor, readJsonBody, serveStatic,

@@ -35,13 +35,18 @@ import { playChannelLive } from './core.js';
 import { timeMachineGoTo, updateTimeShiftBadge } from './timemachine.js';
 import { flashContentAdvisory, flashLocalAvailCut, resetCreditsSpeedup, updateLogoBug } from './broadcast-fx.js';
 
-// Scoped by channel number — two channels can otherwise resolve identical
-// (type, windowStart) pairs, most reliably right after using a channel's own
-// DUPLICATE action (setup-channels.js), which deep-clones ch.anchor verbatim
-// along with its commercials/flow config: the clone's break windows then land
-// at the exact same timestamps as the original. Without the channel number
-// here, watching a break through to completion on one channel would mark the
-// other's identical window "already completed" too, silently skipping it.
+/**
+ * Scoped by channel number — two channels can otherwise resolve identical
+ * (type, windowStart) pairs, most reliably right after using a channel's own
+ * DUPLICATE action (setup-channels.js), which deep-clones ch.anchor verbatim
+ * along with its commercials/flow config: the clone's break windows then land
+ * at the exact same timestamps as the original. Without the channel number
+ * here, watching a break through to completion on one channel would mark the
+ * other's identical window "already completed" too, silently skipping it.
+ * @param {object} ch The channel config.
+ * @param {object} resolved A `resolveBreakAt` result.
+ * @returns {string} The break key.
+ */
 function breakKeyFor(ch, resolved) {
   return `${ch.number}:${resolved.type}:${resolved.windowStart}`;
 }
@@ -54,6 +59,10 @@ function breakKeyFor(ch, resolved) {
 // during live play, so trimming from the front reliably drops the oldest
 // entries first without needing to parse a timestamp back out of each key.
 const COMPLETED_BREAK_KEYS_MAX = 500;
+/**
+ * Records a break window as watched through, keeping the set bounded.
+ * @param {string} key The break key.
+ */
 function markBreakCompleted(key) {
   S.completedBreakKeys = S.completedBreakKeys || new Set();
   S.completedBreakKeys.add(key);
@@ -62,14 +71,16 @@ function markBreakCompleted(key) {
   }
 }
 
-// Clears the three fields that track "is a break currently on screen, and
-// what kind" — the shared core of a reset every power-off, channel-tune,
-// and shuttle-start needs to do before deciding what (if anything) plays
-// next. endBreak/tuneToChannel below additionally clear a couple of
-// break-*timing*-specific fields (awaitingBumperEnd, breakOverrunSince) of
-// their own right after calling this — this only covers the subset every
-// caller, including the ones outside this file (power.js, timemachine.js,
-// app.js), needs identically.
+/**
+ * Clears the three fields that track "is a break currently on screen, and
+ * what kind" — the shared core of a reset every power-off, channel-tune,
+ * and shuttle-start needs to do before deciding what (if anything) plays
+ * next. endBreak/tuneToChannel below additionally clear a couple of
+ * break-*timing*-specific fields (awaitingBumperEnd, breakOverrunSince) of
+ * their own right after calling this — this only covers the subset every
+ * caller, including the ones outside this file (power.js, timemachine.js,
+ * app.js), needs identically.
+ */
 export function resetActiveBreakState() {
   S.activeBreakKey = null;
   S.activeBreakInterruptsContent = false;
@@ -78,11 +89,14 @@ export function resetActiveBreakState() {
   S.activeBreakPlanned = false;
 }
 
-// One unified boundary timer drives every break type (commercial/channelId/
-// trivia/upNext) — replaces the old three independent setTimeout-interval
-// systems. Re-arms at exactly the next instant resolveBreakAt's result would
-// change, so live playback and the time-machine preview (timemachine.js)
-// always agree on what's airing at any given moment, past or future.
+/**
+ * One unified boundary timer drives every break type (commercial/channelId/
+ * trivia/upNext) — replaces the old three independent setTimeout-interval
+ * systems. Re-arms at exactly the next instant resolveBreakAt's result would
+ * change, so live playback and the time-machine preview (timemachine.js)
+ * always agree on what's airing at any given moment, past or future.
+ * @param {object} ch The channel config.
+ */
 export function scheduleNextBreak(ch) {
   clearTimeout(S.breakTimer);
   const boundary = nextBreakBoundary(ch, viewNow());
@@ -91,15 +105,20 @@ export function scheduleNextBreak(ch) {
   S.breakTimer = setTimeout(() => checkBreakState(getChannel(ch.number) || ch), Math.max(0, boundary - viewNow()) + 1);
 }
 
-// The single decision point for "what should be showing right now, break or
-// content" — called from the boundary timer, from handleContentEnded (a
-// natural video end lands on the same instant a pre/post/both break would),
-// from a bumper's own early end/error, and from every "resume live playback"
-// entry point (tuneToChannel, time-machine shuttlePlay/returnToLive, powerOn)
-// so tuning/returning into an already-in-progress break shows it immediately
-// instead of waiting for the next scheduled check. opts.contentJustEnded
-// tells it to fall through to playChannelLive when nothing's due, since
-// otherwise nothing else would advance content to the next file.
+/**
+ * The single decision point for "what should be showing right now, break or
+ * content" — called from the boundary timer, from handleContentEnded (a
+ * natural video end lands on the same instant a pre/post/both break would),
+ * from a bumper's own early end/error, and from every "resume live playback"
+ * entry point (tuneToChannel, time-machine shuttlePlay/returnToLive, powerOn)
+ * so tuning/returning into an already-in-progress break shows it immediately
+ * instead of waiting for the next scheduled check. opts.contentJustEnded
+ * tells it to fall through to playChannelLive when nothing's due, since
+ * otherwise nothing else would advance content to the next file.
+ * @param {object} ch The channel config.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.contentJustEnded] The call comes from content's own `ended` event.
+ */
 export function checkBreakState(ch, opts) {
   opts = opts || {};
   if (!canPlay() || S.currentNumber !== ch.number) return;
@@ -206,10 +225,14 @@ const BREAK_LABELS = {
 // content-to-content cuts) — matches tv.css's own fallback transition-
 // duration, so behavior is unchanged for anyone who never touches the new
 // per-entry fields (setup-interstitials.js).
-// Whether the logo bug steps aside for breaks on this channel: its own choice
-// (true hides, 'show' keeps it up) over the box-wide one; unset inherits. An
-// old `false` from when this was a plain checkbox means "not asked", so it
-// inherits too.
+/**
+ * Whether the logo bug steps aside for breaks on this channel: its own choice
+ * (true hides, 'show' keeps it up) over the box-wide one; unset inherits. An
+ * old `false` from when this was a plain checkbox means "not asked", so it
+ * inherits too.
+ * @param {object} ch The channel config.
+ * @returns {boolean} True when the logo bug hides during breaks.
+ */
 export function logoBugHidesOnBreakFor(ch) {
   if (ch.logoBugHidesOnBreak === 'show') return false;
   if (ch.logoBugHidesOnBreak === true) return true;
@@ -218,9 +241,13 @@ export function logoBugHidesOnBreakFor(ch) {
 
 const DEFAULT_FADE_OUT_MS = 180;
 const DEFAULT_FADE_IN_MS = 220;
-// "Fade into and out of breaks" (commercials.breakFadeMs, 0-1000): one length
-// for both directions; unset keeps the 180/220 ms pair. An entry's own FADE
-// IN / FADE OUT still win.
+/**
+ * "Fade into and out of breaks" (commercials.breakFadeMs, 0-1000): one length
+ * for both directions; unset keeps the 180/220 ms pair. An entry's own FADE
+ * IN / FADE OUT still win.
+ * @param {number} fallback The fade to use when the setting is unset, in ms.
+ * @returns {number} The fade length in ms.
+ */
 function breakFadeMs(fallback) {
   const v = Number(S.config.commercials && S.config.commercials.breakFadeMs);
   return Number.isFinite(v) && v >= 0 && S.config.commercials.breakFadeMs !== null && S.config.commercials.breakFadeMs !== '' ? Math.min(1000, v) : fallback;
@@ -229,6 +256,11 @@ function breakFadeMs(fallback) {
 // real-file bumper whose probed duration undershot its actual length, before
 // giving up and cutting it anyway (see S.awaitingBumperEnd above).
 const BUMPER_OVERRUN_GRACE_MS = 8000;
+/**
+ * Fades the player to black.
+ * @param {number} [ms=DEFAULT_FADE_OUT_MS] The fade length.
+ * @returns {Promise<void>} Resolves when the fade has had time to finish.
+ */
 export function fadeOutPlayer(ms = DEFAULT_FADE_OUT_MS) {
   return new Promise((resolve) => {
     // Inline style wins over tv.css's class-based transition-duration,
@@ -239,6 +271,10 @@ export function fadeOutPlayer(ms = DEFAULT_FADE_OUT_MS) {
     setTimeout(resolve, ms);
   });
 }
+/**
+ * Fades the player back in from black.
+ * @param {number} [ms=DEFAULT_FADE_IN_MS] The fade length.
+ */
 export function fadeInPlayer(ms = DEFAULT_FADE_IN_MS) {
   player.style.transitionDuration = `${ms}ms`;
   requestAnimationFrame(() => player.classList.remove('screen-fade-out'));
@@ -246,6 +282,11 @@ export function fadeInPlayer(ms = DEFAULT_FADE_IN_MS) {
 
 const DAY_MS = 86400000;
 
+/**
+ * Returns the title of the file after the one airing now on a channel.
+ * @param {object} ch The channel config.
+ * @returns {string} The title, or empty when nothing is airing.
+ */
 export function computeNextTitle(ch) {
   const source = resolveActiveSource(ch, viewNow());
   const pos = computeSourcePosition(source, viewNow());
@@ -254,9 +295,14 @@ export function computeNextTitle(ch) {
   return getDisplayTitle(nextFile);
 }
 
-// Only resolves for a promo entry with a real dateRange target block (see
-// eligiblePromoEntries, interstitials.js) — blank for every other type,
-// since "days until" only means something when counting down to something.
+/**
+ * Only resolves for a promo entry with a real dateRange target block (see
+ * eligiblePromoEntries, interstitials.js) — blank for every other type,
+ * since "days until" only means something when counting down to something.
+ * @param {object} ch The channel config.
+ * @param {object} entry The interstitial pool entry.
+ * @returns {string} Whole days until the target block starts, or empty.
+ */
 function computeDaysUntil(ch, entry) {
   if (entry.type !== 'promo' || entry.blockAffinity == null) return '';
   const target = (ch.blocks || []).find((b) => b.id === entry.blockAffinity);
@@ -266,14 +312,18 @@ function computeDaysUntil(ch, entry) {
   return String(Math.max(0, Math.ceil((startMs - viewNow()) / DAY_MS)));
 }
 
-// How many more files air in the current lineup before it loops back to the
-// start — e.g. an upNext/channelId dynamic bumper reading "2 MORE EPISODES
-// TODAY" during a multi-episode ad pod (see ad "pods"/podMin-podMax,
-// interstitials.js) makes back-to-back episodes read as an intentional
-// programming block instead of just consecutive files. Unlike
-// {daysUntil} (a promo counting down to a future block's premiere), this is
-// same-lineup, same-day — how much is left before the current rotation
-// repeats.
+/**
+ * How many more files air in the current lineup before it loops back to the
+ * start — e.g. an upNext/channelId dynamic bumper reading "2 MORE EPISODES
+ * TODAY" during a multi-episode ad pod (see ad "pods"/podMin-podMax,
+ * interstitials.js) makes back-to-back episodes read as an intentional
+ * programming block instead of just consecutive files. Unlike
+ * {daysUntil} (a promo counting down to a future block's premiere), this is
+ * same-lineup, same-day — how much is left before the current rotation
+ * repeats.
+ * @param {object} ch The channel config.
+ * @returns {string} Files left before the lineup loops, or empty.
+ */
 function computeEpisodesUntilWrap(ch) {
   const source = resolveActiveSource(ch, viewNow());
   const pos = computeSourcePosition(source, viewNow());
@@ -281,17 +331,23 @@ function computeEpisodesUntilWrap(ch) {
   return String(pos.files.length - pos.fileIndex - 1);
 }
 
-// A dynamic entry's live text template (see the DYNAMIC checkbox,
-// setup-interstitials.js) — {channel}/{time}/{nextTitle}/{daysUntil}/
-// {episodesUntil}. {daysUntil} is what makes an escalating "premiering in N days"
-// countdown campaign work: the
-// same promo entry's on-screen number counts down day by day as the
-// premiere approaches, rather than being a static copy authored once.
-//
-// {dayNumber} / {daysLeft} count calendar days while a date range is airing
-// ("DAY {dayNumber:12/1} OF 25", "{daysLeft:12/25} DAYS TO CHRISTMAS"). Give the
-// date as month/day; with none they use the active dateRange block's own range.
-// Blank outside the range, so a stray bumper never shows a wrong number.
+/**
+ * A dynamic entry's live text template (see the DYNAMIC checkbox,
+ * setup-interstitials.js) — {channel}/{time}/{nextTitle}/{daysUntil}/
+ * {episodesUntil}. {daysUntil} is what makes an escalating "premiering in N days"
+ * countdown campaign work: the
+ * same promo entry's on-screen number counts down day by day as the
+ * premiere approaches, rather than being a static copy authored once.
+ *
+ * {dayNumber} / {daysLeft} count calendar days while a date range is airing
+ * ("DAY {dayNumber:12/1} OF 25", "{daysLeft:12/25} DAYS TO CHRISTMAS"). Give the
+ * date as month/day; with none they use the active dateRange block's own range.
+ * Blank outside the range, so a stray bumper never shows a wrong number.
+ * @param {?string} template The entry's text template.
+ * @param {object} ch The channel config.
+ * @param {object} entry The interstitial pool entry.
+ * @returns {string} The filled text; empty for no template.
+ */
 export function renderDynamicText(template, ch, entry) {
   if (!template) return '';
   const filled = template
@@ -303,6 +359,14 @@ export function renderDynamicText(template, ch, entry) {
   return fillDayCounters(filled, ch, viewNow());
 }
 
+/**
+ * Puts a resolved break on screen: a bumper, ad pod, trivia card, station ID, test pattern or other break type.
+ * Starts the bumper at the matching offset when tuned in mid-window, and hands back to
+ * `endBreak` when it finishes or fails.
+ * @param {object} ch The channel config.
+ * @param {object} resolved A `resolveBreakAt` result.
+ * @param {?string} key The break key; `null` for a preview, which is never marked completed.
+ */
 function startBreak(ch, resolved, key) {
   const {
     type, entry, label, windowStart, preemptionLabel,
@@ -592,10 +656,15 @@ function startBreak(ch, resolved, key) {
   })();
 }
 
-// Setup's AIR CHECK console uses the same playback path as a naturally
-// resolved break, but with an explicit pool entry selected by the user.
-// This is a preview-only action; it does not alter schedule state or mark a
-// deterministic slot as completed.
+/**
+ * Setup's AIR CHECK console uses the same playback path as a naturally
+ * resolved break, but with an explicit pool entry selected by the user.
+ * This is a preview-only action; it does not alter schedule state or mark a
+ * deterministic slot as completed.
+ * @param {object} ch The channel config.
+ * @param {object} entry The interstitial pool entry to preview.
+ * @returns {boolean} False when either is missing.
+ */
 export function forceInterstitialPreview(ch, entry) {
   if (!ch || !entry) return false;
   const durationS = entry.dynamic ? (entry.durationS || 15) :
@@ -608,18 +677,24 @@ export function forceInterstitialPreview(ch, entry) {
   return true;
 }
 
-// The Q key / blue button: leave the commercial break on screen and go back to
-// the show. Only breaks that took the picture from the show can be skipped,
-// and never an emergency alert or a preemption (those are not the viewer's to
-// dismiss). Returns whether anything was skipped.
-// PROGRAMMING › CADENCE & PRESETS › "Skipping a break": 'always' (the
-// default), 'timeMachine' (only while the time machine is open, so live TV
-// plays its ads like real TV) or 'never'.
+/**
+ * When the Q key / blue button may skip a break: PROGRAMMING › CADENCE & PRESETS › "Skipping a
+ * break". 'always' (the default), 'timeMachine' (only while the time machine is open, so live TV
+ * plays its ads like real TV) or 'never'.
+ * @returns {string} 'always', 'timeMachine' or 'never'.
+ */
 export function skipBreaksPolicy() {
   const v = S.config.commercials && S.config.commercials.skipBreaks;
   return v === 'timeMachine' || v === 'never' ? v : 'always';
 }
 
+/**
+ * The Q key / blue button: leave the commercial break on screen and go back to
+ * the show. Only breaks that took the picture from the show can be skipped,
+ * and never an emergency alert or a preemption (those are not the viewer's to
+ * dismiss). Returns whether anything was skipped.
+ * @returns {boolean} True when a break was skipped.
+ */
 export function skipCurrentBreak() {
   const ch = getChannel(S.currentNumber);
   if (!ch || !S.isPoweredOn || S.easActive) return false;
@@ -653,6 +728,12 @@ export function skipCurrentBreak() {
   return true;
 }
 
+/**
+ * Skips a planned break (one laid into the schedule, interstitials.js applyBreakPlan) by moving the
+ * view forward to just past its end, then takes it off screen.
+ * @param {object} ch The channel config.
+ * @returns {boolean} True when a planned break was skipped.
+ */
 function skipPlannedBreak(ch) {
   const brk = resolveBreakAt(ch, viewNow());
   if (!brk || !brk.planned || !(brk.breakEnd > viewNow())) return false;
@@ -667,6 +748,11 @@ function skipPlannedBreak(ch) {
   return true;
 }
 
+/**
+ * Takes a break off screen and, if it interrupted the show, resumes the show.
+ * Credits the break's time back to the show unless it was a preemption.
+ * @param {object} ch The channel config.
+ */
 function endBreak(ch) {
   const shouldResume = S.activeBreakInterruptsContent;
   // Preemption is the one break type that must NOT credit its time back —
@@ -718,12 +804,17 @@ function endBreak(ch) {
   }
 }
 
-// Schedules file.advisoryCues (array of { offsetS, text }, setup-panels.js's
-// TITLES tab) — one setTimeout per cue still ahead of the current position,
-// each guarded the same way scheduleUpNextBar's callback is (bails if the
-// user tuned away or powered off before it fired). Re-scheduling on every
-// onMeta call clears the previous file's cues automatically, same
-// self-cleanup shape as scheduleUpNextBar/scheduleCreditsSpeedup.
+/**
+ * Schedules file.advisoryCues (array of { offsetS, text }, setup-panels.js's
+ * TITLES tab) — one setTimeout per cue still ahead of the current position,
+ * each guarded the same way scheduleUpNextBar's callback is (bails if the
+ * user tuned away or powered off before it fired). Re-scheduling on every
+ * onMeta call clears the previous file's cues automatically, same
+ * self-cleanup shape as scheduleUpNextBar/scheduleCreditsSpeedup.
+ * @param {object} ch The channel config.
+ * @param {object} file The playlist entry now playing.
+ * @param {number} seekOffsetS Seconds into the file playback starts at.
+ */
 export function scheduleContentAdvisoryCues(ch, file, seekOffsetS) {
   (S.contentAdvisoryCueTimers || []).forEach((t) => clearTimeout(t));
   S.contentAdvisoryCueTimers = [];
@@ -742,16 +833,23 @@ export function scheduleContentAdvisoryCues(ch, file, seekOffsetS) {
   });
 }
 
+/**
+ * Cancels the pending "up next" bar and hides it.
+ */
 export function cancelUpNextBar() {
   clearTimeout(S.upNextTimer); S.upNextTimer = null;
   clearTimeout(S.upNextHideTimer); S.upNextHideTimer = null;
   upNextBarEl.classList.remove('show');
 }
 
-// Show "UP NEXT: <title>" for ~8s starting ~45s before the current file
-// ends — a network promo, never interrupting content. Skipped near daypart
-// boundaries (the next thing airing would come from a different source,
-// and computing its first program up front isn't worth the complexity).
+/**
+ * Show "UP NEXT: <title>" for ~8s starting ~45s before the current file
+ * ends — a network promo, never interrupting content. Skipped near daypart
+ * boundaries (the next thing airing would come from a different source,
+ * and computing its first program up front isn't worth the complexity).
+ * @param {object} ch The channel config.
+ * @param {object} pos The live position: `{ file, offset, files, fileIndex }`.
+ */
 export function scheduleUpNextBar(ch, pos) {
   cancelUpNextBar();
   if (!S.config.upNext || S.config.upNext.enabled === false) return;

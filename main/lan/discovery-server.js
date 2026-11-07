@@ -35,6 +35,12 @@ const DISCOVERY_REPLY_MAGIC = 'RETRO_CABLE_BOX_HELLO';
 const MIN_REPLY_INTERVAL_MS = 2000;
 const MAX_TRACKED_ADDRESSES = 500;
 
+/**
+ * Starts the UDP discovery responder on `DISCOVERY_PORT`, replying with this machine's name and enabled service ports at a capped rate per address.
+ * @param {object} [options={}] Which services to advertise.
+ * @param {boolean} [options.viewerEnabled] Advertise the LAN viewer port.
+ * @param {boolean} [options.companionEnabled] Advertise the Companion port.
+ */
 function startDiscoveryServer(options = {}) {
   const dgram = require('dgram');
   const socket = dgram.createSocket('udp4');

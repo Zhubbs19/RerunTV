@@ -6,6 +6,7 @@
 // title search is more likely to be refined/retried.
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p/w342';
 
+// Patterns for a year at the start, in a trailing bracket group, or at the end of a file name.
 const LEADING_YEAR = /^\(?\s*((?:19|20)\d\d)\s*\)?\s*[.\-–—:]+\s*/;
 const TRAILING_GROUP_YEAR = /\s*[([][^)\]]*\b((?:19|20)\d\d)\b[^)\]]*[)\]]\s*$/;
 const TRAILING_YEAR = /[\s._-]+((?:19|20)\d\d)$/;
@@ -17,6 +18,8 @@ const TRAILING_YEAR = /[\s._-]+((?:19|20)\d\d)$/;
  * "Some Special (1965, HD)". The year comes out of the query and ranks the
  * results instead. A title that is only a year ("1917") is left alone, and
  * a "year" past next year is part of the title ("... 2049").
+ * @param {?string} query The file name or title to search for.
+ * @returns {{title: string, year: ?number}} The query without its year, and the year if one was found.
  */
 function splitYear(query) {
   let title = String(query || '').trim();
@@ -34,11 +37,17 @@ function splitYear(query) {
   return { title, year };
 }
 
-// The result from the named year first, then a year either side (a TV
-// special's TMDB date is often its first broadcast, a film's its premiere).
-// Among equals, the kind the file looks like (`prefer`: 'movie' for a
-// feature-length file, 'tv' for an episode) comes first; otherwise TMDB's
-// own order.
+/**
+ * The result from the named year first, then a year either side (a TV
+ * special's TMDB date is often its first broadcast, a film's its premiere).
+ * Among equals, the kind the file looks like (`prefer`: 'movie' for a
+ * feature-length file, 'tv' for an episode) comes first; otherwise TMDB's
+ * own order.
+ * @param {Array<object>} results Search results, each with `year` and `mediaType`.
+ * @param {?number} year The year taken from the query.
+ * @param {?string} [prefer=null] The media type to favour, 'movie' or 'tv'.
+ * @returns {Array<object>} The results in ranked order.
+ */
 function rankByYear(results, year, prefer = null) {
   if (!year && !prefer) return results;
   const distance = (r) => {
@@ -54,6 +63,10 @@ function rankByYear(results, year, prefer = null) {
     .map(({ r }) => r);
 }
 
+/**
+ * Registers the plugin's IPC handlers: `tmdb:search` and `tmdb:getCredits`.
+ * @param {object} ctx The plugin's main-process ctx (`ipcMain`, `fetchJsonCached`).
+ */
 function activate(ctx) {
   const { ipcMain, fetchJsonCached } = ctx;
 
@@ -138,6 +151,13 @@ function activate(ctx) {
 const TV_RATINGS = ['TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'];
 const FILM_TO_TV = { G: 'TV-G', PG: 'TV-PG', 'PG-13': 'TV-14', R: 'TV-MA', 'NC-17': 'TV-MA' };
 
+/**
+ * Picks the US TV rating from a TMDB details response.
+ * A show uses its US content rating; a film's US certification is mapped to a TV rating.
+ * @param {string} mediaType 'tv' or 'movie'.
+ * @param {object} data The TMDB details response with ratings appended.
+ * @returns {?string} A TV rating such as 'TV-PG', or null when there is none.
+ */
 function usRating(mediaType, data) {
   if (mediaType === 'tv') {
     const us = ((data.content_ratings && data.content_ratings.results) || []).find((r) => r.iso_3166_1 === 'US');
@@ -151,6 +171,13 @@ function usRating(mediaType, data) {
   return (cert && FILM_TO_TV[cert]) || null;
 }
 
+/**
+ * Picks one episode out of a TMDB season response.
+ * @param {?object} seasonData The TMDB season response.
+ * @param {number} season The season number.
+ * @param {number} number The episode number within the season.
+ * @returns {?object} The episode's season, number, name, overview and air date, or null if not found.
+ */
 function episodeFrom(seasonData, season, number) {
   const ep = ((seasonData && seasonData.episodes) || []).find((e) => e.episode_number === number);
   if (!ep) return null;

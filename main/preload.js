@@ -1,3 +1,6 @@
+// The main window's preload: exposes the sandboxed `window.api` bridge, each
+// entry a thin `ipcRenderer` call (see renderer/js/api-contract.js for the
+// canonical list).
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {

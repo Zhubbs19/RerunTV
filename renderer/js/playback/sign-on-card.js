@@ -14,20 +14,36 @@ const SEEN_WRITE_MS = 2 * 60000;
 let cardEl = null;
 let hideTimer = null;
 
+/**
+ * Returns the reminders to list: the current profile's, else the box's.
+ * @returns {Array<object>} Reminder entries.
+ */
 function reminders() {
   const profile = currentProfile();
   return profile ? profile.state.reminders : (S.config.reminders || []);
 }
 
+/**
+ * Hides the sign-on card and cancels its auto-hide timer.
+ */
 export function closeSignOnCard() {
   clearTimeout(hideTimer);
   if (cardEl) cardEl.classList.add('hidden');
 }
 
+/**
+ * Reports whether the sign-on card is on screen.
+ * @returns {boolean} True while the card is visible.
+ */
 export function isSignOnOpen() {
   return !!cardEl && !cardEl.classList.contains('hidden');
 }
 
+/**
+ * Builds and shows the sign-on card, creating its element on first use.
+ * It reads real time (`Date.now()`) because "how long the box was off" is wall-clock time.
+ * @returns {boolean} False when there is nothing to say and no card was shown.
+ */
 export function showSignOnCard() {
   // ON SCREEN › PROGRAM CARDS › "Welcome-back card" and how long away counts.
   const opts = S.config.signOnCard || {};
@@ -69,6 +85,9 @@ export function showSignOnCard() {
 // only the first time (a second call used to stack another interval, another beforeunload
 // stamp, another key listener, and re-show the card after every Setup visit).
 let signOnStarted = false;
+/**
+ * Shows the sign-on card once and starts keeping `lastSeenAt` fresh; later calls do nothing.
+ */
 export function startSignOn() {
   if (signOnStarted) return;
   signOnStarted = true;

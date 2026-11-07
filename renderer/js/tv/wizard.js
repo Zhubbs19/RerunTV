@@ -8,6 +8,7 @@ import { remoteProfile, setRemoteInputSink } from './input.js';
 import { Button } from '../ui/button.js';
 import { ModalSurface } from '../ui/dialog.js';
 
+// The update policies offered on the UPDATES step.
 const UPDATE_CHOICES = [
   { value: 'startup-auto', label: 'INSTALL AUTOMATICALLY', help: 'Check before RerunTV opens and install straight away.' },
   { value: 'background-notify', label: 'ASK WHEN READY', help: 'Check in the background and ask before installing.' },
@@ -25,10 +26,18 @@ const COMFORT_CHOICES = [
 const REMOTE_CHECK_TIMEOUT_MS = 30000;
 const KEYBOARD_HOLD_MS = 500;
 
+// The open wizard's overlay element, its modal surface, and its Back handler.
 let overlay = null;
 let surface = null;
 let goBack = null;
 
+/**
+ * Creates an element with an optional class and text.
+ * @param {string} tag The tag name.
+ * @param {string} [className] The class attribute.
+ * @param {?string} [text] Text content.
+ * @returns {HTMLElement} The new element.
+ */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -36,12 +45,28 @@ function el(tag, className, text) {
   return node;
 }
 
+/**
+ * A bare kit Button styled for the wizard.
+ * @param {string} label The button text.
+ * @param {Function} onPress Called when pressed.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.isDefault=false] Whether it takes initial focus.
+ * @returns {HTMLButtonElement} The button.
+ */
 function button(label, onPress, { isDefault = false } = {}) {
   return Button({ label, onPress, isDefault, bare: true, className: 'tv-wizard-btn' });
 }
 
-// options: { updateStrategy, comfort, addFolderChannel(): Promise<number|null> | null }
-// Resolves { updateStrategy, comfort, channelsAdded }.
+/**
+ * Runs the TV first-run wizard over the picture until the viewer reaches WATCH TV.
+ * options: { updateStrategy, comfort, addFolderChannel(): Promise<number|null> | null }
+ * Resolves { updateStrategy, comfort, channelsAdded }.
+ * @param {object} [options] Starting answers and hooks.
+ * @param {string} [options.updateStrategy='startup-auto'] The preselected update strategy.
+ * @param {string} [options.comfort='full'] The preselected comfort level.
+ * @param {?Function} [options.addFolderChannel=null] Picks a folder and adds a channel; resolves its number or null.
+ * @returns {Promise<object>} `{ updateStrategy, comfort, channelsAdded }`.
+ */
 export function showTvWizard({ updateStrategy = 'startup-auto', comfort: initialComfort = 'full', addFolderChannel = null } = {}) {
   return new Promise((resolve) => {
     let step = WIZARD_STEPS[0];

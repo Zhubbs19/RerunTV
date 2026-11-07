@@ -11,12 +11,14 @@
 // era snapshots), so renamed theme ids are rewritten wherever they appear as a
 // string value.
 
+// Old plugin id to new plugin id.
 const RENAMED_PLUGIN_IDS = {
   'music-choice-channel': 'digital-music-channel',
   prevue: 'guide-channel',
   'theme-prevue-guide-94': 'theme-scrolling-guide-94',
 };
 
+// Old theme id to new theme id, for the renamed theme packs above.
 const RENAMED_THEME_IDS = {
   'prevue-guide-94': 'scrolling-guide-94',
 };
@@ -42,17 +44,33 @@ const RETIRED_THEME_IDS = {
   'neo-brutalist': 'cable-guide-hd-15',
   'frutiger-aero': 'cable-guide-hd-15',
 };
+// Plugin ids of the retired theme packs; their plugin-keyed config is dropped.
 const RETIRED_PLUGIN_IDS = new Set(Object.keys(RETIRED_THEME_IDS).map((id) => `theme-${id}`));
 
+// Every old theme id (renamed or retired) to the id that replaces it.
 const THEME_ID_MAP = { ...RENAMED_THEME_IDS, ...RETIRED_THEME_IDS };
 
-// The theme id to use for a stored one (config, era snapshot, profile).
+/**
+ * The theme id to use for a stored one (config, era snapshot, profile).
+ * @param {string} id A stored theme id.
+ * @returns {string} The replacement id, or `id` unchanged.
+ */
 function currentThemeId(id) {
   return THEME_ID_MAP[id] || id;
 }
 
+/**
+ * Whether a value is a plain (non-array) object.
+ * @param {*} v The value.
+ * @returns {boolean} True for a non-null, non-array object.
+ */
 function isObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
 
+/**
+ * Drops retired plugin ids and moves renamed ones to their new id in an object keyed by plugin id. Mutates `obj` in place.
+ * @param {?object} obj An id-keyed object such as `pluginSettings`.
+ * @returns {boolean} True when anything changed.
+ */
 function renameKeys(obj) {
   let changed = false;
   if (!isObject(obj)) return false;
@@ -71,6 +89,11 @@ function renameKeys(obj) {
   return changed;
 }
 
+/**
+ * Rewrites old theme ids found as string values anywhere in a tree. Mutates in place.
+ * @param {object|Array} node The tree to walk.
+ * @returns {boolean} True when anything changed.
+ */
 function renameThemeValues(node) {
   let changed = false;
   if (Array.isArray(node)) {
@@ -88,6 +111,11 @@ function renameThemeValues(node) {
   return changed;
 }
 
+/**
+ * Carries renamed plugins' config over to their new ids and drops retired theme packs. Mutates `config` in place; idempotent.
+ * @param {object} config The parsed channels.json object.
+ * @returns {boolean} True when anything changed.
+ */
 function migrateRenamedPlugins(config) {
   if (!isObject(config)) return false;
   let changed = false;

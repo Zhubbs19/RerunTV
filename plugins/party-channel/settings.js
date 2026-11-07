@@ -3,14 +3,33 @@ import { startTriviaRound, pad2 } from './renderer.js';
 // ---------- Settings panel for the Party Channel plugin — join QR/URL,
 // bulletin & soundboard, guest-engagement toggles (ticker/checkin/countdown/
 // vote), caption contest capture, and the trivia question bank. ----------
+/**
+ * Parses a positive integer from a form field.
+ * @param {string} str The field's text.
+ * @param {number} fallback Value used when the text is not a positive integer.
+ * @returns {number} The parsed value or `fallback`.
+ */
 function parsePositiveInt(str, fallback) {
   const n = parseInt(str, 10);
   return (Number.isFinite(n) && n > 0) ? n : fallback;
 }
+/**
+ * Formats a date for a `datetime-local` input, in local time.
+ * @param {Date} d The date.
+ * @returns {string} Text such as `2026-11-04T19:30`.
+ */
 function toDatetimeLocalValue(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
+/**
+ * Draws the editable trivia question bank: question text, four options with a correct-answer radio, and a remove button.
+ * Edits write straight into the question objects in `cfg`.
+ * @param {HTMLElement} listEl The list container to fill.
+ * @param {object} cfg The `config.party` object.
+ * @param {Function} rerender Redraws the list after a question is removed.
+ * @param {Function} saveConfigDebounced Saves the config after an edit.
+ */
 function renderTriviaQuestions(listEl, cfg, rerender, saveConfigDebounced) {
   listEl.innerHTML = '';
   (cfg.triviaQuestions || []).forEach((q, idx) => {
@@ -77,6 +96,12 @@ function renderTriviaQuestions(listEl, cfg, rerender, saveConfigDebounced) {
   });
 }
 
+/**
+ * Fills in the party page's join URL, QR code and pairing code, or a not-active message.
+ * @param {HTMLElement} urlEl Element for the join URL or message.
+ * @param {HTMLImageElement} qrEl Image element for the QR code.
+ * @param {HTMLElement} codeEl Element for the pairing code.
+ */
 function renderJoinInfo(urlEl, qrEl, codeEl) {
   window.api.getPartyJoinInfo().then((info) => {
     if (!info || !info.url) {

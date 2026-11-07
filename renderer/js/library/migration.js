@@ -10,6 +10,10 @@ import { diffSchedules } from '../core/schedule-query.js';
 export const MIGRATION_WINDOW_DAYS = 60;
 const DAY_MS = 24 * 3600 * 1000;
 
+/**
+ * Waits one task so the UI can paint.
+ * @returns {Promise<void>}
+ */
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -29,6 +33,16 @@ function yieldToUi() {
  * plan, the check stops with an error rather than verifying the wrong thing.
  *
  * Returns { verdicts, rows }. `verdicts` is what finalizeMigration takes.
+ * @param {object} plan The migration plan; `plan.config` is the planned config.
+ * @param {object} opts Options.
+ * @param {number} opts.fromMs Start of the checked window, epoch ms.
+ * @param {number} [opts.days=MIGRATION_WINDOW_DAYS] Days to check.
+ * @param {number} [opts.chunkDays=5] Days per chunk between yields.
+ * @param {?Function} [opts.onProgress] Called with `{ channel, name, index, count, day, days }`.
+ * @param {Function} [opts.pause] Awaited between chunks.
+ * @param {Function} [opts.isStale] Returns true when config changed under the plan.
+ * @returns {Promise<object>} `{ verdicts, rows }`.
+ * @throws {Error} When `isStale()` reports a change.
  */
 export async function verifyMigrationPlan(plan, {
   fromMs, days = MIGRATION_WINDOW_DAYS, chunkDays = 5, onProgress = null, pause = yieldToUi, isStale = () => false,
@@ -75,6 +89,12 @@ export async function verifyMigrationPlan(plan, {
   return { verdicts, rows };
 }
 
+/**
+ * Pairs each live playlist of a channel with its planned one.
+ * @param {object} live The live channel config.
+ * @param {object} planned The planned channel config.
+ * @returns {Array<Array>} `[liveFiles, plannedFiles, label]` triples; `liveFiles` is `null` for a block missing live.
+ */
 function playlistPairs(live, planned) {
   const pairs = [[live.files || [], planned.files || [], `CH ${live.number}`]];
   (planned.blocks || []).forEach((block) => {
@@ -93,6 +113,11 @@ function playlistPairs(live, planned) {
  *
  * Paths, durations, order and anchors are never written here; only `item`
  * and `fileOverrides`. The caller records the change with commitConfigPatch.
+ * @param {object} config The live config, changed in place.
+ * @param {object} finalConfig The finalized migration's config.
+ * @param {Array<number|string>} accepted Channel numbers to apply.
+ * @returns {object} `{ channels, writes }` counts.
+ * @throws {Error} When an accepted channel or playlist changed after the check.
  */
 export function applyMigrationIds(config, finalConfig, accepted) {
   const acceptedSet = new Set((accepted || []).map(Number));

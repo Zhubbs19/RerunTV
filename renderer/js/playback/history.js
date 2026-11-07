@@ -18,8 +18,15 @@ import { currentProfile, personalCommand } from '../personal/state.js';
 // watch time. A programme is identified by channel + file + the instant the file started airing
 // (fileStartMs, constant across breaks because the lag S.contentLostMs is folded into it).
 const SAME_START_TOLERANCE_MS = 2000;
+// Marker for the most recently recorded programme, used to skip repeat rows.
 let lastViewing = null;
 
+/**
+ * Reports whether two viewing markers describe the same airing of the same programme.
+ * @param {?object} last The previous marker `{ channelNumber, path, fileStartMs }`.
+ * @param {?object} next The candidate marker, same shape.
+ * @returns {boolean} True when channel and path match and the start times are within tolerance.
+ */
 export function isSameViewing(last, next) {
   if (!last || !next) return false;
   if (last.channelNumber !== next.channelNumber || last.path !== next.path) return false;
@@ -27,11 +34,19 @@ export function isSameViewing(last, next) {
   return Math.abs(last.fileStartMs - next.fileStartMs) <= SAME_START_TOLERANCE_MS;
 }
 
+/**
+ * Forgets the last recorded programme so the next `recordViewing` call always writes a row.
+ */
 export function resetViewingDedupe() {
   lastViewing = null;
 }
 
-// fileStartMs is optional; without it every call records (the old behaviour).
+/**
+ * fileStartMs is optional; without it every call records (the old behaviour).
+ * @param {object} ch The channel config that is airing.
+ * @param {object} file The channel file entry that reached the screen.
+ * @param {number} [fileStartMs] When the file started airing, in schedule time; used to skip repeat rows for the same programme.
+ */
 export function recordViewing(ch, file, fileStartMs) {
   if (!window.api || typeof window.api.historyAppend !== 'function') return;
   if (!ch || !file) return;
@@ -55,12 +70,21 @@ export function recordViewing(ch, file, fileStartMs) {
   if (currentProfile()) personalCommand({ type: 'history.append', entry }).catch(() => {});
 }
 
+/**
+ * Reads the viewing log, newest first: the current profile's history, or the box's log.
+ * @param {number} [limit] Maximum rows to return.
+ * @returns {Promise<Array<object>>} History rows, or an empty array when unavailable.
+ */
 export function listViewingHistory(limit) {
   if (currentProfile()) return Promise.resolve(currentProfile().state.history.slice(-(limit || 2000)).reverse());
   if (!window.api || typeof window.api.historyList !== 'function') return Promise.resolve([]);
   return Promise.resolve(window.api.historyList(limit)).catch(() => []);
 }
 
+/**
+ * Clears the current profile's history, or the box's viewing log when no profile is active.
+ * @returns {Promise<boolean>} True when the clear succeeded.
+ */
 export function clearViewingHistory() {
   if (currentProfile()) return personalCommand({ type: 'state.set', key: 'history', value: [] }).then(() => true).catch(() => false);
   if (!window.api || typeof window.api.historyClear !== 'function') return Promise.resolve(false);
@@ -75,6 +99,11 @@ export function clearViewingHistory() {
 // for any row followed by a long idle gap.
 const MAX_UNCAPPED_GAP_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Totals estimated watch time overall, per channel and per title.
+ * @param {Array<object>} entries History rows (`at`, `durationS`, `channelNumber`, `channelName`, `title`).
+ * @returns {object} `{ rowCount, totalMs, firstAt, channels, titles }`, lists sorted by time watched.
+ */
 export function summarizeHistory(entries) {
   const rows = (entries || []).slice().sort((a, b) => a.at - b.at);
   const byChannel = new Map();
@@ -108,6 +137,11 @@ export function summarizeHistory(entries) {
   };
 }
 
+/**
+ * Formats a duration as an on-screen watch-time label such as "2 HR 5 MIN".
+ * @param {number} ms Duration in milliseconds.
+ * @returns {string} The label, rounded to whole minutes.
+ */
 export function formatWatchTime(ms) {
   const totalMinutes = Math.round((ms || 0) / 60000);
   if (totalMinutes < 60) return `${totalMinutes} MIN`;
@@ -116,8 +150,11 @@ export function formatWatchTime(ms) {
   return minutes ? `${hours} HR ${minutes} MIN` : `${hours} HR`;
 }
 
-// Kept as a function rather than read at import time so a config change
-// takes effect without a reload, same as every other setting.
+/**
+ * Kept as a function rather than read at import time so a config change
+ * takes effect without a reload, same as every other setting.
+ * @returns {boolean} False only when `viewingHistory.enabled` is explicitly false.
+ */
 export function historyEnabled() {
   return !S.config.viewingHistory || S.config.viewingHistory.enabled !== false;
 }

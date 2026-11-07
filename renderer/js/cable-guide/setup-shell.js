@@ -22,12 +22,19 @@ const LABELLED = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title
 // legacy house style): a file name or anything the viewer typed is left as is.
 const ALWAYS = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title';
 
+/**
+ * Tells whether the cable-guide layout is on.
+ * @returns {boolean} True on the cable-guide layout.
+ */
 const on = () => currentUiMode() === CABLE_GUIDE_UI;
 
-// Only the element's own text nodes change, so badges and counts appended as
-// child elements are left alone. Text the app writes later (the page title
-// on every section switch) is new legacy text, told apart from ours by the
-// title-cased copy kept beside it.
+/**
+ * Only the element's own text nodes change, so badges and counts appended as
+ * child elements are left alone. Text the app writes later (the page title
+ * on every section switch) is new legacy text, told apart from ours by the
+ * title-cased copy kept beside it.
+ * @param {HTMLElement} el A tab, subtab or title element.
+ */
 function relabel(el) {
   const node = Array.from(el.childNodes).find((n) => n.nodeType === 3 && /[A-Za-z]/.test(n.data));
   if (!node) return;
@@ -47,6 +54,11 @@ function relabel(el) {
   }
 }
 
+/**
+ * Reads a setting row's label and one-line help.
+ * @param {HTMLElement} row A `.setting-row` element.
+ * @returns {{name: string, help: string}} The row's label text and help text.
+ */
 function rowText(row) {
   const label = row.querySelector('.setting-row-label');
   const help = row.querySelector('.setting-row-help');
@@ -56,6 +68,9 @@ function rowText(row) {
   };
 }
 
+/**
+ * Adds the cable-guide header lines, envelope and clock to the setup screen and keeps them current.
+ */
 export function installSetupShell() {
   const screen = document.getElementById('setup-screen');
   const header = screen && screen.querySelector('.setup-header');

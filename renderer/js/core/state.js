@@ -270,7 +270,10 @@ export const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)
 export const POWER_OFF_ANIM_MS = REDUCE_MOTION ? 0 : 380;
 export const POWER_ON_ANIM_MS = REDUCE_MOTION ? 0 : 550;
 export const GUIDE_SLOT_MS = 30 * 60 * 1000;
-// One guide column. 30 minutes unless SETTINGS › Guide sets 15 or 60.
+/**
+ * One guide column. 30 minutes unless SETTINGS › Guide sets 15 or 60.
+ * @returns {number} The guide column width, in ms.
+ */
 export function guideSlotMs() {
   const min = Number(S.config && S.config.display && S.config.display.guideSlotMinutes);
   return (min === 15 || min === 60 ? min : 30) * 60 * 1000;
@@ -299,6 +302,11 @@ export const SHUTTLE_SPEEDS = [5, 15, 60, 300, 1800, 7200];
 // document in every load order). A missing element (LAN viewer, no setup
 // screen markup) is a silent no-op, not an error.
 let saveStatusBar = null;
+/**
+ * Shows a save state in the setup footer's indicator, creating it on first use; a no-op when the
+ * element is missing.
+ * @param {string} state The state to show, e.g. `saving` or `saved`.
+ */
 function setSaveIndicator(state) {
   if (!saveStatusBar) {
     const el = document.getElementById('setup-save-state');
@@ -342,9 +350,11 @@ let pendingPlain = false;
 // skipUndo writes, like lastChannel on every tune, settles without an entry).
 let pendingPlainTracked = false;
 
-// Callers that reassign S.config wholesale outside the undo funnel below
-// (a screen-switch or LAN-viewer-poll refetch that isn't a user "edit")
-// call this directly right after the reassignment — see app.js.
+/**
+ * Callers that reassign S.config wholesale outside the undo funnel below
+ * (a screen-switch or LAN-viewer-poll refetch that isn't a user "edit")
+ * call this directly right after the reassignment — see app.js.
+ */
 export function bumpConfigGeneration() {
   S.configGeneration++;
 }
@@ -358,25 +368,45 @@ export function bumpConfigGeneration() {
 // "override" through the generic settings.set path, not through eras.js's
 // own apply/clear, so the ERA panel has no other way to notice.
 const historyListeners = new Set();
+/**
+ * Subscribes to config-changing operations (commands, patches, plain saves, undo/redo).
+ * @param {Function} fn Called with no arguments after each one.
+ * @returns {Function} Unsubscribes the listener.
+ */
 export function onHistoryChange(fn) {
   historyListeners.add(fn);
   return () => historyListeners.delete(fn);
 }
+/**
+ * Calls every history listener; a listener that throws is logged and skipped.
+ */
 function notifyHistory() {
   historyListeners.forEach((fn) => { try { fn(); } catch (e) { console.warn('[history] listener failed', e); } });
 }
 
+/**
+ * Pushes an undo entry, trims history to `MAX_UNDO_ENTRIES` and clears redo.
+ * @param {object} entry The entry ({ label, commands, inverses, at, coalesce? }).
+ */
 function pushHistory(entry) {
   undoStack.push(entry);
   if (undoStack.length > MAX_UNDO_ENTRIES) undoStack.shift();
   redoStack.length = 0;
 }
 
+/**
+ * The undo of a config.patch command: the same patch with its ops and undo swapped.
+ * @param {object} patch A config.patch command ({ ops, undo }).
+ * @returns {Array<object>} The inverse command list.
+ */
 function inverseOfPatch(patch) {
   return [{ type: 'config.patch', ops: patch.undo, undo: patch.ops }];
 }
 
-// Turns pending in-place edits into history. Cheap when nothing is pending.
+/**
+ * Turns pending in-place edits into history. Cheap when nothing is pending.
+ * @param {string} [label] Undo label for the resulting config.patch step.
+ */
 function settlePlainEdits(label) {
   if (!pendingPlain) return;
   const tracked = pendingPlainTracked;
@@ -417,6 +447,11 @@ function settlePlainEdits(label) {
 // write of a session is a whole-config save (exactly what every write used to
 // be), and every write after it is commands.
 const clientId = `r${Math.random().toString(36).slice(2, 10)}`;
+/**
+ * This renderer's random client id, sent with every batch so the host can tell its own echoes
+ * apart.
+ * @returns {string} The client id.
+ */
 export function getClientId() { return clientId; }
 
 // Commands applied locally and not yet acknowledged by the host.
@@ -437,6 +472,10 @@ let resyncing = null;
 //                          this client was rebuilt from the host's copy, and
 //                          its undo history is gone with it
 let remoteChangeListener = null;
+/**
+ * Sets the single listener for config changes that did not come from this screen.
+ * @param {(reason: string) => void} fn Called with the reason (see above).
+ */
 export function onRemoteConfigChange(fn) {
   remoteChangeListener = fn;
 }
@@ -445,9 +484,17 @@ export function onRemoteConfigChange(fn) {
 // config changed under them (playback re-arms the break/block-boundary timers).
 // Separate from onRemoteConfigChange, which is a single-slot setup-screen hook.
 const schedulingConfigListeners = [];
+/**
+ * Adds a listener for config changes that may move schedule timers.
+ * @param {(reason: string) => void} fn Called with the reason, e.g. `host-update`.
+ */
 export function onSchedulingConfigChange(fn) {
   schedulingConfigListeners.push(fn);
 }
+/**
+ * Calls every scheduling listener; a listener that throws is logged and skipped.
+ * @param {string} reason Why config changed.
+ */
 function notifySchedulingConfigChange(reason) {
   schedulingConfigListeners.forEach((fn) => {
     try { fn(reason); } catch (e) { console.warn('[config] scheduling listener failed', e); }
@@ -457,6 +504,10 @@ function notifySchedulingConfigChange(reason) {
 // Registered by app.js: the boot-time defaults/migration pass (applyConfigDefaults),
 // so a wholesale replacement from the host goes through the same normalization.
 let configNormalizer = null;
+/**
+ * Registers the config normalizer applied to a config adopted from the host.
+ * @param {?Function} fn `(config) => config`; anything else clears it.
+ */
 export function setConfigNormalizer(fn) {
   configNormalizer = typeof fn === 'function' ? fn : null;
 }
@@ -464,35 +515,56 @@ export function setConfigNormalizer(fn) {
 // Settings that only describe this box's watching state; writing one doesn't
 // change anything any config-derived cache could depend on.
 const WATCH_STATE_SETTINGS = ['lastChannel', 'lastSeenAt', 'volume', 'muted', 'channelVolumes', 'pictureMode', 'aspectMode'];
+/**
+ * Whether a command only sets one of `WATCH_STATE_SETTINGS`.
+ * @param {?object} cmd The command.
+ * @returns {boolean} True for a watching-state write.
+ */
 function isWatchStateCommand(cmd) {
   return !!cmd && cmd.type === 'settings.set' && Array.isArray(cmd.path) && cmd.path.length === 1
     && WATCH_STATE_SETTINGS.includes(cmd.path[0]);
 }
 
+/**
+ * Calls the remote-change listener, if any, logging a throw instead of propagating it.
+ * @param {string} reason Why config changed.
+ */
 function notifyRemoteChange(reason) {
   if (!remoteChangeListener) return;
   try { remoteChangeListener(reason); } catch (e) { console.warn('[config] remote-change listener failed', e); }
 }
 
+/**
+ * A fresh batch id: client id, time and a random suffix.
+ * @returns {string} The batch id.
+ */
 function nextBatchId() {
   return `${clientId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-// Records commands for the host. They are already applied to S.config, which is
-// why the translation below can read the result: a plugin's own command travels
-// as the settings it produced, because the host has no plugin renderers and
-// would not know the type (commands.js's hostCommandsFor).
+/**
+ * Records commands for the host. They are already applied to S.config, which is
+ * why the translation below can read the result: a plugin's own command travels
+ * as the settings it produced, because the host has no plugin renderers and
+ * would not know the type (commands.js's hostCommandsFor).
+ * @param {Array<object>} commands Commands already applied to S.config.
+ */
 function enqueueOutbound(commands) {
   if (!commands || !commands.length) return;
   commands.forEach((cmd) => outbound.push(...hostCommandsFor(S.config, cmd)));
 }
 
-// The host refused a batch, or answered something this client can't reconcile
-// against. Its copy is authoritative, so take it whole, drop the local history
-// (the steps in it describe a config that no longer exists) and let the open
-// screen redraw. Deliberately not a fine-grained rollback: touch-set conflict
-// detection does not promise that the intervening commands commute with the
-// refused ones, so unwinding around them would be guesswork.
+/**
+ * The host refused a batch, or answered something this client can't reconcile
+ * against. Its copy is authoritative, so take it whole, drop the local history
+ * (the steps in it describe a config that no longer exists) and let the open
+ * screen redraw. Deliberately not a fine-grained rollback: touch-set conflict
+ * detection does not promise that the intervening commands commute with the
+ * refused ones, so unwinding around them would be guesswork.
+ * @param {string} reason Why the resync happened; passed to the remote-change listener.
+ * @returns {Promise<boolean>} Whether the host copy was adopted. Concurrent calls share one
+ *   promise.
+ */
 export function resyncFromHost(reason) {
   if (resyncing) return resyncing;
   resyncing = Promise.resolve(window.api.getConfigSnapshot()).then((snapshot) => {
@@ -526,14 +598,22 @@ export function resyncFromHost(reason) {
   return resyncing;
 }
 
+/**
+ * Logs a refused batch or save and resyncs from the host.
+ * @param {object} result The host's reply ({ ok: false, reason, message }).
+ * @returns {Promise<boolean>} Always resolves to false.
+ */
 function handleRefusal(result) {
   console.warn(`[config] the host refused an edit (${result.reason}): ${result.message}`);
   setSaveIndicator('saved');
   return resyncFromHost(result.reason).then(() => false);
 }
 
-// Sends everything applied since the last flush. One batch is in flight at a
-// time, so the host sees this client's edits in the order they were made.
+/**
+ * Sends everything applied since the last flush. One batch is in flight at a
+ * time, so the host sees this client's edits in the order they were made.
+ * @returns {Promise<boolean>} True when the edits landed or there was nothing to send; false when refused or a batch is already in flight.
+ */
 function flushCommands() {
   if (inFlight || resyncing) return Promise.resolve(false);
   settlePlainEdits();
@@ -598,6 +678,10 @@ function flushCommands() {
   });
 }
 
+/**
+ * Schedules `flushCommands` after a debounce and shows "saving".
+ * @param {number} [delay=600] Debounce in ms.
+ */
 function writeConfigSoon(delay) {
   clearTimeout(S.saveConfigTimer);
   setSaveIndicator('saving');
@@ -607,20 +691,27 @@ function writeConfigSoon(delay) {
   }, delay == null ? 600 : delay);
 }
 
-// Sends pending edits right now rather than on the debounce. Used by undo and
-// redo, where what the user does next may depend on the edit having landed.
+/**
+ * Sends pending edits right now rather than on the debounce. Used by undo and
+ * redo, where what the user does next may depend on the edit having landed.
+ * @returns {Promise<boolean>} The result of `flushCommands`.
+ */
 function writeConfigNow() {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
   return flushCommands();
 }
 
-// For the few places that must reach disk as a WHOLE config before continuing
-// (first-run onboarding, an import, a restore, the DONE flush, a setting that
-// recreates the window). Pending commands settle into it first so nothing is
-// sent twice, then the whole object goes over, carrying any edit no command
-// describes. The host replays its own edits onto it, and refuses it outright
-// if it would bury another client's command.
+/**
+ * For the few places that must reach disk as a WHOLE config before continuing
+ * (first-run onboarding, an import, a restore, the DONE flush, a setting that
+ * recreates the window). Pending commands settle into it first so nothing is
+ * sent twice, then the whole object goes over, carrying any edit no command
+ * describes. The host replays its own edits onto it, and refuses it outright
+ * if it would bury another client's command.
+ * @returns {Promise<object>} The host's reply; `{ ok: false, ... }` when it was refused or failed
+ *   (never rejects).
+ */
 export function saveConfigNow() {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
@@ -666,10 +757,20 @@ export function saveConfigNow() {
 // as already seen, and the next save would quietly revert it.
 let hostRevision = 0;
 
+/**
+ * The newest host revision applied to this client's config.
+ * @returns {number} The revision.
+ */
 export function getHostRevision() {
   return hostRevision;
 }
 
+/**
+ * Applies a host broadcast of commands to S.config and the baseline, skipping this client's own
+ * batches and anything already seen.
+ * @param {object} update The broadcast ({ revision, commands, client }).
+ * @returns {boolean} True when commands were applied.
+ */
 export function applyHostUpdate(update) {
   if (!update || !Number.isInteger(update.revision) || update.revision <= hostRevision) return false;
   // This client's own batch, coming back around. It was applied optimistically
@@ -699,8 +800,10 @@ export function applyHostUpdate(update) {
   return true;
 }
 
-// After a fresh load, adopt the host's current revision: the loaded config
-// already contains every host edit up to it. Only moves forward.
+/**
+ * After a fresh load, adopt the host's current revision: the loaded config
+ * already contains every host edit up to it. Only moves forward.
+ */
 function syncHostRevisionAfterLoad() {
   if (typeof window === 'undefined' || !window.api || typeof window.api.getConfigRevision !== 'function') return;
   Promise.resolve(window.api.getConfigRevision()).then((revision) => {
@@ -712,12 +815,19 @@ if (typeof window !== 'undefined' && window.api && typeof window.api.onConfigApp
   window.api.onConfigApplied((update) => applyHostUpdate(update));
 }
 
-// `opts.skipUndo` is for writes that are real config state but not a
-// meaningful "edit" to step back through — S.config.lastChannel on every tune,
-// air checks, library-sync bookkeeping. Without it, casually surfing channels
-// between setup-screen visits would bury actual setup edits under a pile of
-// "last channel changed" undo steps. A skipUndo write that lands inside the
-// same burst as a real edit is part of that edit's step, as before.
+/**
+ * Records an in-place edit of S.config and saves it after a debounce, bumping `S.configGeneration`
+ * at once.
+ * `opts.skipUndo` is for writes that are real config state but not a
+ * meaningful "edit" to step back through — S.config.lastChannel on every tune,
+ * air checks, library-sync bookkeeping. Without it, casually surfing channels
+ * between setup-screen visits would bury actual setup edits under a pile of
+ * "last channel changed" undo steps. A skipUndo write that lands inside the
+ * same burst as a real edit is part of that edit's step, as before.
+ * @param {number} [delay] Debounce in ms (600 by default).
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.skipUndo] Save without an undo step.
+ */
 export function saveConfigDebounced(delay, opts) {
   // Fires synchronously, right when the in-place mutation that triggered
   // this call actually happened — not inside the debounced timeout below,
@@ -731,13 +841,19 @@ export function saveConfigDebounced(delay, opts) {
   notifyHistory();
 }
 
-// For transforms that rewrite many parts of config at once in place — applying
-// a curation proposal, renaming a tag on every file, a library resync, an
-// imported channel package, a folder relink across channels. What changed since
-// the last settle point becomes one config.patch step, named by `label`, right
-// away rather than when the save fires. The one sanctioned structural patch
-// left in the renderer; per-object edits use named commands (dispatch,
-// commitInPlace). opts: skipUndo, delay, as saveConfigDebounced.
+/**
+ * For transforms that rewrite many parts of config at once in place — applying
+ * a curation proposal, renaming a tag on every file, a library resync, an
+ * imported channel package, a folder relink across channels. What changed since
+ * the last settle point becomes one config.patch step, named by `label`, right
+ * away rather than when the save fires. The one sanctioned structural patch
+ * left in the renderer; per-object edits use named commands (dispatch,
+ * commitInPlace). opts: skipUndo, delay, as saveConfigDebounced.
+ * @param {string} label The undo label.
+ * @param {object} [opts={}] Options.
+ * @param {boolean} [opts.skipUndo] Save without an undo step.
+ * @param {number} [opts.delay] Save debounce in ms.
+ */
 export function commitConfigPatch(label, opts = {}) {
   bumpConfigGeneration();
   pendingPlain = true;
@@ -747,13 +863,19 @@ export function commitConfigPatch(label, opts = {}) {
   notifyHistory();
 }
 
-// Applies named command(s) as one undo step and saves.
-//   opts.label      overrides the command's own description
-//   opts.coalesce   key; merges into the previous step if it had the same key
-//                   and was recorded within COALESCE_WINDOW_MS
-//   opts.skipUndo   apply and save without a history entry
-//   opts.delay      save debounce, as saveConfigDebounced
-// Throws, changing nothing, if any command fails validation.
+/**
+ * Applies named command(s) as one undo step and saves.
+ *   opts.label      overrides the command's own description
+ *   opts.coalesce   key; merges into the previous step if it had the same key
+ *                   and was recorded within COALESCE_WINDOW_MS
+ *   opts.skipUndo   apply and save without a history entry
+ *   opts.delay      save debounce, as saveConfigDebounced
+ * Throws, changing nothing, if any command fails validation.
+ * @param {object|Array<object>} commandOrList One command or a list of them.
+ * @param {object} [opts={}] Options (see above).
+ * @returns {boolean} True once applied.
+ * @throws {Error} When a command fails validation; nothing is changed.
+ */
 export function dispatch(commandOrList, opts = {}) {
   const commands = Array.isArray(commandOrList) ? commandOrList : [commandOrList];
   settlePlainEdits();
@@ -775,8 +897,13 @@ export function dispatch(commandOrList, opts = {}) {
   return true;
 }
 
-// History, generation, save and listeners for commands already applied to
-// S.config and the baseline.
+/**
+ * History, generation, save and listeners for commands already applied to
+ * S.config and the baseline.
+ * @param {Array<object>} commands The applied commands.
+ * @param {Array<object>} inverses Their inverses.
+ * @param {object} opts The `dispatch` options (label, coalesce, skipUndo, delay).
+ */
 function recordApplied(commands, inverses, opts) {
   // A lastChannel write on every tune shouldn't flush every config-keyed cache.
   if (!commands.every(isWatchStateCommand)) bumpConfigGeneration();
@@ -802,15 +929,20 @@ function recordApplied(commands, inverses, opts) {
   notifyHistory();
 }
 
-// Records edits the UI has already made in place, as named commands. Editors
-// that keep references to the live objects they edit (a rule row, a flow's
-// cadence, an array they hand back) can't go through dispatch(), which would
-// copy the new values in and leave the editor holding detached objects. Here
-// S.config is left exactly as it is: each command, describing the value as it
-// now stands, is applied only to the baseline, and what that returns is the
-// undo. A command that changes nothing in the baseline is dropped. Returns
-// whether anything was recorded; if it can't be (no baseline, or the command
-// doesn't fit), the edit is saved as a plain edit instead.
+/**
+ * Records edits the UI has already made in place, as named commands. Editors
+ * that keep references to the live objects they edit (a rule row, a flow's
+ * cadence, an array they hand back) can't go through dispatch(), which would
+ * copy the new values in and leave the editor holding detached objects. Here
+ * S.config is left exactly as it is: each command, describing the value as it
+ * now stands, is applied only to the baseline, and what that returns is the
+ * undo. A command that changes nothing in the baseline is dropped. Returns
+ * whether anything was recorded; if it can't be (no baseline, or the command
+ * doesn't fit), the edit is saved as a plain edit instead.
+ * @param {object|Array<object>} commandOrList One command or a list of them.
+ * @param {object} [opts={}] Options as for `dispatch`.
+ * @returns {boolean} Whether an undo step was recorded.
+ */
 export function commitInPlace(commandOrList, opts = {}) {
   const commands = Array.isArray(commandOrList) ? commandOrList : [commandOrList];
   settlePlainEdits();
@@ -844,10 +976,17 @@ export function commitInPlace(commandOrList, opts = {}) {
   return true;
 }
 
-// commitInPlace for list items (ad pool entries, presets, flows — commands.js
-// COLLECTIONS) edited directly: `pairs` is [item, before] or a list of them,
-// `before` a cloneJson copy taken before the edit, used to find which
-// top-level fields changed. Items that changed nothing are skipped.
+/**
+ * commitInPlace for list items (ad pool entries, presets, flows — commands.js
+ * COLLECTIONS) edited directly: `pairs` is [item, before] or a list of them,
+ * `before` a cloneJson copy taken before the edit, used to find which
+ * top-level fields changed. Items that changed nothing are skipped.
+ * @param {string} collection The collection name (`pool`, `presets`, `flows`, `blocks`).
+ * @param {Array} pairs One [item, before] pair, or a list of them.
+ * @param {object} [opts={}] Options as for `commitInPlace`, plus `channel` for a channel-scoped
+ *   collection.
+ * @returns {boolean} Whether an undo step was recorded.
+ */
 export function commitItemEdit(collection, pairs, opts = {}) {
   const list = Array.isArray(pairs[0]) ? pairs : [pairs];
   const commands = [];
@@ -862,9 +1001,11 @@ export function commitItemEdit(collection, pairs, opts = {}) {
   return commitInPlace(commands, opts);
 }
 
-// Replaces history's starting point with the config as it is now — after an
-// import, a restore, or the DONE flush, where "undo" past that point isn't a
-// meaningful single edit.
+/**
+ * Replaces history's starting point with the config as it is now — after an
+ * import, a restore, or the DONE flush, where "undo" past that point isn't a
+ * meaningful single edit.
+ */
 export function resetUndoBaseline() {
   baseline = cloneJson(S.config);
   outbound = [];
@@ -878,10 +1019,12 @@ export function resetUndoBaseline() {
   syncHostRevisionAfterLoad();
 }
 
-// For the rare call sites that replace S.config wholesale and persist it
-// themselves outside saveConfigDebounced (backup restore, which the main
-// process writes straight to disk) — records the replacement as one undo
-// step. Must be called AFTER S.config has been reassigned to the new value.
+/**
+ * For the rare call sites that replace S.config wholesale and persist it
+ * themselves outside saveConfigDebounced (backup restore, which the main
+ * process writes straight to disk) — records the replacement as one undo
+ * step. Must be called AFTER S.config has been reassigned to the new value.
+ */
 export function pushUndoSnapshot() {
   const after = cloneJson(S.config);
   // The host wrote this config itself (a backup restore) and noted the reset,
@@ -902,23 +1045,40 @@ export function pushUndoSnapshot() {
   notifyHistory();
 }
 
+/**
+ * Whether there is anything to undo, including a pending undoable edit.
+ * @returns {boolean} True when undo would do something.
+ */
 export function canUndo() { return undoStack.length > 0 || (pendingPlain && pendingPlainTracked); }
-// A pending undoable edit will clear redo the moment it settles.
+/**
+ * A pending undoable edit will clear redo the moment it settles.
+ * @returns {boolean} True when redo would do something.
+ */
 export function canRedo() { return redoStack.length > 0 && !(pendingPlain && pendingPlainTracked); }
 
-// "Rename CH 7", for the undo/redo buttons' tooltips; null when there's none.
-// Read-only on purpose: settling here would split an in-progress burst of
-// edits into several steps, since the buttons refresh on a timer.
+/**
+ * "Rename CH 7", for the undo/redo buttons' tooltips; null when there's none.
+ * Read-only on purpose: settling here would split an in-progress burst of
+ * edits into several steps, since the buttons refresh on a timer.
+ * @returns {?string} The label.
+ */
 export function undoLabel() {
   if (pendingPlain && pendingPlainTracked) return 'Recent edit';
   return undoStack.length ? undoStack[undoStack.length - 1].label : null;
 }
+/**
+ * The label of the step redo would apply, or null.
+ * @returns {?string} The label.
+ */
 export function redoLabel() {
   return redoStack.length ? redoStack[redoStack.length - 1].label : null;
 }
 
-// Returns true if a step was actually applied — callers use this to decide
-// whether to re-render the setup screen (state.js has no notion of the DOM).
+/**
+ * Returns true if a step was actually applied — callers use this to decide
+ * whether to re-render the setup screen (state.js has no notion of the DOM).
+ * @returns {boolean} True when a step was undone.
+ */
 export function performUndo() {
   settlePlainEdits();
   if (!undoStack.length) return false;
@@ -939,6 +1099,10 @@ export function performUndo() {
   return true;
 }
 
+/**
+ * Re-applies the last undone step. Returns true if a step was applied.
+ * @returns {boolean} True when a step was redone.
+ */
 export function performRedo() {
   settlePlainEdits();
   if (!redoStack.length) return false;
@@ -961,24 +1125,36 @@ export function performRedo() {
 // than Date.now(), so shifting one offset moves playback, the guide,
 // dayparting and the on-screen clocks together. Channel anchors deliberately
 // keep using real Date.now() — they record when a folder was scanned.
-// One gate for "may anything start (or keep) playing right now": the box is on and the Setup
-// screen isn't covering the TV. Every timer or async continuation that would start content
-// checks this, instead of each re-deriving a partial version of it.
+
+/**
+ * One gate for "may anything start (or keep) playing right now": the box is on and the Setup
+ * screen isn't covering the TV. Every timer or async continuation that would start content
+ * checks this, instead of each re-deriving a partial version of it.
+ * @returns {boolean} True when the box is on and setup is closed.
+ */
 export function canPlay() {
   return !!S.isPoweredOn && !S.isSetupOpen;
 }
 
-// Moves the viewing clock so viewNow() reads `ms`, absolutely. Use this instead of
-// `S.timeOffsetMs += target - viewNow()`: while a scrub is parked viewNow() is the frozen
-// moment and the wall clock has run on since it was taken, so the relative form lands
-// short by however long the scrub sat there. Also drops any freeze, since the offset is
-// being set deliberately and the old frozen moment no longer describes it.
+/**
+ * Moves the viewing clock so viewNow() reads `ms`, absolutely. Use this instead of
+ * `S.timeOffsetMs += target - viewNow()`: while a scrub is parked viewNow() is the frozen
+ * moment and the wall clock has run on since it was taken, so the relative form lands
+ * short by however long the scrub sat there. Also drops any freeze, since the offset is
+ * being set deliberately and the old frozen moment no longer describes it.
+ * @param {number} ms The instant to view, in ms; ignored unless finite.
+ */
 export function setViewedTime(ms) {
   if (!Number.isFinite(ms)) return;
   S.timeOffsetMs = ms - Date.now();
   S.frozenViewMs = null;
 }
 
+/**
+ * The schedule clock: the real time shifted by the time machine's offset, or the frozen moment
+ * while a scrub is parked. Schedule and playback code reads "now" through this, never `Date.now()`.
+ * @returns {number} The viewed instant, in ms.
+ */
 export function viewNow() {
   if (S.frozenViewMs != null && S.timeOffsetMs === S.frozenOffsetMs) return S.frozenViewMs;
   return Date.now() + S.timeOffsetMs;

@@ -46,8 +46,13 @@ export const DISPLAY_AUTO_PRIORITY_OPTIONS = [
   { value: 'era', label: 'ERA TAG FIRST' },
 ];
 
-// Called by playback.js once a file's REAL video size is confirmed
-// (loadedmetadata) — see videoSizeCache (state.js) for why this is kept.
+/**
+ * Called by playback.js once a file's REAL video size is confirmed
+ * (loadedmetadata) — see videoSizeCache (state.js) for why this is kept.
+ * @param {string} path The file path.
+ * @param {number} w The video width in pixels (0 when unknown).
+ * @param {number} h The video height in pixels (0 when unknown).
+ */
 export function cacheVideoSize(path, w, h) {
   if (!path || !w || !h) return;
   S.videoSizeCache[path] = { w, h };
@@ -81,23 +86,29 @@ const CONTENT_REFERENCE_HEIGHT = 900;
 // applyDisplayMode()), or the window would jump size every time.
 let lastAppliedLock = null;
 
-// AUTO resolution — auto-detects a tier for whichever channel is passed in,
-// cascading through two signals from most to least authoritative:
-//  1. The currently-airing file's REAL decoded video size (player.
-//     videoWidth/videoHeight) — only once loadedmetadata has actually
-//     fired (playback.js calls applyDisplayMode() again from there for
-//     exactly this reason); a genuinely low-res source file is real,
-//     objective evidence of "old/chunky," unlike a tag someone may or may
-//     not have set. Only used as a POSITIVE signal for a low tier — a
-//     high-res reading doesn't force 'native' by itself, since plenty of
-//     old content has been upscaled/re-encoded at 1080p without becoming
-//     any less "old" in spirit, so that case falls through to the era
-//     check below instead of being forced native by an unreliable read.
-//  2. The currently-airing file's facets.era (free text, TITLES panel) —
-//     the first 4-digit year found in it, bucketed by decade. Best-effort:
-//     era is user-typed and frequently empty, so this is a fallback, not a
-//     primary signal.
-//  3. 'native' — the same-as-today default when nothing above resolves.
+/**
+ * Maps a real video size to an SD resolution tier.
+ * AUTO resolution — auto-detects a tier for whichever channel is passed in,
+ * cascading through two signals from most to least authoritative:
+ *  1. The currently-airing file's REAL decoded video size (player.
+ *     videoWidth/videoHeight) — only once loadedmetadata has actually
+ *     fired (playback.js calls applyDisplayMode() again from there for
+ *     exactly this reason); a genuinely low-res source file is real,
+ *     objective evidence of "old/chunky," unlike a tag someone may or may
+ *     not have set. Only used as a POSITIVE signal for a low tier — a
+ *     high-res reading doesn't force 'native' by itself, since plenty of
+ *     old content has been upscaled/re-encoded at 1080p without becoming
+ *     any less "old" in spirit, so that case falls through to the era
+ *     check below instead of being forced native by an unreliable read.
+ *  2. The currently-airing file's facets.era (free text, TITLES panel) —
+ *     the first 4-digit year found in it, bucketed by decade. Best-effort:
+ *     era is user-typed and frequently empty, so this is a fallback, not a
+ *     primary signal.
+ *  3. 'native' — the same-as-today default when nothing above resolves.
+ * @param {number} w The video width in pixels (0 when unknown).
+ * @param {number} h The video height in pixels (0 when unknown).
+ * @returns {?string} `sd240`, `sd480`, or null when the size is not evidence of either.
+ */
 function resolutionFromVideoSize(w, h) {
   if (!w || !h) return null; // metadata not loaded yet — not evidence of anything
   if (h <= 240) return 'sd240';
@@ -105,6 +116,12 @@ function resolutionFromVideoSize(w, h) {
   return null; // high-res isn't proof of "not old" — let era decide instead
 }
 
+/**
+ * Maps an era tag containing a year to a resolution tier: before 1970 `sd240`, before 1990 `sd480`,
+ * else `native`.
+ * @param {?string} era The file's era facet.
+ * @returns {?string} The tier, or null when the tag has no year.
+ */
 function resolutionFromEra(era) {
   if (!era) return null;
   const match = String(era).match(/\d{4}/);
@@ -115,30 +132,38 @@ function resolutionFromEra(era) {
   return 'native';
 }
 
-// Only trust player.videoWidth/videoHeight as evidence for `ch` once
-// playback.js has CONFIRMED (via its own loadedmetadata) that they actually
-// belong to this channel — applyDisplayMode() gets called from several
-// points in the tune sequence, including ones that fire before the new
-// channel's own video has loaded, where the player element may still be
-// showing a PREVIOUS channel's dimensions. Rapid channel-flipping is
-// exactly when this race is most likely: several tunes' async work can be
-// in flight at once, and without this check a stale reading could get
-// applied and then never get corrected if the flip that finally "wins"
-// doesn't happen to trigger a fresh loadedmetadata of its own.
+/**
+ * Only trust player.videoWidth/videoHeight as evidence for `ch` once
+ * playback.js has CONFIRMED (via its own loadedmetadata) that they actually
+ * belong to this channel — applyDisplayMode() gets called from several
+ * points in the tune sequence, including ones that fire before the new
+ * channel's own video has loaded, where the player element may still be
+ * showing a PREVIOUS channel's dimensions. Rapid channel-flipping is
+ * exactly when this race is most likely: several tunes' async work can be
+ * in flight at once, and without this check a stale reading could get
+ * applied and then never get corrected if the flip that finally "wins"
+ * doesn't happen to trigger a fresh loadedmetadata of its own.
+ * @param {?object} ch The channel config.
+ * @returns {{w: number, h: number}} The size; zeros when unknown.
+ */
 function playerVideoSizeFor(ch) {
   if (!ch || S.currentPlayerChannelNumber !== ch.number) return { w: 0, h: 0 };
   return { w: player.videoWidth, h: player.videoHeight };
 }
 
-// The confirmed-live reading above is only available once THIS tune's own
-// loadedmetadata has fired — too late to inform the early, pre-metadata
-// applyDisplayMode() call that playChannelLive also makes (so the frame
-// doesn't sit at a stale previous-channel size while the new file loads).
-// videoSizeCache (state.js) remembers every file's real size the first time
-// it's ever decoded, so a repeat airing — the common case, since channels
-// loop the same pool — can use real, confirmed dimensions on that early call
-// too, instead of only the era/default guess. Falls back to {0,0} (same as
-// "unknown") the first time any given file is ever seen.
+/**
+ * The confirmed-live reading above is only available once THIS tune's own
+ * loadedmetadata has fired — too late to inform the early, pre-metadata
+ * applyDisplayMode() call that playChannelLive also makes (so the frame
+ * doesn't sit at a stale previous-channel size while the new file loads).
+ * videoSizeCache (state.js) remembers every file's real size the first time
+ * it's ever decoded, so a repeat airing — the common case, since channels
+ * loop the same pool — can use real, confirmed dimensions on that early call
+ * too, instead of only the era/default guess. Falls back to {0,0} (same as
+ * "unknown") the first time any given file is ever seen.
+ * @param {?object} ch The channel config.
+ * @returns {{w: number, h: number}} The size; zeros when unknown.
+ */
 function cachedVideoSizeFor(ch) {
   const pos = ch && computeLivePosition(ch);
   const path = pos && pos.file && pos.file.path;
@@ -146,23 +171,37 @@ function cachedVideoSizeFor(ch) {
   return cached || { w: 0, h: 0 };
 }
 
+/**
+ * The best known real video size for a channel's airing file: the confirmed live reading, else the
+ * cached one.
+ * @param {?object} ch The channel config.
+ * @returns {{w: number, h: number}} The size; zeros when unknown.
+ */
 function realVideoSizeFor(ch) {
   const live = playerVideoSizeFor(ch);
   if (live.w && live.h) return live;
   return cachedVideoSizeFor(ch);
 }
 
-// Box-wide (DISPLAY tab) preference for which AUTO signal wins when both a
-// real video size (live or cached) AND an era tag are available — defaults
-// to 'metadata' (the file's own real, objective size) since that's normally
-// more trustworthy than a free-text tag, but a user who's deliberately
-// tagged content with an era to get its PERIOD LOOK regardless of the
-// file's actual encode (e.g. a modern remaster of a 1965 show) can flip
-// this to prefer that intent instead.
+/**
+ * Box-wide (DISPLAY tab) preference for which AUTO signal wins when both a
+ * real video size (live or cached) AND an era tag are available — defaults
+ * to 'metadata' (the file's own real, objective size) since that's normally
+ * more trustworthy than a free-text tag, but a user who's deliberately
+ * tagged content with an era to get its PERIOD LOOK regardless of the
+ * file's actual encode (e.g. a modern remaster of a 1965 show) can flip
+ * this to prefer that intent instead.
+ * @returns {string} `metadata` or `era`.
+ */
 function autoPriority() {
   return (S.config.displayMode && S.config.displayMode.autoPriority) || 'metadata';
 }
 
+/**
+ * AUTO resolution for a channel, from its video size and era tag in `autoPriority` order.
+ * @param {?object} ch The channel config.
+ * @returns {string} The resolution tier; `native` when nothing decides.
+ */
 function autoDetectResolution(ch) {
   if (!ch) return 'native';
   const { w, h } = realVideoSizeFor(ch);
@@ -174,22 +213,31 @@ function autoDetectResolution(ch) {
   return byVideoSize || byEra || 'native';
 }
 
-// Finds the registerChannelType definition for the current channel number
-// when that number isn't in S.config.channels (i.e. it's a virtual plugin
-// channel). Used as a fallback by the two resolve functions below so plugin
-// channels can use the generic plugin settings namespace. Definition fields
-// remain a backward-compatible/default fallback for older plugins.
+/**
+ * Finds the registerChannelType definition for the current channel number
+ * when that number isn't in S.config.channels (i.e. it's a virtual plugin
+ * channel). Used as a fallback by the two resolve functions below so plugin
+ * channels can use the generic plugin settings namespace. Definition fields
+ * remain a backward-compatible/default fallback for older plugins.
+ * @param {number} number The channel number.
+ * @returns {?object} The plugin channel's display settings, or null when no plugin channel has that
+ *   number.
+ */
 function pluginChannelDisplaySettingsForNumber(number) {
   const entry = getPluginChannelEntryForNumber(number);
   return entry ? getPluginChannelDisplaySettings(entry.id, entry.definition) : null;
 }
 
-// Top-level resolution decision: a per-channel override wins outright when
-// set — including its own independent 'auto' choice — and only falls through
-// to the box-wide RESOLUTION select (DISPLAY tab, itself possibly 'auto'
-// too) when the channel has no override at all.
-// Regular user-channel overrides live on the channel config entry; virtual
-// plugin-channel overrides live in config.pluginSettings.
+/**
+ * Top-level resolution decision: a per-channel override wins outright when
+ * set — including its own independent 'auto' choice — and only falls through
+ * to the box-wide RESOLUTION select (DISPLAY tab, itself possibly 'auto'
+ * too) when the channel has no override at all.
+ * Regular user-channel overrides live on the channel config entry; virtual
+ * plugin-channel overrides live in config.pluginSettings.
+ * @param {object} dm The box-wide `S.config.displayMode` settings.
+ * @returns {string} The resolution tier.
+ */
 function resolveEffectiveResolution(dm) {
   const ch = getChannel(S.currentNumber);
   const override = (ch && ch.resolutionOverride)
@@ -200,26 +248,37 @@ function resolveEffectiveResolution(dm) {
   return boxWide === 'auto' ? autoDetectResolution(ch) : boxWide;
 }
 
-// AUTO aspect — same two-signal cascade as AUTO resolution above, but for
-// the simulated box's own screen SHAPE rather than its pixel density:
-//  1. The currently-airing file's REAL decoded video shape (player.
-//     videoWidth/videoHeight) — whichever of 4:3/16:9 its ratio sits closer
-//     to. Unlike resolution's video-size signal (only trusted as a POSITIVE
-//     signal for a low tier, since a re-encode can raise pixel count
-//     without changing \"era\"), a file's actual aspect ratio is reliable
-//     evidence of its shape regardless of encode history, so this is
-//     authoritative whenever metadata is available — no high-res-style
-//     \"inconclusive\" case to fall through on.
-//  2. The currently-airing file's facets.era, split at 1998 (roughly when
-//     16:9 broadcast/DVD content became common) — same free-text,
-//     best-effort fallback as the resolution era check.
-//  3. '16:9' — the same-as-today default when nothing above resolves.
+/**
+ * Maps a real video size to the nearer of 4:3 and 16:9.
+ * AUTO aspect — same two-signal cascade as AUTO resolution above, but for
+ * the simulated box's own screen SHAPE rather than its pixel density:
+ *  1. The currently-airing file's REAL decoded video shape (player.
+ *     videoWidth/videoHeight) — whichever of 4:3/16:9 its ratio sits closer
+ *     to. Unlike resolution's video-size signal (only trusted as a POSITIVE
+ *     signal for a low tier, since a re-encode can raise pixel count
+ *     without changing \"era\"), a file's actual aspect ratio is reliable
+ *     evidence of its shape regardless of encode history, so this is
+ *     authoritative whenever metadata is available — no high-res-style
+ *     \"inconclusive\" case to fall through on.
+ *  2. The currently-airing file's facets.era, split at 1998 (roughly when
+ *     16:9 broadcast/DVD content became common) — same free-text,
+ *     best-effort fallback as the resolution era check.
+ *  3. '16:9' — the same-as-today default when nothing above resolves.
+ * @param {number} w The video width in pixels (0 when unknown).
+ * @param {number} h The video height in pixels (0 when unknown).
+ * @returns {?string} `4:3`, `16:9`, or null when the size is unknown.
+ */
 function aspectFromVideoSize(w, h) {
   if (!w || !h) return null; // metadata not loaded yet — not evidence of anything
   const ratio = w / h;
   return Math.abs(ratio - 4 / 3) <= Math.abs(ratio - 16 / 9) ? '4:3' : '16:9';
 }
 
+/**
+ * Maps an era tag containing a year to an aspect: before 1998 4:3, else 16:9.
+ * @param {?string} era The file's era facet.
+ * @returns {?string} The aspect, or null when the tag has no year.
+ */
 function aspectFromEra(era) {
   if (!era) return null;
   const match = String(era).match(/\d{4}/);
@@ -227,6 +286,11 @@ function aspectFromEra(era) {
   return parseInt(match[0], 10) < 1998 ? '4:3' : '16:9';
 }
 
+/**
+ * AUTO aspect for a channel, from its video size and era tag in `autoPriority` order.
+ * @param {?object} ch The channel config.
+ * @returns {string} The aspect; 16:9 when nothing decides.
+ */
 function autoDetectAspect(ch) {
   if (!ch) return '16:9';
   const { w, h } = realVideoSizeFor(ch);
@@ -238,10 +302,14 @@ function autoDetectAspect(ch) {
   return byVideoSize || byEra || '16:9';
 }
 
-// Top-level aspect decision — same \"per-channel override (incl. its own
-// AUTO) beats box-wide (incl. its own AUTO)\" shape as
-// resolveEffectiveResolution above. Same plugin-channel fallback too:
-// plugin channels resolve their saved value through the plugin registry.
+/**
+ * Top-level aspect decision — same \"per-channel override (incl. its own
+ * AUTO) beats box-wide (incl. its own AUTO)\" shape as
+ * resolveEffectiveResolution above. Same plugin-channel fallback too:
+ * plugin channels resolve their saved value through the plugin registry.
+ * @param {object} dm The box-wide `S.config.displayMode` settings.
+ * @returns {string} The aspect.
+ */
 function resolveEffectiveAspect(dm) {
   const ch = getChannel(S.currentNumber);
   const override = (ch && ch.displayAspectOverride)
@@ -252,6 +320,10 @@ function resolveEffectiveAspect(dm) {
   return boxWide === 'auto' ? autoDetectAspect(ch) : boxWide;
 }
 
+/**
+ * The display mode in effect for the current channel, overrides included.
+ * @returns {{aspect: string, resolution: string, windowMode: string}} The display mode.
+ */
 export function resolveEffectiveDisplayMode() {
   const dm = S.config.displayMode || {};
   return {
@@ -261,9 +333,12 @@ export function resolveEffectiveDisplayMode() {
   };
 }
 
-// Content-derived context for overlay placement. Unlike the effective app
-// display mode, this deliberately ignores manual display overrides so an
-// AUTO MATCH CONTENT layout can follow each playing file as it changes.
+/**
+ * Content-derived context for overlay placement. Unlike the effective app
+ * display mode, this deliberately ignores manual display overrides so an
+ * AUTO MATCH CONTENT layout can follow each playing file as it changes.
+ * @returns {{aspect: string, resolution: string, windowMode: string}} The display mode.
+ */
 export function resolveContentDisplayMode() {
   const ch = getChannel(S.currentNumber);
   return {
@@ -295,6 +370,13 @@ export const OVERLAY_LAYOUT_TARGETS = [
 // explicit set rather than a per-target flag since it's a single entry today.
 const PER_CHANNEL_OVERLAY_TARGET_IDS = new Set(['ticker-bar']);
 
+/**
+ * Picks the saved overlay layout profile that matches the context, preferring the most specific
+ * (aspect and resolution both set).
+ * @param {?Array<object>} profiles Saved layout profiles ({ aspect?, resolution?, x, y, ... }).
+ * @param {object} context The display mode to match ({ aspect, resolution }).
+ * @returns {?object} The best profile, or null.
+ */
 function pickOverlayLayout(profiles, context) {
   return (profiles || [])
     .filter((profile) => (!profile.aspect || profile.aspect === context.aspect)
@@ -303,35 +385,54 @@ function pickOverlayLayout(profiles, context) {
       - Number(Boolean(a.aspect)) - Number(Boolean(a.resolution)))[0] || null;
 }
 
+/**
+ * The display mode overlay layouts are matched against: the content's own when the logo bug
+ * auto-adjusts, else the effective one.
+ * @returns {{aspect: string, resolution: string, windowMode: string}} The display mode.
+ */
 export function resolveOverlayLayoutContext() {
   return S.config.display && S.config.display.logoBugAutoAdjust
     ? resolveContentDisplayMode()
     : resolveEffectiveDisplayMode();
 }
 
-// A few OVERLAY_LAYOUT_TARGETS rely on their own CSS `transform` (not just
-// `left`/`top`) for default (no saved custom-position profile) centering —
-// overlays.css's `left:50%; transform:translateX(-50%);` idiom. Overwriting
-// `transform` outright, the way the KEEP OVERLAYS AT FULL RESOLUTION
-// counter-scale below does, would silently un-center these. Not needed once
-// a custom profile exists for a target — the layout editor already
-// repositions those by explicit top-left corner instead (transform-
-// origin:'top left', no base transform), same as it always has; this is
-// purely for preserving each target's own DEFAULT appearance.
-// The width of the frame a saved position was laid out on: a 16:9 or 4:3
-// placement was made on a screen of that shape at this height, whatever shape
-// the picture is now. Placements with no shape were made on the current frame.
+/**
+ * The width of the frame a saved overlay position was laid out on.
+ * A few OVERLAY_LAYOUT_TARGETS rely on their own CSS `transform` (not just
+ * `left`/`top`) for default (no saved custom-position profile) centering —
+ * overlays.css's `left:50%; transform:translateX(-50%);` idiom. Overwriting
+ * `transform` outright, the way the KEEP OVERLAYS AT FULL RESOLUTION
+ * counter-scale below does, would silently un-center these. Not needed once
+ * a custom profile exists for a target — the layout editor already
+ * repositions those by explicit top-left corner instead (transform-
+ * origin:'top left', no base transform), same as it always has; this is
+ * purely for preserving each target's own DEFAULT appearance.
+ * The width of the frame a saved position was laid out on: a 16:9 or 4:3
+ * placement was made on a screen of that shape at this height, whatever shape
+ * the picture is now. Placements with no shape were made on the current frame.
+ * @param {?object} profile The saved layout profile.
+ * @param {number} height The current frame height.
+ * @param {number} currentWidth The current frame width.
+ * @returns {number} The authored frame width.
+ */
 export function authoredFrameWidth(profile, height, currentWidth) {
   if (profile && profile.aspect === '4:3') return height * 4 / 3;
   if (profile && profile.aspect === '16:9') return height * 16 / 9;
   return currentWidth;
 }
 
-// A badge's saved x or y is a share of the frame it was laid out on (whole);
-// the gap it leaves to the nearer edge of that frame is kept, in pixels, as the
-// gap to the picture's edge (start..start+span). The left/top it needs does not
-// depend on the badge's own size: a badge near the far edge keeps its far gap
-// because its near edge keeps the same distance from the far edge of the frame.
+/**
+ * A badge's saved x or y is a share of the frame it was laid out on (whole);
+ * the gap it leaves to the nearer edge of that frame is kept, in pixels, as the
+ * gap to the picture's edge (start..start+span). The left/top it needs does not
+ * depend on the badge's own size: a badge near the far edge keeps its far gap
+ * because its near edge keeps the same distance from the far edge of the frame.
+ * @param {number} percent The saved position, as a percent of `whole`.
+ * @param {number} start Where the picture starts on that axis, in layer pixels.
+ * @param {number} span The picture's size on that axis, in layer pixels.
+ * @param {number} whole The size of the frame the position was laid out on.
+ * @returns {number} The left or top, in layer pixels.
+ */
 export function badgePosition(percent, start, span, whole) {
   if (!(whole > 0)) return start + (percent / 100) * span;
   const at = (percent / 100) * whole;
@@ -339,8 +440,15 @@ export function badgePosition(percent, start, span, whole) {
   return Math.min(Math.max(start, pos), start + span);
 }
 
-// The inverse: the saved percent that puts a badge's left/top at `position`.
-// The layout editor draws and drags the badge where it lands, then stores this.
+/**
+ * The inverse: the saved percent that puts a badge's left/top at `position`.
+ * The layout editor draws and drags the badge where it lands, then stores this.
+ * @param {number} position The left or top, in layer pixels.
+ * @param {number} start Where the picture starts on that axis, in layer pixels.
+ * @param {number} span The picture's size on that axis, in layer pixels.
+ * @param {number} whole The size of the frame the position was laid out on.
+ * @returns {number} The percent to save.
+ */
 export function badgeStoredPercent(position, start, span, whole) {
   if (!(whole > 0)) return span > 0 ? Math.max(0, (position - start) / span * 100) : 0;
   const fromStart = position - start;
@@ -360,8 +468,13 @@ export const PICTURE_FOLLOWING_OVERLAYS = new Set(['rating-bug', 'episode-status
 let pictureInsets = { left: 0, top: 0, right: 0, bottom: 0 };
 let insetsLayerSize = '';
 
-// Where a saved badge position lands on the picture, in the overlay layer's
-// pixels, or null when it is placed on the screen.
+/**
+ * Where a saved badge position lands on the picture, in the overlay layer's
+ * pixels, or null when it is placed on the screen.
+ * @param {string} id The overlay target id.
+ * @param {object} profile The saved layout profile ({ x, y, aspect? }).
+ * @returns {?{left: number, top: number}} The position, or null.
+ */
 function placedOnPicture(id, profile) {
   if (!PICTURE_FOLLOWING_OVERLAYS.has(id)) return null;
   if (S.config && S.config.display && S.config.display.logoBugFollowPicture === false) return null;
@@ -376,9 +489,13 @@ function placedOnPicture(id, profile) {
   };
 }
 
-// How far the picture is in from each edge of the overlay layer, in the
-// layer's own pixels (black bars, or the docked guide). Zero when the picture
-// fills the layer, or the bug is set to ignore the picture.
+/**
+ * Measures the picture's insets inside the overlay layer, stores them in `pictureInsets` and the
+ * `--picture-inset-*` vars, and re-runs `applyOverlayLayouts` when they change.
+ * How far the picture is in from each edge of the overlay layer, in the
+ * layer's own pixels (black bars, or the docked guide). Zero when the picture
+ * fills the layer, or the bug is set to ignore the picture.
+ */
 export function applyPictureInsets() {
   const layer = document.getElementById('overlay-extend-layer');
   const picture = S.pictureRect;
@@ -419,6 +536,10 @@ const OVERLAY_BASE_TRANSFORMS = {
   'content-advisory-card': 'translateX(-50%)',
 };
 
+/**
+ * Positions every overlay target from its saved layout profile for the current display mode (per
+ * channel for the ticker), then refreshes the picture insets.
+ */
 export function applyOverlayLayouts() {
   const layouts = (S.config.display && S.config.display.overlayLayouts) || {};
   const context = resolveOverlayLayoutContext();
@@ -499,17 +620,24 @@ export function applyOverlayLayouts() {
   });
 }
 
-// EXTEND GUIDE & OVERLAYS TO FULL SCREEN (DISPLAY > APP DISPLAY MODE) — two
-// consumers share these four vars: #guide-grid itself, and
-// #overlay-extend-layer (tokens.css), the wrapper around every other
-// OVERLAY_LAYOUT_TARGETS badge except ticker-bar. Both are direct #app
-// children now (index.html), sized/positioned entirely by these vars rather
-// than inheriting #display-frame's own box the way they used to as
-// descendants. Off (default): reproduces #display-frame's own centered
-// (targetW x targetH) rect exactly, so the guide and badges stay confined
-// to the video's simulated content box — today's behavior, unchanged. On:
-// they instead cover the real #app window (availW x availH), independent
-// of whatever aspect/resolution the video itself is simulating.
+/**
+ * EXTEND GUIDE & OVERLAYS TO FULL SCREEN (DISPLAY > APP DISPLAY MODE) — two
+ * consumers share these four vars: #guide-grid itself, and
+ * #overlay-extend-layer (tokens.css), the wrapper around every other
+ * OVERLAY_LAYOUT_TARGETS badge except ticker-bar. Both are direct #app
+ * children now (index.html), sized/positioned entirely by these vars rather
+ * than inheriting #display-frame's own box the way they used to as
+ * descendants. Off (default): reproduces #display-frame's own centered
+ * (targetW x targetH) rect exactly, so the guide and badges stay confined
+ * to the video's simulated content box — today's behavior, unchanged. On:
+ * they instead cover the real #app window (availW x availH), independent
+ * of whatever aspect/resolution the video itself is simulating.
+ * @param {object} size The layout sizes, in pixels.
+ * @param {number} size.availW The `#app` width.
+ * @param {number} size.availH The `#app` height.
+ * @param {number} size.targetW The simulated picture width.
+ * @param {number} size.targetH The simulated picture height.
+ */
 function applyExtendLayerBounds({
   availW, availH, targetW, targetH,
 }) {
@@ -530,6 +658,10 @@ function applyExtendLayerBounds({
   applyPictureInsets();
 }
 
+/**
+ * Applies the effective display mode: the window aspect lock, the display frame's simulated size
+ * and resolution, the overlay layer bounds and the overlay layouts.
+ */
 export function applyDisplayMode() {
   if (!displayFrameEl) return;
   const { aspect, windowMode, resolution } = resolveEffectiveDisplayMode();
@@ -628,17 +760,19 @@ window.addEventListener('resize', () => {
   resizeTimer = setTimeout(applyDisplayMode, 100);
 });
 
-// showTvScreen/showSetupScreen (app.js) call this instead of plain
-// applyDisplayMode() — a screen switch is just a `.hidden` class toggle
-// between siblings under #app, not a real window resize, so it fires no
-// `resize` event for the listener above to catch a stale read with. Found
-// live: on the very first Setup -> TV transition after onboarding, #app's
-// measured size can lag one frame behind the window's real (already-
-// maximized) geometry, baking a too-small letterbox target into the fixed-px
-// CSS vars with nothing to ever re-trigger a fix — until the next channel
-// tune, itself a coincidental fix via applyDisplayMode()'s other call sites,
-// not a dedicated one. Re-measuring one frame later catches that race
-// without needing to reproduce its exact trigger.
+/**
+ * showTvScreen/showSetupScreen (app.js) call this instead of plain
+ * applyDisplayMode() — a screen switch is just a `.hidden` class toggle
+ * between siblings under #app, not a real window resize, so it fires no
+ * `resize` event for the listener above to catch a stale read with. Found
+ * live: on the very first Setup -> TV transition after onboarding, #app's
+ * measured size can lag one frame behind the window's real (already-
+ * maximized) geometry, baking a too-small letterbox target into the fixed-px
+ * CSS vars with nothing to ever re-trigger a fix — until the next channel
+ * tune, itself a coincidental fix via applyDisplayMode()'s other call sites,
+ * not a dedicated one. Re-measuring one frame later catches that race
+ * without needing to reproduce its exact trigger.
+ */
 export function applyDisplayModeSettled() {
   applyDisplayMode();
   requestAnimationFrame(applyDisplayMode);

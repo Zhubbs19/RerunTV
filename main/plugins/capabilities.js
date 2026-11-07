@@ -21,43 +21,47 @@ const http = require('http');
 const { isPathContained, stripExeSuffix } = require('../util/path-safety');
 const { recordDiagnostic } = require('../diagnostics/diagnostics');
 
-// Capabilities schema: manifest `"capabilities"` is an object with any of
-// `ipc`/`spawn`/`net`/`mediaSource` (each an array of `{ <value-key>: "...",
-// why: "..." }`) declaring exactly what a plugin's main.js needs to touch —
-//   ipc:         [{ channel: "my-plugin:start", why: "..." }]  — an ipcMain.handle/.on channel name
-//   spawn:       [{ bin: "ffmpeg", why: "..." }]                — a child-process executable, matched by basename
-//   net:         [{ port: 8723, why: "..." }]                   — a port this plugin's own HTTP server binds
-//   mediaSource: [{ providerId: "my-source", why: "..." }]        — registers as a channel media-content source
-//   internet:    [{ host: "*.example.com", why: "..." }]       — a site an isolated plugin's own code may
-//                                                                   connect to ("*" for any). Enforced inside an
-//                                                                   isolated plugin's process (net-guard.js) when
-//                                                                   declared; a plugin that declares none is not
-//                                                                   limited, and the approval prompt says so.
-//   system:      [{ action: "shell.openExternal", why: "..." }]   — one of the OS-level actions proxied to an
-//                                                                   isolated plugin's ctx.shell/ctx.desktopCapturer
-//                                                                   ("shell.openExternal" or
-//                                                                   "desktopCapturer.getSources") — see
-//                                                                   main-plugin-isolation.js's
-//                                                                   registerChildInitiatedHandlers
-// A malformed entry (missing its value key or `why`) is dropped rather than
-// erroring the whole manifest — same "degrade gracefully" spirit as every
-// other optional manifest field. `dataDir` is what scopes file writes; it
-// isn't part of this object since it already has its own top-level field.
-//
-// Unlike ipc/spawn/net, mediaSource is declarative metadata only — it
-// doesn't gate a runtime-checked wrapper the way createCheckedSpawn/
-// createCheckedServer do below. Its job is (a) surfacing in the capability
-// approval prompt so the user consciously accepts "this plugin can supply
-// channel media" (worth being explicit about since outbound network access
-// to fetch that media isn't gated by anything today — see
-// main-media-dispatch.js's header comment), (b) letting the setup UI
-// enumerate available providers without calling into any plugin, and (c)
-// letting main-media-dispatch.js reject a ref whose providerId was never
-// actually declared/approved. It rides the same capabilitiesSignature()
-// JSON blob as every other capability type below, so a plugin update that
-// adds/removes/renames a providerId re-triggers the approval prompt exactly
-// like adding an ipc channel or spawn binary does — no separate plumbing
-// needed for that.
+/**
+ * Capabilities schema: manifest `"capabilities"` is an object with any of
+ * `ipc`/`spawn`/`net`/`mediaSource` (each an array of `{ <value-key>: "...",
+ * why: "..." }`) declaring exactly what a plugin's main.js needs to touch —
+ *   ipc:         [{ channel: "my-plugin:start", why: "..." }]  — an ipcMain.handle/.on channel name
+ *   spawn:       [{ bin: "ffmpeg", why: "..." }]                — a child-process executable, matched by basename
+ *   net:         [{ port: 8723, why: "..." }]                   — a port this plugin's own HTTP server binds
+ *   mediaSource: [{ providerId: "my-source", why: "..." }]        — registers as a channel media-content source
+ *   internet:    [{ host: "*.example.com", why: "..." }]       — a site an isolated plugin's own code may
+ *                                                                   connect to ("*" for any). Enforced inside an
+ *                                                                   isolated plugin's process (net-guard.js) when
+ *                                                                   declared; a plugin that declares none is not
+ *                                                                   limited, and the approval prompt says so.
+ *   system:      [{ action: "shell.openExternal", why: "..." }]   — one of the OS-level actions proxied to an
+ *                                                                   isolated plugin's ctx.shell/ctx.desktopCapturer
+ *                                                                   ("shell.openExternal" or
+ *                                                                   "desktopCapturer.getSources") — see
+ *                                                                   main-plugin-isolation.js's
+ *                                                                   registerChildInitiatedHandlers
+ * A malformed entry (missing its value key or `why`) is dropped rather than
+ * erroring the whole manifest — same "degrade gracefully" spirit as every
+ * other optional manifest field. `dataDir` is what scopes file writes; it
+ * isn't part of this object since it already has its own top-level field.
+ *
+ * Unlike ipc/spawn/net, mediaSource is declarative metadata only — it
+ * doesn't gate a runtime-checked wrapper the way createCheckedSpawn/
+ * createCheckedServer do below. Its job is (a) surfacing in the capability
+ * approval prompt so the user consciously accepts "this plugin can supply
+ * channel media" (worth being explicit about since outbound network access
+ * to fetch that media isn't gated by anything today — see
+ * main-media-dispatch.js's header comment), (b) letting the setup UI
+ * enumerate available providers without calling into any plugin, and (c)
+ * letting main-media-dispatch.js reject a ref whose providerId was never
+ * actually declared/approved. It rides the same capabilitiesSignature()
+ * JSON blob as every other capability type below, so a plugin update that
+ * adds/removes/renames a providerId re-triggers the approval prompt exactly
+ * like adding an ipc channel or spawn binary does — no separate plumbing
+ * needed for that.
+ * @param {?object} raw The manifest's `capabilities` value.
+ * @returns {object} `{ ipc, spawn, net, mediaSource, system, internet? }`, each a list of valid entries.
+ */
 function normalizeCapabilities(raw) {
   const caps = raw && typeof raw === 'object' ? raw : {};
   function normalizeList(list, valueKey) {
@@ -83,8 +87,12 @@ function normalizeCapabilities(raw) {
   return normalized;
 }
 
-// "*" (anywhere), "example.com", "*.example.com" (the domain and anything
-// under it), or a literal IPv4 address. No schemes, ports or paths.
+/**
+ * "*" (anywhere), "example.com", "*.example.com" (the domain and anything
+ * under it), or a literal IPv4 address. No schemes, ports or paths.
+ * @param {string} host A lower-cased host pattern.
+ * @returns {boolean} True when the pattern is one of the accepted forms.
+ */
 function isValidHostPattern(host) {
   if (host === '*') return true;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
@@ -92,8 +100,13 @@ function isValidHostPattern(host) {
     || host === 'localhost';
 }
 
-// Whether `host` (a name or IP literal a plugin is connecting to) matches one
-// of the declared patterns. "*.example.com" also matches example.com itself.
+/**
+ * Whether `host` (a name or IP literal a plugin is connecting to) matches one
+ * of the declared patterns. "*.example.com" also matches example.com itself.
+ * @param {string} host The host name or IP literal being connected to.
+ * @param {string[]} patterns The declared host patterns.
+ * @returns {boolean} True when some pattern matches.
+ */
 function hostAllowed(host, patterns) {
   const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
   if (!h) return false;
@@ -107,27 +120,42 @@ function hostAllowed(host, patterns) {
   });
 }
 
-// A stable string identifying exactly what a plugin's manifest currently
-// declares — compared against what the user has previously approved
-// (config.plugins.approvedCapabilities, see main.js) to decide whether a
-// fresh approval prompt is needed. Changes whenever the declared
-// capabilities actually change (a plugin update adding a new port/channel/
-// binary re-prompts), not on every boot.
+/**
+ * A stable string identifying exactly what a plugin's manifest currently
+ * declares — compared against what the user has previously approved
+ * (config.plugins.approvedCapabilities, see main.js) to decide whether a
+ * fresh approval prompt is needed. Changes whenever the declared
+ * capabilities actually change (a plugin update adding a new port/channel/
+ * binary re-prompts), not on every boot.
+ * @param {?object} capabilities The normalized capabilities.
+ * @returns {string} The JSON signature.
+ */
 function capabilitiesSignature(capabilities) {
   return JSON.stringify(capabilities || {
     ipc: [], spawn: [], net: [], mediaSource: [], system: [],
   });
 }
 
-// Shared error shape for every "tried to touch something undeclared" throw
-// below (and for the IPC-channel check each ctx builder does inline, since
-// that part isn't shared — see this file's header comment).
+/**
+ * Shared error shape for every "tried to touch something undeclared" throw
+ * below (and for the IPC-channel check each ctx builder does inline, since
+ * that part isn't shared — see this file's header comment).
+ * @param {string} pluginId The plugin that tried it.
+ * @param {string} kind What it tried to do, such as `spawn`.
+ * @param {*} value The undeclared channel, binary or port.
+ * @param {string} field The capabilities field it should be declared in.
+ * @returns {Error} The error to throw.
+ */
 function capabilityError(pluginId, kind, value, field) {
   return new Error(`Plugin "${pluginId}" tried to ${kind} "${value}" without declaring it in manifest.json's capabilities.${field} — add it there (with a "why") first.`);
 }
 
-// Derives the three lookup sets a ctx builder checks every spawn/listen/IPC
-// call against, from a manifest's (already-normalized) capabilities object.
+/**
+ * Derives the three lookup sets a ctx builder checks every spawn/listen/IPC
+ * call against, from a manifest's (already-normalized) capabilities object.
+ * @param {?object} capabilities The normalized capabilities.
+ * @returns {object} `{ allowedIpc, allowedSpawn, allowedPorts, allowedSystem, allowedHosts }`.
+ */
 function allowedSetsFor(capabilities) {
   const caps = capabilities || {
     ipc: [], spawn: [], net: [], system: [],
@@ -143,13 +171,18 @@ function allowedSetsFor(capabilities) {
   };
 }
 
-// A same-process check, not a hard OS security boundary on its own — a
-// same-process (non-isolated) plugin could still `require('child_process')`
-// directly and bypass this entirely; an isolated plugin additionally has
-// Node's --experimental-permission enforcing "may spawn at all" for real at
-// the OS level (see main-plugin-isolation.js's execArgv), but that model's
-// granularity stops there — it can't scope "may spawn ffmpeg" vs "may spawn
-// anything," which is exactly what the per-binary check here still does.
+/**
+ * A same-process check, not a hard OS security boundary on its own — a
+ * same-process (non-isolated) plugin could still `require('child_process')`
+ * directly and bypass this entirely; an isolated plugin additionally has
+ * Node's --experimental-permission enforcing "may spawn at all" for real at
+ * the OS level (see main-plugin-isolation.js's execArgv), but that model's
+ * granularity stops there — it can't scope "may spawn ffmpeg" vs "may spawn
+ * anything," which is exactly what the per-binary check here still does.
+ * @param {string} pluginId The plugin id, for errors and diagnostics.
+ * @param {Set<string>} allowedSpawn Declared binary basenames without `.exe`.
+ * @returns {Function} A `spawn(bin, args, opts)` that throws for undeclared binaries and forces `shell` and `detached` off.
+ */
 function createCheckedSpawn(pluginId, allowedSpawn) {
   return function checkedSpawn(bin, args, opts) {
     const base = stripExeSuffix(path.basename(bin));
@@ -163,6 +196,12 @@ function createCheckedSpawn(pluginId, allowedSpawn) {
   };
 }
 
+/**
+ * Wraps `http.createServer` so the server may only listen on the plugin's declared ports.
+ * @param {string} pluginId The plugin id, for errors and diagnostics.
+ * @param {Set<number>} allowedPorts Declared ports.
+ * @returns {Function} A `createServer(handler)` whose `listen` throws for undeclared ports.
+ */
 function createCheckedServer(pluginId, allowedPorts) {
   return function checkedCreateServer(handler) {
     const server = http.createServer(handler);
@@ -176,17 +215,22 @@ function createCheckedServer(pluginId, allowedPorts) {
   };
 }
 
-// A plugin may declare manifest `"userPaths": "<settings key>"` — the name of
-// one of its OWN settings holding a folder (or a list of folders) the user
-// picked for it, e.g. where a recorder should put its output. Those folders
-// are granted read and write alongside its dataDir.
-//
-// Two things this deliberately is not. It is not a way for a plugin to widen
-// its own access at will: the value comes from the plugin's settings, which
-// only the user edits through its settings panel. And it is not dynamic —
-// an isolated plugin's OS-level permissions are fixed when its process is
-// forked, so a folder changed now takes effect at the next restart, which is
-// what a plugin's settings UI should say.
+/**
+ * A plugin may declare manifest `"userPaths": "<settings key>"` — the name of
+ * one of its OWN settings holding a folder (or a list of folders) the user
+ * picked for it, e.g. where a recorder should put its output. Those folders
+ * are granted read and write alongside its dataDir.
+ *
+ * Two things this deliberately is not. It is not a way for a plugin to widen
+ * its own access at will: the value comes from the plugin's settings, which
+ * only the user edits through its settings panel. And it is not dynamic —
+ * an isolated plugin's OS-level permissions are fixed when its process is
+ * forked, so a folder changed now takes effect at the next restart, which is
+ * what a plugin's settings UI should say.
+ * @param {object} manifest The plugin's manifest.
+ * @param {object} baseCtx The shared plugin context; only `loadConfig` is used.
+ * @returns {string[]} Absolute folders that exist (or were created) and are granted.
+ */
 function resolveUserPaths(manifest, baseCtx) {
   if (typeof manifest.userPaths !== 'string' || !manifest.userPaths) return [];
   let configured;
@@ -215,19 +259,25 @@ function resolveUserPaths(manifest, baseCtx) {
   });
 }
 
-// Reads are intentionally unrestricted (existsSync/readFile/readdirSync take
-// whatever path is passed) — checking whether a user-configured executable
-// exists (a plugin's own custom-binary-path setting) is a legitimate need
-// with no folder to scope it to in advance. Writes are scoped to the
-// plugin's own dataDir (null if the manifest declared none, meaning no
-// filesystem write access at all) plus any folder the USER chose for this
-// plugin through its own settings (manifest `userPaths`, resolved below),
-// rejecting any path that resolves outside all of them (including via `..`).
-//
-// A relative path still resolves against dataDir, exactly as before. An
-// absolute path is now accepted too, but only when it lands inside one of
-// those roots — which is what lets a plugin write its output to a folder the
-// user picked without having to pretend it is relative to anything.
+/**
+ * Reads are intentionally unrestricted (existsSync/readFile/readdirSync take
+ * whatever path is passed) — checking whether a user-configured executable
+ * exists (a plugin's own custom-binary-path setting) is a legitimate need
+ * with no folder to scope it to in advance. Writes are scoped to the
+ * plugin's own dataDir (null if the manifest declared none, meaning no
+ * filesystem write access at all) plus any folder the USER chose for this
+ * plugin through its own settings (manifest `userPaths`, resolved below),
+ * rejecting any path that resolves outside all of them (including via `..`).
+ *
+ * A relative path still resolves against dataDir, exactly as before. An
+ * absolute path is now accepted too, but only when it lands inside one of
+ * those roots — which is what lets a plugin write its output to a folder the
+ * user picked without having to pretend it is relative to anything.
+ * @param {string} pluginId The plugin id, for errors.
+ * @param {?string} dataDir The plugin's data folder, or null when it declared none.
+ * @param {string[]} [userDirs=[]] Folders the user picked for the plugin.
+ * @returns {object} The `ctx.fs` object: unrestricted reads, writes confined to `writeDirs`.
+ */
 function createCheckedFs(pluginId, dataDir, userDirs = []) {
   const writeRoots = [dataDir, ...userDirs].filter(Boolean);
   function resolveDataPath(relPath) {

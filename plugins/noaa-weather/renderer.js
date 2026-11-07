@@ -27,12 +27,21 @@ if (!S.config.eas.signalDegradation) {
 }
 
 let statusEl = null;
+// Last status line written, so a settings panel opened later can show it.
 export let lastStatusText = '';
 
+/**
+ * Points status updates at the settings panel's live status element.
+ * @param {?HTMLElement} element The status element, or null.
+ */
 export function setSettingsStatusElement(element) {
   statusEl = element;
 }
 
+/**
+ * Records the status text and writes it to the settings panel if one is open.
+ * @param {string} text The status text.
+ */
 function setStatusText(text) {
   lastStatusText = text;
   if (statusEl) statusEl.textContent = text;
@@ -67,8 +76,13 @@ const sdCtx = sdCanvas.getContext('2d');
 
 let sdDrawTimer = null;
 let sdDropoutTimer = null;
+// Severity rank currently on screen (0 for none, -1 right after a preview stops).
 export let sdAppliedLevel = 0;
 
+/**
+ * Draws one frame of grey static, plus torn bands at Severe and above.
+ * @param {number} level Severity rank, 1 to 4.
+ */
 function sdDrawNoise(level) {
   const w = sdCanvas.width, h = sdCanvas.height;
   const imgData = sdCtx.createImageData(w, h);
@@ -92,6 +106,9 @@ function sdDrawNoise(level) {
   }
 }
 
+/**
+ * Arms the next brief full signal dropout, 18 to 32 seconds out, while the level stays Extreme.
+ */
 function sdScheduleDropout() {
   clearTimeout(sdDropoutTimer);
   const delay = 18000 + Math.random() * 14000;
@@ -108,6 +125,9 @@ function sdScheduleDropout() {
   }, delay);
 }
 
+/**
+ * Stops the static and dropouts and hides the overlay.
+ */
 function sdStop() {
   clearInterval(sdDrawTimer); sdDrawTimer = null;
   clearTimeout(sdDropoutTimer); sdDropoutTimer = null;
@@ -115,6 +135,11 @@ function sdStop() {
   sdCaptionEl.classList.add('hidden');
 }
 
+/**
+ * Shows the signal-degradation overlay at a severity level and starts redrawing it.
+ * @param {number} level Severity rank, 1 to 4.
+ * @param {?number} intensityPct Opacity scale in percent; 100 when null.
+ */
 export function sdStart(level, intensityPct) {
   clearInterval(sdDrawTimer);
   clearTimeout(sdDropoutTimer);
@@ -133,11 +158,13 @@ export function sdStart(level, intensityPct) {
 // looks like. Cleared by the panel's own STOP TEST button.
 export let sdPreviewLevel = null;
 
-// Recomputes the degradation level from the most recently polled alerts
-// (S.noaaLastAlerts) + the current settings, and (re)applies it — called
-// after every poll and whenever a signal-degradation setting changes, so a
-// settings edit takes effect immediately rather than waiting for the next
-// 5-minute poll.
+/**
+ * Recomputes the degradation level from the most recently polled alerts
+ * (S.noaaLastAlerts) + the current settings, and (re)applies it — called
+ * after every poll and whenever a signal-degradation setting changes, so a
+ * settings edit takes effect immediately rather than waiting for the next
+ * 5-minute poll.
+ */
 export function updateSignalDegradation() {
   if (sdPreviewLevel != null) return;
   const cfg = S.config.eas.signalDegradation;
@@ -155,15 +182,22 @@ export function updateSignalDegradation() {
   else sdStop();
 }
 
-// Settings-panel TEST controls (below) call these directly — lets a user
-// preview each severity level (including EXTREME's dropout) on demand
-// instead of waiting for a real storm, the same "see it before it happens
-// for real" role the EAS plugin's own on-demand test-slate button plays.
+/**
+ * Settings-panel TEST controls (below) call these directly — lets a user
+ * preview each severity level (including EXTREME's dropout) on demand
+ * instead of waiting for a real storm, the same "see it before it happens
+ * for real" role the EAS plugin's own on-demand test-slate button plays.
+ * @param {number} level Severity rank to preview, 1 to 4.
+ * @param {number} intensityPct Opacity scale in percent.
+ */
 export function sdPreview(level, intensityPct) {
   sdPreviewLevel = level;
   sdAppliedLevel = level;
   sdStart(level, intensityPct);
 }
+/**
+ * Ends a settings-panel preview and returns to the level the real alerts call for.
+ */
 export function sdStopPreview() {
   sdPreviewLevel = null;
   sdAppliedLevel = -1; // sentinel so updateSignalDegradation() can't no-op against a stale match
@@ -185,6 +219,9 @@ crawlRootEl.innerHTML = '<div class="weather-crawl-text"></div>';
 document.querySelector('.crt').appendChild(crawlRootEl);
 const crawlTextEl = crawlRootEl.querySelector('.weather-crawl-text');
 
+/**
+ * Shows or hides the routine crawl and fills it with the current alert headlines.
+ */
 export function updateRoutineCrawl() {
   const cfg = S.config.eas.routineCrawl;
   const alerts = S.noaaLastAlerts || [];
@@ -193,6 +230,11 @@ export function updateRoutineCrawl() {
   if (on) crawlTextEl.textContent = alerts.map((a) => a.headline).filter(Boolean).join('          •          ');
 }
 
+/**
+ * Polls NOAA for active alerts, updates the status, overlay and crawl, and interrupts for new Severe or Extreme alerts.
+ * Re-arms itself every five minutes; does nothing when NOAA alerts are off or no lat/lon is set.
+ * @returns {Promise<void>} Resolves when this poll finishes.
+ */
 async function pollNoaaAlerts() {
   const S = window.RCBPlugins.ctx.S;
   clearTimeout(S.noaaPollTimer);
@@ -234,10 +276,12 @@ async function pollNoaaAlerts() {
   }
 }
 
-// Called here at plugin load (once per session — S.config is already set by
-// the time plugins load, see app.js's init()) and again whenever the
-// enabled/lat/lon settings change below. Cheap no-op if nothing's actually
-// configured, otherwise (re)starts the poll loop from now.
+/**
+ * Called here at plugin load (once per session — S.config is already set by
+ * the time plugins load, see app.js's init()) and again whenever the
+ * enabled/lat/lon settings change below. Cheap no-op if nothing's actually
+ * configured, otherwise (re)starts the poll loop from now.
+ */
 export function scheduleNextNoaaPoll() {
   const S = window.RCBPlugins.ctx.S;
   clearTimeout(S.noaaPollTimer);

@@ -9,11 +9,15 @@
 // a snapshot of ctx.services when it is forked, so "after" means its
 // dependencies have FINISHED activating, not merely started.
 
-// Stable Kahn's-algorithm-style pass: repeatedly peel off any not-yet-placed
-// plugin whose deps are all already placed. A plugin with a missing/disabled/
-// circular dependency is still appended at the end (rather than dropped) so
-// its own activate() gets a chance to run and surface a clear error, instead
-// of it silently vanishing from the list.
+/**
+ * Stable Kahn's-algorithm-style pass: repeatedly peel off any not-yet-placed
+ * plugin whose deps are all already placed. A plugin with a missing/disabled/
+ * circular dependency is still appended at the end (rather than dropped) so
+ * its own activate() gets a chance to run and surface a clear error, instead
+ * of it silently vanishing from the list.
+ * @param {Array<object>} plugins Plugins with `id` and `dependsOn` (an array of plugin ids).
+ * @returns {Array<object>} The same plugins, dependencies first.
+ */
 function orderByDependencies(plugins) {
   const placed = new Set();
   const ordered = [];
@@ -35,18 +39,24 @@ function orderByDependencies(plugins) {
   return ordered;
 }
 
-// Runs `run(plugin)` for every plugin, at most `limit` at a time, starting
-// each one as soon as every plugin it dependsOn has finished — so plugins
-// with nothing in common start together instead of each waiting for the
-// last one's process to come up (the whole chain used to hold the window
-// back for ~100 ms per isolated plugin). A dependency outside `plugins`
-// (not installed, disabled, awaiting approval) is not waited for; it was
-// never going to finish. Ties go to list order, so feeding this
-// orderByDependencies()'s result keeps the old order wherever a choice
-// exists. A cycle can never become ready: once nothing else is running, its
-// first member starts anyway, the same "run it so it can report" choice
-// orderByDependencies makes. `run` should handle its own errors; a
-// rejection is still treated as finished so its dependents aren't stranded.
+/**
+ * Runs `run(plugin)` for every plugin, at most `limit` at a time, starting
+ * each one as soon as every plugin it dependsOn has finished — so plugins
+ * with nothing in common start together instead of each waiting for the
+ * last one's process to come up (the whole chain used to hold the window
+ * back for ~100 ms per isolated plugin). A dependency outside `plugins`
+ * (not installed, disabled, awaiting approval) is not waited for; it was
+ * never going to finish. Ties go to list order, so feeding this
+ * orderByDependencies()'s result keeps the old order wherever a choice
+ * exists. A cycle can never become ready: once nothing else is running, its
+ * first member starts anyway, the same "run it so it can report" choice
+ * orderByDependencies makes. `run` should handle its own errors; a
+ * rejection is still treated as finished so its dependents aren't stranded.
+ * @param {Array<object>} plugins Plugins with `id` and `dependsOn`, in preferred order.
+ * @param {Function} run Called with each plugin; may return a promise.
+ * @param {number} [limit=Infinity] How many runs may be in flight at once.
+ * @returns {Promise<void>} Resolves when every plugin's run has finished.
+ */
 function runInDependencyOrder(plugins, run, limit = Infinity) {
   const ids = new Set(plugins.map((plugin) => plugin.id));
   const finished = new Set();

@@ -27,25 +27,40 @@ import { alertDialog, confirmDialog } from './dialogs.js';
 import { buildOnAirPanel } from './onair.js';
 import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from '../core/util.js';
 
-// Short human label for a block — the block's own name if the user gave it
-// one, otherwise a description of its trigger. Used by the calendar detail
-// panel, the schedule list's own rows (implicitly, via block.name), and the
-// interstitials pool's blockAffinity picker (setup-interstitials.js).
-// Block edits are item commands on the owning channel's blocks (commands.js),
-// found in S.config by identity since the editors here only hold the block.
-// commitBlockEdit takes a copy made before an in-place edit; commitBlockFields
-// records named fields as they now stand. Either way the live block, and
-// anything nested in it an editor holds, stays the same object. A block that
-// isn't in a channel is saved as a plain edit (commitInPlace's fallback).
+/**
+ * The number of the channel that owns a block.
+ * Block edits are item commands on the owning channel's blocks (commands.js),
+ * found in S.config by identity since the editors here only hold the block.
+ * commitBlockEdit takes a copy made before an in-place edit; commitBlockFields
+ * records named fields as they now stand. Either way the live block, and
+ * anything nested in it an editor holds, stays the same object. A block that
+ * isn't in a channel is saved as a plain edit (commitInPlace's fallback).
+ * @param {object} block The live block.
+ * @returns {?number} The channel number, or null when no channel holds it.
+ */
 function blockChannelNumber(block) {
   const ch = (S.config.channels || []).find((c) => (c.blocks || []).includes(block));
   return ch ? ch.number : null;
 }
 
+/**
+ * Records an in-place block edit as one undo step on the block's channel.
+ * @param {object} block The live block, already edited.
+ * @param {object} prior A copy of the block made before the edit.
+ * @param {object} [opts={}] Options passed to `commitItemEdit` (label, coalesce, ...).
+ * @returns {*} What `commitItemEdit` returns.
+ */
 function commitBlockEdit(block, prior, opts = {}) {
   return commitItemEdit('blocks', [block, prior], { ...opts, channel: blockChannelNumber(block) });
 }
 
+/**
+ * Records named block fields, as they now stand, as one undo step on the block's channel.
+ * @param {object} block The live block.
+ * @param {string[]} fields The field names that changed.
+ * @param {object} [opts={}] Options passed to `commitInPlace`.
+ * @returns {*} What `commitInPlace` returns.
+ */
 function commitBlockFields(block, fields, opts = {}) {
   return commitInPlace({
     type: 'item.set', collection: 'blocks', channel: blockChannelNumber(block), id: block.id,
@@ -53,6 +68,14 @@ function commitBlockFields(block, fields, opts = {}) {
   }, opts);
 }
 
+/**
+ * Short human label for a block — the block's own name if the user gave it
+ * one, otherwise a description of its trigger. Used by the calendar detail
+ * panel, the schedule list's own rows (implicitly, via block.name), and the
+ * interstitials pool's blockAffinity picker (setup-interstitials.js).
+ * @param {object} block The block.
+ * @returns {string} The label.
+ */
 export function blockPickerLabel(block) {
   if (block.name && block.name.trim()) return block.name.trim();
   const t = block.trigger;
@@ -75,34 +98,53 @@ export function blockPickerLabel(block) {
   return `TIME BLOCK ${String(t.startHour).padStart(2, '0')}:00–${String(t.endHour).padStart(2, '0')}:00 ${days}`;
 }
 
-// Deterministic color per source (a block, or a channel's own default
-// folder) — same hashing approach as channels.js's badgeColor, scoped here
-// so the grid can group days by color at a glance instead of relying on
-// squeezed-in text alone, and so the legend and the day-detail swatch stay
-// visually consistent with each other.
+/**
+ * Deterministic color per source (a block, or a channel's own default
+ * folder) — same hashing approach as channels.js's badgeColor, scoped here
+ * so the grid can group days by color at a glance instead of relying on
+ * squeezed-in text alone, and so the legend and the day-detail swatch stay
+ * visually consistent with each other.
+ * @param {string} key The source key (a block id, or the default rotation's key).
+ * @returns {string} A colour from `BADGE_COLORS`.
+ */
 export function calendarSourceColor(key) {
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return BADGE_COLORS[hash % BADGE_COLORS.length];
 }
 
-// A block matches its trigger but has never been pointed at a folder (or its
-// folder scan came back empty) — matchingBlocks (schedule.js) filters these
-// out silently everywhere (calendar, guide, playback), so this is the
-// setup-side signal that surfaces "this block exists but won't ever air"
-// instead of it just quietly never showing up.
+/**
+ * A block matches its trigger but has never been pointed at a folder (or its
+ * folder scan came back empty) — matchingBlocks (schedule.js) filters these
+ * out silently everywhere (calendar, guide, playback), so this is the
+ * setup-side signal that surfaces "this block exists but won't ever air"
+ * instead of it just quietly never showing up.
+ * @param {object} block The block.
+ * @returns {boolean} True when the block has files.
+ */
 function blockHasContent(block) {
   return !!(block.files && block.files.length);
 }
 
-// Blocks whose trigger matches atMs but which have no folder/content, so
-// they're invisible to matchingBlocks/resolveActiveSource (playback, guide)
-// even during their own trigger window — used by CALENDAR/TIMELINE to flag
-// "this block exists here but won't air" instead of silently showing DEFAULT.
+/**
+ * Blocks whose trigger matches atMs but which have no folder/content, so
+ * they're invisible to matchingBlocks/resolveActiveSource (playback, guide)
+ * even during their own trigger window — used by CALENDAR/TIMELINE to flag
+ * "this block exists here but won't air" instead of silently showing DEFAULT.
+ * @param {object} ch The channel config.
+ * @param {number} atMs Timestamp in ms.
+ * @returns {Array<object>} The empty blocks whose trigger matches.
+ */
 function matchingBlocksIncludingEmpty(ch, atMs) {
   return (ch.blocks || []).filter((b) => matchesTrigger(atMs, b) && !blockHasContent(b));
 }
 
+/**
+ * Converts a `#rrggbb` colour to an `rgba()` string.
+ * @param {string} hex The colour.
+ * @param {number} alpha Opacity, 0 to 1.
+ * @returns {string} The `rgba()` colour; white when `hex` is not valid.
+ */
 function hexToRgba(hex, alpha) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!m) return `rgba(255,255,255,${alpha})`;
@@ -110,11 +152,20 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-// Shared per-row editor for one dayOverrides[key] entry — used by both
-// buildSchedulePanel's flat "DAY OVERRIDES" list and buildCalendarPanel's
-// per-day inline editor, so a day edited from either view exposes every
-// field (previously only the SCHEDULE-tab version rendered `note`, silently
-// dropping it when a day was edited from CALENDAR instead).
+/**
+ * Shared per-row editor for one dayOverrides[key] entry — used by both
+ * buildSchedulePanel's flat "DAY OVERRIDES" list and buildCalendarPanel's
+ * per-day inline editor, so a day edited from either view exposes every
+ * field (previously only the SCHEDULE-tab version rendered `note`, silently
+ * dropping it when a day was edited from CALENDAR instead).
+ * @param {object} block The block that owns the override (edited in place).
+ * @param {object} ov The `dayOverrides` entry.
+ * @param {object} [opts={}] Options.
+ * @param {string} [opts.className] Class for the row; defaults to `block-row`.
+ * @param {Function} opts.onRemove Removes the entry; called by the remove button.
+ * @param {Function} [opts.onChange] Called after any field changes.
+ * @returns {HTMLElement} The row.
+ */
 function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {}) {
   const row = document.createElement('div');
   row.className = className || 'block-row';
@@ -207,19 +258,25 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   return row;
 }
 
-// A month grid showing which block (or the default folder) is airing on
-// each day, for whichever channels are passed in — parameterized by "which
-// channels' blocks to render" (defaulted to a single channel by the
-// unified panel below) rather than hardcoded to one, so a future
-// cross-channel overview is "feed this more channels", not a second
-// calendar built from scratch. Blocks on different channels never conflict
-// with each other (each channel resolves independently), so a day cell
-// only ever flags an overlap warning between blocks *within* the same
-// channel.
-// opts.onEditBlock(block), if given, is called when the user wants to jump
-// from a day's preview straight into that block's full editor — the caller
-// (buildUnifiedSchedulePanel) owns switching back to the BLOCKS view and
-// knows how to scroll/highlight the right block row there.
+/**
+ * A month grid showing which block (or the default folder) is airing on
+ * each day, for whichever channels are passed in — parameterized by "which
+ * channels' blocks to render" (defaulted to a single channel by the
+ * unified panel below) rather than hardcoded to one, so a future
+ * cross-channel overview is "feed this more channels", not a second
+ * calendar built from scratch. Blocks on different channels never conflict
+ * with each other (each channel resolves independently), so a day cell
+ * only ever flags an overlap warning between blocks *within* the same
+ * channel.
+ * opts.onEditBlock(block), if given, is called when the user wants to jump
+ * from a day's preview straight into that block's full editor — the caller
+ * (buildUnifiedSchedulePanel) owns switching back to the BLOCKS view and
+ * knows how to scroll/highlight the right block row there.
+ * @param {Array<object>} channels The channel configs to show.
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ * @param {object} [opts] Options.
+ * @param {(block: object) => void} [opts.onEditBlock] Opens a block in the BLOCKS view.
+ */
 export function buildCalendarPanel(channels, panelEl, opts) {
   opts = opts || {};
   panelEl.innerHTML = '';
@@ -572,6 +629,11 @@ export function buildCalendarPanel(channels, panelEl, opts) {
   render();
 }
 
+/**
+ * Builds the BLOCKS view: broadcast hours and every field of every block on a channel.
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ */
 export function buildSchedulePanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -1266,14 +1328,18 @@ export function buildSchedulePanel(ch, panelEl) {
   panelEl.appendChild(addWrap);
 }
 
-// Unified SCHEDULE tab — an ON AIR/BLOCKS/CALENDAR view toggle over
-// buildOnAirPanel (setup-onair.js: the resolved week, and the timeline you
-// edit it on), buildSchedulePanel (every field of every block) and
-// buildCalendarPanel (date ranges by month). ON AIR replaced an hourly
-// TIMELINE grid of dayOfWeek blocks: its block lane shows the same spans at
-// real resolution and edits them, so two views of the standing lineup would
-// only have drifted apart. Jumping from ON AIR or a calendar day into "EDIT
-// BLOCK" switches the toggle to BLOCKS and flashes the matching card.
+/**
+ * Unified SCHEDULE tab — an ON AIR/BLOCKS/CALENDAR view toggle over
+ * buildOnAirPanel (setup-onair.js: the resolved week, and the timeline you
+ * edit it on), buildSchedulePanel (every field of every block) and
+ * buildCalendarPanel (date ranges by month). ON AIR replaced an hourly
+ * TIMELINE grid of dayOfWeek blocks: its block lane shows the same spans at
+ * real resolution and edits them, so two views of the standing lineup would
+ * only have drifted apart. Jumping from ON AIR or a calendar day into "EDIT
+ * BLOCK" switches the toggle to BLOCKS and flashes the matching card.
+ * @param {object} ch The channel config.
+ * @param {HTMLElement} panelEl The panel to draw into (emptied first).
+ */
 export function buildUnifiedSchedulePanel(ch, panelEl) {
   panelEl.innerHTML = '';
 

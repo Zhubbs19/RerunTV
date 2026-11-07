@@ -59,6 +59,13 @@ export function filesNeedingMarks(channels) {
  * copy of the file as soon as it arrives (so stopping keeps what was found).
  * `save()` records the config change; it is called after each file.
  * -> { checked, withFades, withCredits, unavailable }
+ * @param {object} config The box config; results are written into its file entries.
+ * @param {Array<object>} files The file entries to check.
+ * @param {object} [opts] Options.
+ * @param {?Function} [opts.onProgress] Called with `(index, total, file)` before each file.
+ * @param {Function} [opts.shouldStop] Returns true to stop before the next file.
+ * @param {Function} [opts.save] Records the config change; called after each file.
+ * @returns {Promise<object>} `{ checked, withFades, withCredits, unavailable }`.
  */
 export async function findFades(config, files, { onProgress = null, shouldStop = () => false, save = () => {} } = {}) {
   let checked = 0;

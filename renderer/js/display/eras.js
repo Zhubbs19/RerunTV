@@ -72,18 +72,37 @@ export const BUILT_IN_ERAS = [
 const BUILT_IN_BY_ID = new Map(BUILT_IN_ERAS.map((e) => [e.id, e]));
 const pluginEras = new Map();
 
-// docs/design/10 §3: "plugins may register eras". Kept minimal for v1 — no
-// ctx surface calls this yet, but the registry exists so one can be added
-// without another migration of this file.
+/**
+ * docs/design/10 §3: "plugins may register eras". Kept minimal for v1 — no
+ * ctx surface calls this yet, but the registry exists so one can be added
+ * without another migration of this file.
+ * @param {object} era The era ({ id, presentation, ... }).
+ * @throws {Error} When `id` or `presentation` is missing.
+ */
 export function registerEra(era) {
   if (!era || typeof era.id !== 'string' || !era.id) throw new Error('registerEra: id is required');
   if (!era.presentation || typeof era.presentation !== 'object') throw new Error(`registerEra("${era.id}"): presentation is required`);
   pluginEras.set(era.id, era);
 }
 
+/**
+ * Every era: the built-in ones, then any registered by plugins.
+ * @returns {Array<object>} The eras.
+ */
 export function listEras() { return [...BUILT_IN_ERAS, ...pluginEras.values()]; }
+/**
+ * Looks up an era by id.
+ * @param {string} id The era id.
+ * @returns {?object} The era, or null.
+ */
 export function getEra(id) { return BUILT_IN_BY_ID.get(id) || pluginEras.get(id) || null; }
 
+/**
+ * Reads the value at a key path, or undefined when any step is missing.
+ * @param {object} root The object to start from.
+ * @param {string[]} path The keys to follow.
+ * @returns {*} The value.
+ */
 function readPath(root, path) {
   let node = root;
   for (const key of path) {
@@ -93,6 +112,12 @@ function readPath(root, path) {
   return node;
 }
 
+/**
+ * Sets the value at a key path, creating missing objects along it.
+ * @param {object} root The object to start from.
+ * @param {string[]} path The keys to follow.
+ * @param {*} value The value to set.
+ */
 function writePath(root, path, value) {
   let node = root;
   for (let i = 0; i < path.length - 1; i += 1) {
@@ -103,6 +128,11 @@ function writePath(root, path, value) {
   node[path[path.length - 1]] = value;
 }
 
+/**
+ * Deletes the key at the end of a path; a no-op when the path is missing.
+ * @param {object} obj The object to start from.
+ * @param {string[]} path The keys to follow.
+ */
 function deletePath(obj, path) {
   let node = obj;
   for (let i = 0; i < path.length - 1; i++) {
@@ -112,8 +142,15 @@ function deletePath(obj, path) {
   delete node[path[path.length - 1]];
 }
 
-// Mutates `config` in place; caller records it (commitConfigPatch, one undo
-// step) same as curation/library sync do for other whole-config transforms.
+/**
+ * Applies an era's presentation values and records what it changed in `config.era`.
+ * Mutates `config` in place; caller records it (commitConfigPatch, one undo
+ * step) same as curation/library sync do for other whole-config transforms.
+ * @param {object} config The app config; changed in place.
+ * @param {string} eraId The era id.
+ * @returns {object} The new `config.era` record.
+ * @throws {Error} When the era is unknown.
+ */
 export function applyEra(config, eraId) {
   const era = getEra(eraId);
   if (!era) throw new Error(`Unknown era "${eraId}".`);
@@ -133,10 +170,13 @@ export function applyEra(config, eraId) {
   return config.era;
 }
 
-// Restores every field the era touched to its pre-era value, except fields
-// the person has since hand-changed (an "override" — see noteEraOverride),
-// which are left exactly as they are. Applying then immediately clearing,
-// with no edits in between, leaves config byte-for-byte where it started.
+/**
+ * Restores every field the era touched to its pre-era value, except fields
+ * the person has since hand-changed (an "override" — see noteEraOverride),
+ * which are left exactly as they are. Applying then immediately clearing,
+ * with no edits in between, leaves config byte-for-byte where it started.
+ * @param {object} config The app config; changed in place.
+ */
 export function clearEra(config) {
   const state = config.era;
   if (!state) return;
@@ -152,11 +192,15 @@ export function clearEra(config) {
   delete config.era;
 }
 
-// Called from the settings.set command (core/commands.js) whenever a config
-// path changes while an era is active. If that path is one of the era's own
-// fields, hand-setting it back to the era's own value un-overrides it (the
-// person just re-agreed with the era); any other value marks it a box-level
-// exception that clearEra will leave alone.
+/**
+ * Called from the settings.set command (core/commands.js) whenever a config
+ * path changes while an era is active. If that path is one of the era's own
+ * fields, hand-setting it back to the era's own value un-overrides it (the
+ * person just re-agreed with the era); any other value marks it a box-level
+ * exception that clearEra will leave alone.
+ * @param {object} config The app config; changed in place.
+ * @param {string[]} path The settings path that changed.
+ */
 export function noteEraOverride(config, path) {
   if (!config.era) return;
   const field = ERA_FIELDS.find((f) => f.path.length === path.length && f.path.every((seg, i) => seg === path[i]));
@@ -169,12 +213,16 @@ export function noteEraOverride(config, path) {
   config.era.overrides = [...overrides];
 }
 
-// Re-applies just one field's era value and clears its override flag,
-// without touching config.era.previousValues or any other field's override
-// state — used by the "reset to era" action per field in the ERA panel.
-// Re-running applyEra() wholesale would be wrong here: it would re-snapshot
-// every field's "previous value" from its current (possibly overridden)
-// state, corrupting what clearEra() should restore for untouched fields.
+/**
+ * Re-applies just one field's era value and clears its override flag,
+ * without touching config.era.previousValues or any other field's override
+ * state — used by the "reset to era" action per field in the ERA panel.
+ * Re-running applyEra() wholesale would be wrong here: it would re-snapshot
+ * every field's "previous value" from its current (possibly overridden)
+ * state, corrupting what clearEra() should restore for untouched fields.
+ * @param {object} config The app config; changed in place.
+ * @param {string} key The era field key.
+ */
 export function resetEraField(config, key) {
   const state = config.era;
   if (!state || !state.fields.includes(key)) return;
@@ -187,12 +235,22 @@ export function resetEraField(config, key) {
   state.overrides = [...overrides];
 }
 
-// 'era' (following, showing the era's value), 'override' (era active, this
-// field was hand-changed away from it) or null (no era active / not an era
-// field) — what the setup screen shows next to each affected setting.
+/**
+ * 'era' (following, showing the era's value), 'override' (era active, this
+ * field was hand-changed away from it) or null (no era active / not an era
+ * field) — what the setup screen shows next to each affected setting.
+ * @param {?object} config The app config.
+ * @param {string} key The era field key.
+ * @returns {?string} `era`, `override` or null.
+ */
 export function eraFieldSource(config, key) {
   if (!config || !config.era || !config.era.fields.includes(key)) return null;
   return (config.era.overrides || []).includes(key) ? 'override' : 'era';
 }
 
+/**
+ * The display label of an era field, or the key itself when unknown.
+ * @param {string} key The era field key.
+ * @returns {string} The label.
+ */
 export function eraFieldLabel(key) { return (FIELDS_BY_KEY.get(key) || {}).label || key; }

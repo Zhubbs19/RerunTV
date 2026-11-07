@@ -27,12 +27,22 @@
 
 import { airFilesFor } from '../core/interstitials.js';
 
+/**
+ * Sums a playlist's durations.
+ * @param {Array<object>} files Playlist entries with `duration` in seconds.
+ * @returns {number} Total seconds.
+ */
 export function totalDuration(files) {
   return files.reduce((sum, file) => sum + (file.duration || 0), 0);
 }
 
-// Where `elapsed` seconds into a playlist lands. Mirrors computeSourcePosition's
-// loop exactly, including its "past the end" fallback.
+/**
+ * Where `elapsed` seconds into a playlist lands. Mirrors computeSourcePosition's
+ * loop exactly, including its "past the end" fallback.
+ * @param {Array<object>} files Playlist entries with `duration` in seconds.
+ * @param {number} elapsed Seconds into the loop.
+ * @returns {object} `{ index, offset, start, file }`.
+ */
 export function locate(files, elapsed) {
   let acc = 0;
   for (let i = 0; i < files.length; i += 1) {
@@ -43,8 +53,12 @@ export function locate(files, elapsed) {
   return { index: 0, offset: 0, start: 0, file: files[0] };
 }
 
-// Default identity: whatever the library calls this entry, falling back to its
-// path so this works before items exist and for a plain folder channel.
+/**
+ * Default identity: whatever the library calls this entry, falling back to its
+ * path so this works before items exist and for a plain folder channel.
+ * @param {?object} file A playlist entry.
+ * @returns {?string} The item id or path, or `null`.
+ */
 export function defaultKeyOf(file) {
   return (file && (file.item || file.path)) || null;
 }
@@ -61,6 +75,13 @@ export function defaultKeyOf(file) {
  * Returns { ok: true, anchor, preserved } or { ok: false, reason }. A refusal
  * is not a failure: it means this change cannot be applied without moving what
  * is on, so the caller should show the diffSchedules preview and ask.
+ * @param {object} opts Inputs.
+ * @param {Array<object>} opts.files The current playlist.
+ * @param {Array<object>} opts.nextFiles The new playlist.
+ * @param {number} opts.anchor The current anchor, epoch ms.
+ * @param {number} opts.atMs The schedule's evaluation time, epoch ms.
+ * @param {Function} [opts.keyOf] Gives an entry's identity; defaults to `defaultKeyOf`.
+ * @returns {object} `{ ok: true, anchor, preserved }` or `{ ok: false, reason }`.
  */
 export function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyOf = defaultKeyOf }) {
   if (!Array.isArray(files) || !files.length) return { ok: false, reason: 'empty-before' };
@@ -136,6 +157,10 @@ export function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyO
  * applies the playlist and leaves the anchor: the airing file was removed (with
  * "remove files that disappear" on it is gone from disk and could not play
  * anyway), or the channel had never aired.
+ * @param {object} channel The channel config, changed in place.
+ * @param {Array<object>} nextFiles The new playlist.
+ * @param {number} atMs The schedule's evaluation time, epoch ms.
+ * @returns {object} `{ preserved: true }` or `{ preserved: false, reason }`.
  */
 export function applyPlaylistPreservingAir(channel, nextFiles, atMs) {
   const before = channel.files || [];

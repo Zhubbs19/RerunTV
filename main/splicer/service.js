@@ -44,6 +44,7 @@ const WRITE_FLAGS = ['reencode', 'fastCut', 'keepGaps'];
 const SETTINGS_KEYS = ['defaultOutDir', 'lastDir', 'detectOptions', 'preset', 'customPresets', 'combineReencode', 'sendTargets'];
 const JOB_KINDS = new Set(['detect', 'review', 'split', 'splitPlan', 'findRepeats', 'combine']);
 const CLIP_CATEGORIES = new Set(['episodes', 'commercials', 'bumpers', 'skip']);
+// Most runs that may wait in the queue, how long a cancelled run gets to stop its ffmpeg before a hard kill, and how long to wait for its last output lines.
 const MAX_QUEUE = 25;
 const CANCEL_GRACE_MS = 3000;
 const OUTPUT_DRAIN_MS = 1000;
@@ -51,12 +52,24 @@ const OUTPUT_DRAIN_MS = 1000;
 // still collect the result.
 const FINISHED_JOB_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Makes an error whose message the page shows as-is.
+ * @param {string} message The person-readable message.
+ * @returns {Error} The error, marked `badRequest`.
+ */
 function badRequest(message) {
   const error = new Error(message);
   error.badRequest = true;
   return error;
 }
 
+/**
+ * Checks a path from the page before it becomes a script argument.
+ * @param {*} value The path.
+ * @param {string} what What the path is, for the error message.
+ * @returns {string} The trimmed path.
+ * @throws {Error} When it is empty or starts with a dash.
+ */
 function requirePath(value, what) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) throw badRequest(`Choose ${what} first.`);
@@ -64,6 +77,12 @@ function requirePath(value, what) {
   return text;
 }
 
+/**
+ * Turns the page's detection options into `splice.js` flags, checking every value.
+ * @param {object} [opts={}] The page's options.
+ * @returns {string[]} The flags.
+ * @throws {Error} When a value is invalid or every cut detector is turned off.
+ */
 function optionArgs(opts = {}) {
   const args = [];
   for (const [key, flag] of Object.entries(NUMBER_FLAGS)) {
@@ -90,7 +109,12 @@ function optionArgs(opts = {}) {
   return args;
 }
 
-// An edited cut list from the page: every value checked, nothing else kept.
+/**
+ * An edited cut list from the page: every value checked, nothing else kept.
+ * @param {object} plan The plan from the page.
+ * @returns {object} `{ files: [{ sourcePath, clips: [{ start, end, category, name? }] }] }`.
+ * @throws {Error} When the plan is empty, too large or has an invalid clip.
+ */
 function validatePlan(plan) {
   const files = plan && Array.isArray(plan.files) ? plan.files : null;
   if (!files || !files.length) throw badRequest('There are no clips to split.');
@@ -114,6 +138,11 @@ function validatePlan(plan) {
   };
 }
 
+/**
+ * Turns the page's clip-writing options into `splice.js` flags.
+ * @param {object} [opts={}] The page's options.
+ * @returns {string[]} The flags.
+ */
 function writeArgs(opts = {}) {
   const args = [];
   WRITE_FLAGS.forEach((key) => { if (opts[key] === true) args.push(BOOLEAN_FLAGS[key]); });
@@ -123,9 +152,16 @@ function writeArgs(opts = {}) {
   return args;
 }
 
-// A request from the page -> { script, args }. Throws a person-readable
-// error for anything incomplete; the page shows it as-is. Plan jobs name the
-// file the service writes the (validated) plan to.
+/**
+ * A request from the page -> { script, args }. Throws a person-readable
+ * error for anything incomplete; the page shows it as-is. Plan jobs name the
+ * file the service writes the (validated) plan to.
+ * @param {object} [request={}] The page's job request; `kind` picks the job.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.planFile='<plan>'] Where the validated plan will be written.
+ * @returns {object} `{ script, args, plan? }`.
+ * @throws {Error} When the request is incomplete or invalid.
+ */
 function jobArgs(request = {}, { planFile = '<plan>' } = {}) {
   const { kind } = request;
   if (!JOB_KINDS.has(kind)) throw badRequest(`Unknown splicer job "${kind}".`);
@@ -154,14 +190,22 @@ function jobArgs(request = {}, { planFile = '<plan>' } = {}) {
   return { script: 'splice', args: [...target, ...mode, ...optionArgs(request.opts), ...(out ? ['--out', out] : [])] };
 }
 
-// The scripts print "[current/total]" on the lines that mark progress.
+/**
+ * The scripts print "[current/total]" on the lines that mark progress.
+ * @param {string} line One line of script output.
+ * @returns {?object} `{ current, total }`, or null when the line has no progress marker.
+ */
 function progressOf(line) {
   const m = /\[(\d+)\/(\d+)\]/.exec(line);
   return m ? { current: Number(m[1]), total: Number(m[2]) } : null;
 }
 
-// Review results name each thumbnail relative to its folder; the page wants
-// a path it can hand to toFileUrl.
+/**
+ * Review results name each thumbnail relative to its folder; the page wants
+ * a path it can hand to toFileUrl.
+ * @param {?object} result A review result, or one with `files` of them.
+ * @returns {?object} The same result, with `thumbPath` added to each candidate in place.
+ */
 function withThumbPaths(result) {
   if (!result) return result;
   const groups = result.files || [result];
@@ -172,8 +216,11 @@ function withThumbPaths(result) {
   return result;
 }
 
-// Stops a run and every ffmpeg under it. On Windows a killed parent leaves
-// its children running, so the whole tree goes at once.
+/**
+ * Stops a run and every ffmpeg under it. On Windows a killed parent leaves
+ * its children running, so the whole tree goes at once.
+ * @param {ChildProcess} child The run's process.
+ */
 function killTree(child) {
   if (process.platform === 'win32' && child.pid) {
     spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
@@ -182,10 +229,28 @@ function killTree(child) {
   try { child.kill(); } catch (e) { /* already gone */ }
 }
 
+/**
+ * Compares names so that numbers sort by value (`clip 2` before `clip 10`).
+ * @param {string} a The first name.
+ * @param {string} b The second name.
+ * @returns {number} Negative, zero or positive, for `Array.prototype.sort`.
+ */
 function naturalSort(a, b) {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
+/**
+ * Creates the splicer service: settings, file pickers and a one-at-a-time job queue that runs the scripts in a utility process.
+ * @param {object} deps Injected dependencies.
+ * @param {string} deps.dataDir The folder holding `settings.json`.
+ * @param {Function} deps.getFfmpegPath Returns the ffmpeg path handed to the scripts.
+ * @param {Function} deps.fork Starts a script in a utility process.
+ * @param {object} [deps.dialogs] `{ open, save }` file pickers.
+ * @param {Function} [deps.showItemInFolder] Reveals a path in the file manager.
+ * @param {Function} [deps.emit] Called with each `splicer:job` event.
+ * @param {string} [deps.tmpDir] Where plan files are written.
+ * @returns {object} `{ call, dispose }`.
+ */
 function createSplicerService({ dataDir, getFfmpegPath, fork, dialogs = {}, showItemInFolder = () => {}, emit = () => {}, tmpDir = os.tmpdir() }) {
   const settingsPath = path.join(dataDir, 'settings.json');
   const jobs = new Map();
@@ -441,6 +506,12 @@ function createSplicerService({ dataDir, getFfmpegPath, fork, dialogs = {}, show
   };
 }
 
+/**
+ * Registers the `splicer:call` IPC handler, which answers `{ ok, result }` or `{ ok: false, error }`.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} deps Accessors.
+ * @param {Function} deps.getService Returns the splicer service.
+ */
 function registerSplicerIpc(ipcMain, { getService }) {
   ipcMain.handle('splicer:call', async (event, method, payload) => {
     try {

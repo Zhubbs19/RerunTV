@@ -61,19 +61,31 @@ const GRID_COLUMNS = 4;
 // specific plugins by id, so any interrupt plugin shows up in the TV menu
 // automatically without a core code change.
 // ---------- TIME MACHINE › (docs/design/11 §3.2) ----------
-// Go to… targets first, then the day/hour picker, then on/off and live. With
-// the time machine switched off in settings it stays the plain toggle it was.
+/**
+ * Go to… targets first, then the day/hour picker, then on/off and live. With
+ * the time machine switched off in settings it stays the plain toggle it was.
+ * @returns {object} The TIME MACHINE menu item: a submenu when enabled, else a plain on/off toggle.
+ */
 function timeMachineMenuItem() {
   const enabled = !!(S.config.timeMachine && S.config.timeMachine.enabled);
   if (!enabled) return { label: 'TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) };
   return { label: 'TIME MACHINE ›', submenu: timeMachineSubmenu };
 }
 
+/**
+ * Formats a day as a short weekday, month and date, using the names in `state.js`.
+ * @param {number} ms A time on the day (ms).
+ * @returns {string} The label.
+ */
 function dayLabel(ms) {
   const d = new Date(ms);
   return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
+/**
+ * Builds the TIME MACHINE submenu from `viewNow()`: the Go to… targets, the calendar and day/hour pickers, open or close, and return to live.
+ * @returns {object} The menu level, `{ title, items }`.
+ */
 function timeMachineSubmenu() {
   const now = viewNow();
   const available = S.timeMachineOn || timeMachineAvailable();
@@ -95,6 +107,10 @@ function timeMachineSubmenu() {
 // A D-pad-only picker: step the day and hour with buttons that keep the menu
 // open, then GO. ±7 days from the viewed day (scrubber-model.js).
 let picker = { dayOffset: 0, hour: 20 };
+/**
+ * Builds the day/hour picker level; its step buttons change the module's `picker` state and keep the menu open.
+ * @returns {object} The menu level, `{ title, onOpen, items }`.
+ */
 function dayHourPicker() {
   const now = viewNow();
   const range = timeMachineOptions(S.config).pickerDays;
@@ -114,8 +130,11 @@ function dayHourPicker() {
   };
 }
 
-// While the guide is open, its own actions come first (docs/design/11 §2.3):
-// a remote has no D or B key, and search needs a way to reach the keyboard.
+/**
+ * While the guide is open, its own actions come first (docs/design/11 §2.3):
+ * a remote has no D or B key, and search needs a way to reach the keyboard.
+ * @returns {Array<object>} Guide menu items, or none while the guide is closed.
+ */
 function guideActions() {
   if (!guideGrid || guideGrid.classList.contains('hidden')) return [];
   // `guide: true` keeps the guide open when they run (leaveGuideFor).
@@ -132,12 +151,24 @@ function guideActions() {
 // One column of large choices, a breadcrumb title, Back up a level — instead
 // of the desktop grid, which stays exactly as it was. Everything the app can
 // do is reachable from here with D-pad + OK + Back alone.
+/**
+ * Builds a menu item that opens a submenu level.
+ * @param {string} label The item's label; ` ›` is added.
+ * @param {string} title The submenu's title.
+ * @param {() => Array<object>} items Builds the submenu's items each time it opens.
+ * @param {number} [columns] The submenu's column count.
+ * @param {string} [help] The item's help line.
+ * @returns {object} The menu item.
+ */
 function section(label, title, items, columns, help) {
   return { label: `${label} ›`, help, submenu: () => ({ title, items: items(), columns }) };
 }
 
-// Quick-jump slots 1-4, which only Ctrl/Alt + number reached before. Shared
-// by the TV menu and the desktop menu.
+/**
+ * Quick-jump slots 1-4, which only Ctrl/Alt + number reached before. Shared
+ * by the TV menu and the desktop menu.
+ * @returns {Array<object>} A GO TO and a SAVE item for each slot.
+ */
 function quickJumpItems() {
   return ['1', '2', '3', '4'].flatMap((slot) => {
     const target = S.quickJumpSlots && S.quickJumpSlots[slot];
@@ -148,6 +179,10 @@ function quickJumpItems() {
   });
 }
 
+/**
+ * Builds one item per household profile; switching away from a PIN-protected profile asks for its PIN first.
+ * @returns {Array<object>} The menu items.
+ */
 function profileItems() {
   const active = currentProfile();
   return profiles().map((profile) => ({
@@ -164,6 +199,10 @@ function profileItems() {
   }));
 }
 
+/**
+ * Builds the MY SHOWS items for the current profile: ready recordings, which play on the tape deck, and pending requests.
+ * @returns {Array<object>} The menu items.
+ */
 function myShowsItems() {
   const profile = currentProfile();
   if (!profile) return [{ label: 'CHOOSE A PROFILE FIRST', disabled: true }];
@@ -185,6 +224,10 @@ function myShowsItems() {
   return items.length ? items : [{ label: 'NO SHOWS OR RECORDING REQUESTS', disabled: true }];
 }
 
+/**
+ * Builds the WATCH TOGETHER items: the session and LEAVE when in one, else START and JOIN.
+ * @returns {Array<object>} The menu items.
+ */
 function togetherItems() {
   const session = S.sharedSession;
   if (session) return [
@@ -200,6 +243,10 @@ function togetherItems() {
   ];
 }
 
+/**
+ * Builds one CONTINUE ON… item per other screen that is online.
+ * @returns {Array<object>} The menu items.
+ */
 function handoffItems() {
   const targets = (S.personalClients || []).filter((client) => client.id !== getClientId());
   return targets.length ? targets.map((client) => ({
@@ -208,6 +255,10 @@ function handoffItems() {
   })) : [{ label: 'NO OTHER SCREEN IS ONLINE', disabled: true }];
 }
 
+/**
+ * Builds the TV-mode root menu: guide actions, the guide, cable-guide pages, the time machine and the sections.
+ * @returns {Array<object>} The menu items.
+ */
 function tvRootItems() {
   return [
     ...guideActions(),
@@ -288,8 +339,11 @@ function tvRootItems() {
   ];
 }
 
-// Direct tuning without digit keys (docs/design/01 §5.3): a 3-column pad that
-// feeds the same entry buffer the number keys do.
+/**
+ * Direct tuning without digit keys (docs/design/01 §5.3): a 3-column pad that
+ * feeds the same entry buffer the number keys do.
+ * @returns {object} The menu level, `{ title, items, columns: 3 }`.
+ */
 function numberPad() {
   const digit = (d) => ({ label: d, keepOpen: true, columnsItem: true, run: () => pushDigit(d) });
   const items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit);
@@ -299,6 +353,10 @@ function numberPad() {
   return { title: S.entryBuffer ? `TUNE TO ${S.entryBuffer}` : 'TUNE TO NUMBER', items, columns: 3 };
 }
 
+/**
+ * Builds the flat desktop grid of menu items.
+ * @returns {Array<object>} The menu items.
+ */
 function actions() {
   return [
     ...guideActions(),
@@ -353,7 +411,10 @@ function actions() {
   ];
 }
 
-// The cable-guide Quick Menu: one row of tiles over the picture.
+/**
+ * The cable-guide Quick Menu: one row of tiles over the picture.
+ * @returns {Array<object>} The tiles, `{ icon, label, help, run }` (or `toMain`).
+ */
 function quickTiles() {
   const lock = S.config.pinLock && S.config.pinLock.enabled;
   return [
@@ -370,14 +431,21 @@ function quickTiles() {
   ].map((tile) => (tile.run ? { ...tile, run: () => { leaveGuideFor(tile); tile.run(); } } : tile));
 }
 
-// The cable-guide menu hides the guide while it's up (cable-guide.css), and
-// its pages open inside the screen, under #guide-grid. Picking something that
-// isn't one of the guide's own actions leaves the guide first, as the boxes
-// do, so the page or picture it leads to is what shows.
+/**
+ * Closes the guide before a picked menu item runs, on the cable-guide layout. The cable-guide menu
+ * hides the guide while it's up (cable-guide.css), and its pages open inside the screen, under
+ * #guide-grid. Picking something that isn't one of the guide's own actions leaves the guide first,
+ * as the boxes do, so the page or picture it leads to is what shows.
+ * @param {object} item The menu item or tile picked (`guide` marks the guide's own actions).
+ */
 function leaveGuideFor(item) {
   if (cableGuide() && !item.guide && !guideGrid.classList.contains('hidden')) closeGuideGrid();
 }
 
+/**
+ * Tests whether the cable-guide layout is on.
+ * @returns {boolean} True for the cable-guide layout.
+ */
 function cableGuide() {
   return currentUiMode() === CABLE_GUIDE_UI;
 }
@@ -399,7 +467,11 @@ const titleEl = document.getElementById('tv-menu-title');
 let viewColumns = GRID_COLUMNS;
 let viewItems = [];
 
-// What OK on an item does, in either layout's menu.
+/**
+ * What OK on an item does, in either layout's menu.
+ * @param {?object} a The menu item.
+ * @param {number} i Its index, for refocusing after a rebuild.
+ */
 function activateItem(a, i) {
   if (!a || a.disabled) return;
   if (a.submenu) {
@@ -424,12 +496,19 @@ function activateItem(a, i) {
   a.run();
 }
 
+/**
+ * Goes up one submenu level, or closes the menu at the top.
+ */
 function backOneLevel() {
   if (menuStack.length) { menuStack.pop(); rebuildMenu(0); } else closeTvMenu();
 }
 
-// The cable-guide Main Menu uses the TV hierarchy on desktop too, so every
-// section (profiles, my shows, watch together…) is reachable from both.
+/**
+ * The cable-guide Main Menu uses the TV hierarchy on desktop too, so every
+ * section (profiles, my shows, watch together…) is reachable from both.
+ * @param {object} view The menu level, `{ title, items }`.
+ * @param {number} focusIndex The item to focus.
+ */
 function renderCableGuideMenu(view, focusIndex) {
   renderMainMenu(shortcutsOverlayEl, view, focusIndex, {
     activate: (i) => activateItem(viewItems[i], i),
@@ -442,7 +521,10 @@ function renderCableGuideMenu(view, focusIndex) {
   });
 }
 
-// Opens the menu straight at a path of section labels (the Quick Menu's lock).
+/**
+ * Opens the menu straight at a path of section labels (the Quick Menu's lock).
+ * @param {string[]} path Item labels to follow from the root, e.g. `['SETUP ›', 'PARENTAL LOCK ›']`.
+ */
 function openTvMenuAt(path) {
   openTvMenu();
   if (cableGuide() && cgMenuMode() === 'quick') openTvMenu();
@@ -456,6 +538,10 @@ function openTvMenuAt(path) {
   rebuildMenu(0);
 }
 
+/**
+ * Rebuilds the menu for the current level: the cable-guide Main Menu, the TV-mode list or the desktop grid.
+ * @param {number} [focusIndex=0] The item to focus.
+ */
 function rebuildMenu(focusIndex = 0) {
   gridEl.innerHTML = '';
   const level = menuStack[menuStack.length - 1];
@@ -498,6 +584,9 @@ registerCoreHook('ui-mode-change', () => {
   rebuildMenu(Math.max(0, at));
 });
 
+/**
+ * Opens the TV menu. In the cable-guide layout the first press shows the Quick Menu and a second one the Main Menu.
+ */
 export function openTvMenu() {
   if (cableGuide()) {
     // First press: the Quick Menu. Pressed again while it's up: the Main Menu.
@@ -525,6 +614,9 @@ export function openTvMenu() {
   if (buttons[0]) buttons[0].focus();
 }
 
+/**
+ * Closes the TV menu at any level and gives focus back to where it was.
+ */
 export function closeTvMenu() {
   menuStack = [];
   closeCgMenu();
@@ -537,11 +629,14 @@ export function closeTvMenu() {
   menuPreviouslyFocused = null;
 }
 
-// Real 2D grid navigation — arrow keys move focus by row/column. A plain
-// browser focus order has no concept of "up"/"down" for a grid of buttons
-// (only linear Tab order), so this has to be computed explicitly. Moving
-// right/left past a row's edge rolls into the next/previous row rather
-// than stopping dead — a common, easy-to-predict grid-navigation behavior.
+/**
+ * Real 2D grid navigation — arrow keys move focus by row/column. A plain
+ * browser focus order has no concept of "up"/"down" for a grid of buttons
+ * (only linear Tab order), so this has to be computed explicitly. Moving
+ * right/left past a row's edge rolls into the next/previous row rather
+ * than stopping dead — a common, easy-to-predict grid-navigation behavior.
+ * @param {KeyboardEvent} e The keydown event.
+ */
 export function handleTvMenuKey(e) {
   // preventDefault: an Enter that opens a page (Search) would otherwise go
   // on to press whatever that page focuses first (its "A" key).

@@ -24,9 +24,21 @@
 import { S, commitInPlace } from '../core/state.js';
 import { clamp, deepClone } from '../core/util.js';
 
+// Counter that keeps ids from `newProfileId` unique within one millisecond.
 let profileIdCounter = 0;
+/**
+ * A new placement-profile id, unique within this session.
+ * @returns {string} The id.
+ */
 function newProfileId() { return `p${Date.now().toString(36)}${(profileIdCounter++).toString(36)}`; }
 
+/**
+ * Creates an element from a props object and children.
+ * @param {string} tag Tag name.
+ * @param {object} [props={}] `className`, `text`, `attrs` and any other properties to assign.
+ * @param {...(Node|string)} children Children to append; falsy ones are skipped.
+ * @returns {HTMLElement} The element.
+ */
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
   const { className, text, attrs, ...rest } = props;
@@ -38,6 +50,11 @@ function el(tag, props = {}, ...children) {
   return node;
 }
 
+/**
+ * Rounds to one decimal place.
+ * @param {number} value The number.
+ * @returns {number} The rounded number.
+ */
 const round1 = (value) => Math.round(value * 10) / 10;
 
 // What an element shows when it is empty (most badges only exist while
@@ -58,14 +75,34 @@ const ALL_SHAPES = [
   ['4:3', 'native'], ['4:3', 'sd480'], ['4:3', 'sd240'],
 ];
 
+// Local-storage key for the editor's remembered panel preferences.
 const UI_KEY = 'reruntv.layoutEditor.v1';
+/**
+ * Reads the editor's remembered panel preferences from local storage.
+ * @returns {object} The saved preferences, or an empty object.
+ */
 function loadUi() {
   try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; }
 }
+/**
+ * Merges a change into the editor's remembered panel preferences.
+ * @param {object} patch Fields to save.
+ */
 function saveUi(patch) {
   try { localStorage.setItem(UI_KEY, JSON.stringify({ ...loadUi(), ...patch })); } catch (e) { /* storage can be blocked; the panel just forgets */ }
 }
 
+/**
+ * Opens the live on-screen layout editor over the TV picture.
+ * On apply the edited layouts are committed as one undo step; cancel restores the snapshots taken on open.
+ * @param {object} opts Options.
+ * @param {() => Array<object>} opts.getProfiles Reads the logo bug's current placement profiles.
+ * @param {(profiles: Array<object>) => void} opts.setProfiles Writes the logo bug's placement profiles.
+ * @param {Function} [opts.onLiveChange] Called after the editor closes so the caller can redraw.
+ * @param {object} [opts.perChannelOverlay] `{ targetId, getProfiles, setProfiles }` redirecting one target to a per-channel store.
+ * @param {?number} [opts.channelNumber] The channel being edited, if any.
+ * @returns {Promise<void>} Resolves once the editor is showing.
+ */
 export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange, perChannelOverlay, channelNumber }) {
   const profileSnapshot = (getProfiles() || []).map((profile) => ({ ...profile }));
   const displayModeSnapshot = { ...(S.config.displayMode || {}) };

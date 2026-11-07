@@ -6,9 +6,14 @@ import { S, commitInPlace } from '../core/state.js';
 import { basenameNoExt } from '../core/util.js';
 import { commitOwnerFields, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor, openLiveLogoBugEditor, parsePositiveInt, safeApi } from './util.js';
 
-// Per-channel override for the logo bug's placement profiles, layered over
-// the box-wide DISPLAY-tab default the same way a block's ADS button
-// overrides the channel default — null means "inherit."
+/**
+ * Builds a channel's logo bug placement panel.
+ * Per-channel override for the logo bug's placement profiles, layered over
+ * the box-wide DISPLAY-tab default the same way a block's ADS button
+ * overrides the channel default — null means "inherit."
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into.
+ */
 export function buildLogoBugPanel(ch, panelEl) {
   function render() {
     panelEl.innerHTML = '';
@@ -128,13 +133,18 @@ export function buildLogoBugPanel(ch, panelEl) {
   render();
 }
 
-// End-credits speedup — a real syndicated-TV trick: fast-forward (muted)
-// through a movie's last stretch once its credits begin, squeezing the
-// picture over to make room for an "UP NEXT" card, then resume normal speed
-// for whatever airs next (playback.js's scheduleCreditsSpeedup/
-// startCreditsSpeedup). Per-file overrides (creditsLeadS, 0 = never for
-// that file) live in the TITLES tab's facets row instead, next to `rating` —
-// this panel is only the channel-wide default.
+/**
+ * Builds a channel's end-credits speedup panel.
+ * End-credits speedup — a real syndicated-TV trick: fast-forward (muted)
+ * through a movie's last stretch once its credits begin, squeezing the
+ * picture over to make room for an "UP NEXT" card, then resume normal speed
+ * for whatever airs next (playback.js's scheduleCreditsSpeedup/
+ * startCreditsSpeedup). Per-file overrides (creditsLeadS, 0 = never for
+ * that file) live in the TITLES tab's facets row instead, next to `rating` —
+ * this panel is only the channel-wide default.
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into.
+ */
 export function buildCreditsSpeedupPanel(ch, panelEl) {
   function render() {
     panelEl.innerHTML = '';
@@ -316,9 +326,14 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
   render();
 }
 
-// Per-channel override for dynamic-overlay rules, same inherit/override
-// convention as buildLogoBugPanel above — null means "use the box-wide
-// DISPLAY-tab default list."
+/**
+ * Builds a channel's dynamic overlays panel.
+ * Per-channel override for dynamic-overlay rules, same inherit/override
+ * convention as buildLogoBugPanel above — null means "use the box-wide
+ * DISPLAY-tab default list."
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into.
+ */
 export function buildDynamicOverlaysPanel(ch, panelEl) {
   function render() {
     panelEl.innerHTML = '';
@@ -365,18 +380,23 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
   render();
 }
 
-// Per-channel override for the ticker plugin's on-screen placement AND its
-// content (enabled/text/speed) — two independent inherit/override toggles,
-// same convention as buildLogoBugPanel/buildDynamicOverlaysPanel above:
-// null means "use the box-wide default." Placement
-// (ch.tickerLayout, null = inherit S.config.display.overlayLayouts
-// ['ticker-bar']) reuses the same live drag/resize editor every other HUD
-// overlay is edited with — openLiveLogoBugEditor's perChannelOverlay option
-// points its 'ticker-bar' target at ch.tickerLayout instead of the box-wide
-// list while this editor session is open. Content
-// (ch.tickerContent, null = inherit S.config.ticker) is edited inline here —
-// same enabled/text/speed fields as plugins/ticker/settings.js's box-wide
-// PLUGINS-tab panel, just scoped to this channel.
+/**
+ * Builds a channel's ticker placement and content panel.
+ * Per-channel override for the ticker plugin's on-screen placement AND its
+ * content (enabled/text/speed) — two independent inherit/override toggles,
+ * same convention as buildLogoBugPanel/buildDynamicOverlaysPanel above:
+ * null means "use the box-wide default." Placement
+ * (ch.tickerLayout, null = inherit S.config.display.overlayLayouts
+ * ['ticker-bar']) reuses the same live drag/resize editor every other HUD
+ * overlay is edited with — openLiveLogoBugEditor's perChannelOverlay option
+ * points its 'ticker-bar' target at ch.tickerLayout instead of the box-wide
+ * list while this editor session is open. Content
+ * (ch.tickerContent, null = inherit S.config.ticker) is edited inline here —
+ * same enabled/text/speed fields as plugins/ticker/settings.js's box-wide
+ * PLUGINS-tab panel, just scoped to this channel.
+ * @param {object} ch The channel config (edited in place).
+ * @param {HTMLElement} panelEl The panel to draw into.
+ */
 export function buildTickerLayoutPanel(ch, panelEl) {
   function render() {
     panelEl.innerHTML = '';

@@ -11,6 +11,13 @@ let timer = null;
 let running = false;
 const pendingJobs = new Map();
 
+/**
+ * Runs a personal command against a profile's latest revision, retrying once on a conflict.
+ * @param {string} profileId The profile id.
+ * @param {object} command The personal command.
+ * @returns {Promise<object>} The updated profile.
+ * @throws {Error} When the profile changed again during the retry.
+ */
 async function commandFor(profileId, command) {
   let profile = await personalCall('getProfile', { id: profileId });
   let result = await personalCall('command', { profileId, baseRevision: profile.revision, command });
@@ -22,6 +29,12 @@ async function commandFor(profileId, command) {
   return result.profile;
 }
 
+/**
+ * Saves the tape deck's playback position as a resume point on whichever profile owns the tape.
+ * Skips the write when the position moved less than 5 s and the watched flag is unchanged.
+ * @param {object} deck The tape-deck renderer service.
+ * @returns {Promise<void>}
+ */
 async function updateResumePoints(deck) {
   const playing = typeof deck.nowPlaying === 'function' ? deck.nowPlaying() : null;
   if (!playing?.tapeId || !Number.isFinite(playing.positionMs)) return;
@@ -39,6 +52,14 @@ async function updateResumePoints(deck) {
   }
 }
 
+/**
+ * Deletes recordings the profile's DVR policy no longer keeps.
+ * Applies watched-age, keep-N-episodes and storage-quota rules, deleting the tapes too.
+ * @param {object} profile The profile.
+ * @param {Array<object>} tapes The deck's tapes, with `id` and `bytes`.
+ * @param {object} deck The tape-deck renderer service.
+ * @returns {Promise<object>} The profile after the removals.
+ */
 async function enforceRetention(profile, tapes, deck) {
   const policy = profile.state.dvrPolicy || {};
   const tapeById = new Map(tapes.map((tape) => [tape.id, tape]));
@@ -84,6 +105,12 @@ async function enforceRetention(profile, tapes, deck) {
   return profile;
 }
 
+/**
+ * Runs one scheduler pass over every profile.
+ * Updates resume points, enforces retention, settles stranded jobs and queues at most one
+ * new airing for recording.
+ * @returns {Promise<void>}
+ */
 async function tick() {
   if (running || window.__isViewer) return;
   const deck = getRendererService('tape-deck');
@@ -135,6 +162,9 @@ async function tick() {
   } finally { running = false; }
 }
 
+/**
+ * Starts the DVR scheduler on the host: listens for finished tapes and ticks every 30 s.
+ */
 export function initDvrScheduler() {
   if (timer || window.__isViewer) return;
   window.api.onTapesDone?.((result) => {

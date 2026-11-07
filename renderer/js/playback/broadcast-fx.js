@@ -31,10 +31,13 @@ import { S, viewNow } from '../core/state.js';
 import { autoHideAfter, formatClock, formatHourLabel, getDisplayTitle } from '../core/util.js';
 import { creditsAudioFor, creditsSpeedupFor } from '../core/fit.js';
 
-// GUIDE & THEME › ON-SCREEN › "Program cards stay up": how long the rating
-// bug, movie rating card, NEW/REPEAT bug, formatted-for-TV card, advisory and
-// CC/SAP badge stay on screen at the start of a program (real bugs held about
-// 15-17 s, so 16 is the default).
+/**
+ * GUIDE & THEME › ON-SCREEN › "Program cards stay up": how long the rating
+ * bug, movie rating card, NEW/REPEAT bug, formatted-for-TV card, advisory and
+ * CC/SAP badge stay on screen at the start of a program (real bugs held about
+ * 15-17 s, so 16 is the default).
+ * @returns {number} How long the cards stay up, in ms.
+ */
 export function programCardMs() {
   const v = Number(S.config.display && S.config.display.programCardSeconds);
   return (Number.isFinite(v) && v >= 3 ? Math.min(30, v) : 16) * 1000;
@@ -46,8 +49,13 @@ import { computeSourcePosition, resolveActiveSource } from '../core/schedule.js'
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
 import { computeNextTitle } from './breaks.js';
 
-// variant: undefined (neutral/no signal), 'error', or 'transcoding' — maps
-// to the matching .no-signal-main.is-* color in styles.css.
+/**
+ * variant: undefined (neutral/no signal), 'error', or 'transcoding' — maps
+ * to the matching .no-signal-main.is-* color in styles.css.
+ * @param {string} main The card's main line.
+ * @param {string} sub The line under it.
+ * @param {string} [variant] The card variant; `'offair'` also starts hold music.
+ */
 export function showNoSignal(main, sub, variant) {
   noSignalMainEl.textContent = main;
   noSignalMainEl.className = 'no-signal-main' + (variant ? ` is-${variant}` : '');
@@ -63,17 +71,32 @@ export function showNoSignal(main, sub, variant) {
   else stopHoldMusicLoop();
 }
 
-// Shared hide path for noSignalEl so hold music always stops alongside it —
-// see showNoSignal's 'offair' comment above.
+/**
+ * Shared hide path for noSignalEl so hold music always stops alongside it —
+ * see showNoSignal's 'offair' comment above.
+ */
 export function hideNoSignal() {
   noSignalEl.classList.add('hidden');
   stopHoldMusicLoop();
 }
 
+/**
+ * Trims a configured no-signal string.
+ * @param {*} value The configured value.
+ * @returns {string} The trimmed text, or empty when it is not a string.
+ */
 function configuredNoSignalText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * Picks the no-signal card copy: the channel identity's, else the box's, else the fallback.
+ * @param {number} number The channel number, put in place of `{channel}`.
+ * @param {?object} identity The channel's broadcast identity.
+ * @param {string} fallbackTitle The title used when none is configured.
+ * @param {string} fallbackMessage The message template used when none is configured.
+ * @returns {object} `{ title, message }`.
+ */
 function resolveNoSignalCopy(number, identity, fallbackTitle, fallbackMessage) {
   const display = S.config.display || {};
   const title = configuredNoSignalText(identity?.noSignalTitle)
@@ -88,14 +111,31 @@ function resolveNoSignalCopy(number, identity, fallbackTitle, fallbackMessage) {
   };
 }
 
+/**
+ * Returns the no-signal card copy for a channel.
+ * @param {object} channel The channel config.
+ * @param {string} fallbackTitle The title used when none is configured.
+ * @param {string} fallbackMessage The message template used when none is configured.
+ * @returns {object} `{ title, message }`.
+ */
 export function channelNoSignalCopy(channel, fallbackTitle, fallbackMessage) {
   return resolveNoSignalCopy(channel.number, channel.broadcastIdentity, fallbackTitle, fallbackMessage);
 }
 
+/**
+ * Returns the box's no-signal card copy for an empty channel number.
+ * @param {number} number The channel number.
+ * @returns {object} `{ title, message }`.
+ */
 export function genericNoSignalCopy(number) {
   return resolveNoSignalCopy(number, null, 'NO SIGNAL', 'CH {channel}');
 }
 
+/**
+ * Parses a `#rrggbb` colour.
+ * @param {?string} hex The colour.
+ * @returns {?number[]} `[r, g, b]`, or `null` when it is not a hex colour.
+ */
 function hexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
@@ -125,6 +165,9 @@ const STATIC_RELEASE_FADE_MS = 300;
 const PLAYER_REVEAL_START_OPACITY = 0.2;
 let staticReady = true;
 
+/**
+ * Marks the tuned video as ready, letting the static burst start its release fade.
+ */
 export function markStaticReady() {
   staticReady = true;
 }
@@ -148,6 +191,9 @@ export function markStaticReady() {
 // fade-in/hold-for-a-decoded-frame/fade-out state machine, since there's no
 // player reveal to gate on here (nothing plays on `player` for localAvail).
 const LOCAL_AVAIL_GLITCH_MS = 150;
+/**
+ * Flashes a brief full-screen noise blip for a local ad insertion.
+ */
 export function flashLocalAvailCut() {
   staticCanvas.width = staticCanvas.clientWidth;
   staticCanvas.height = staticCanvas.clientHeight;
@@ -165,6 +211,13 @@ export function flashLocalAvailCut() {
   setTimeout(() => { staticCanvas.style.opacity = '0'; }, LOCAL_AVAIL_GLITCH_MS);
 }
 
+/**
+ * Plays the channel-change static burst.
+ * Fades static in over `durationMs`, holds until `markStaticReady()` or a cap, then fades it
+ * out while the picture brightens. The fill follows the theme or identity's static style.
+ * @param {number} durationMs The fade-in time.
+ * @param {?string} tintHex A `#rrggbb` colour to tint the noise, or nothing for grey.
+ */
 export function showStaticBurst(durationMs, tintHex) {
   sfxChannelChange();
   staticCanvas.width = staticCanvas.clientWidth;
@@ -297,34 +350,45 @@ export function showStaticBurst(durationMs, tintHex) {
   S.staticRAF = requestAnimationFrame(draw);
 }
 
-// Persistent off-air card shown outside a channel's broadcastHours window —
-// distinct copy from the generic NO SIGNAL/COMING SOON cards so it reads as
-// "this channel is fine, it's just not on right now" rather than broken.
+/**
+ * Persistent off-air card shown outside a channel's broadcastHours window —
+ * distinct copy from the generic NO SIGNAL/COMING SOON cards so it reads as
+ * "this channel is fine, it's just not on right now" rather than broken.
+ * @param {object} ch The channel config.
+ */
 export function showSignOffCard(ch) {
   const returns = formatHourLabel(ch.broadcastHours.startHour);
   showNoSignal('SIGN-OFF', `CH ${ch.number}${ch.name ? ' — ' + ch.name.toUpperCase() : ''} — RETURNS AT ${returns}`, 'signoff');
 }
 
-// A deliberately blocked channel (ch.notSubscribed) — reads as a billing
-// message, not a failure, so it gets its own copy and CSS variant distinct
-// from both the technical OFF THE AIR card and the scheduled SIGN-OFF card.
+/**
+ * A deliberately blocked channel (ch.notSubscribed) — reads as a billing
+ * message, not a failure, so it gets its own copy and CSS variant distinct
+ * from both the technical OFF THE AIR card and the scheduled SIGN-OFF card.
+ * @param {object} ch The channel config.
+ */
 export function showBlockedCard(ch) {
   showNoSignal('CHANNEL NOT AVAILABLE', `CH ${ch.number}${ch.name ? ' — ' + ch.name.toUpperCase() : ''} — PLEASE CALL YOUR CABLE COMPANY TO SUBSCRIBE`, 'blocked');
 }
 
+/**
+ * Cancels a pending credits speedup.
+ */
 export function cancelCreditsSpeedup() {
   clearTimeout(S.creditsSpeedupTimer);
   S.creditsSpeedupTimer = null;
 }
 
-// Undoes whatever startCreditsSpeedup below changed, WITHOUT crediting any
-// time to S.contentLostMs — used when the sped-up file is interrupted
-// (tune-away, power-off) rather than allowed to run to its own natural
-// 'ended'. An interrupted speedup has no well-defined "how much did we
-// actually save," so this just restores normal playback/audio state and
-// leaves the schedule to read as very slightly behind until the next
-// natural boundary reconciles it — the same class of harmless drift breaks
-// already cause elsewhere.
+/**
+ * Undoes whatever startCreditsSpeedup below changed, WITHOUT crediting any
+ * time to S.contentLostMs — used when the sped-up file is interrupted
+ * (tune-away, power-off) rather than allowed to run to its own natural
+ * 'ended'. An interrupted speedup has no well-defined "how much did we
+ * actually save," so this just restores normal playback/audio state and
+ * leaves the schedule to read as very slightly behind until the next
+ * natural boundary reconciles it — the same class of harmless drift breaks
+ * already cause elsewhere.
+ */
 export function resetCreditsSpeedup() {
   cancelCreditsSpeedup();
   S.creditsSpeedupFit = false;
@@ -347,15 +411,19 @@ export function resetCreditsSpeedup() {
   creditsSqueezeVideoEl.load();
 }
 
-// Old syndicated stations routinely fast-forwarded a movie's end credits to
-// hit a hard time slot. `leadS` (seconds-before-file-end where credits
-// begin) resolves per-file first (file.creditsLeadS — 0 explicitly opts a
-// single file out even when the channel default is on), else, when
-// ch.creditsSpeedup.enabled, where the file's credits were found to start
-// (foundCreditsLead), else the channel's own default. Armed the same one-shot way
-// scheduleUpNextBar is (once per tune/file-load, not a continuous poll) —
-// a sibling timer, not sharing that one's slot, since both can be armed for
-// the same file at once.
+/**
+ * Old syndicated stations routinely fast-forwarded a movie's end credits to
+ * hit a hard time slot. `leadS` (seconds-before-file-end where credits
+ * begin) resolves per-file first (file.creditsLeadS — 0 explicitly opts a
+ * single file out even when the channel default is on), else, when
+ * ch.creditsSpeedup.enabled, where the file's credits were found to start
+ * (foundCreditsLead), else the channel's own default. Armed the same one-shot way
+ * scheduleUpNextBar is (once per tune/file-load, not a continuous poll) —
+ * a sibling timer, not sharing that one's slot, since both can be armed for
+ * the same file at once.
+ * @param {object} ch The channel config.
+ * @param {object} pos The live position: `{ file, offset }`.
+ */
 export function scheduleCreditsSpeedup(ch, pos) {
   cancelCreditsSpeedup();
   const file = pos.file;
@@ -374,9 +442,13 @@ export function scheduleCreditsSpeedup(ch, pos) {
   }, remainingMs - leadS * 1000);
 }
 
-// A fitted program (core/fit.js) runs its credits at the speed its slot plan
-// worked out, from the plan's own credits segment. The time is already in the
-// schedule, so finishCreditsSpeedupIfActive credits nothing back for it.
+/**
+ * Arms the credits speed-up for a fitted program (core/fit.js), which runs its credits at the
+ * speed its slot plan worked out, from the plan's own credits segment. The time is already in the
+ * schedule, so finishCreditsSpeedupIfActive credits nothing back for it.
+ * @param {object} ch The channel config.
+ * @param {object} pos The live position (computeSourcePosition) of the fitted file airing.
+ */
 export function scheduleFitCredits(ch, pos) {
   cancelCreditsSpeedup();
   const plan = pos.file.fit;
@@ -391,14 +463,16 @@ export function scheduleFitCredits(ch, pos) {
   }, delayMs);
 }
 
-// Exported (alongside the timer-arming/reset functions above) so both real
-// call sites and tests can invoke start/finish directly without needing to
-// wait out a real setTimeout — see tests/ui/verify-credits-speedup.mjs.
 // END CREDITS › LAYOUT: where the sped-up credits go. 'side' (credits left,
 // card right), 'right' (the mirror), 'corner' (credits top-left, card along
-// the bottom), 'banner' (credits full size under a lower-third bar). A
-// channel's own choice wins, then the box's fit-to-time-slots default.
+// the bottom), 'banner' (credits full size under a lower-third bar).
 export const SQUEEZE_LAYOUTS = ['side', 'right', 'corner', 'banner'];
+/**
+ * Where a channel's sped-up credits go (one of SQUEEZE_LAYOUTS). A
+ * channel's own choice wins, then the box's fit-to-time-slots default.
+ * @param {?object} ch The channel config.
+ * @returns {string} The layout, 'side' when nothing is set.
+ */
 export function squeezeLayoutFor(ch) {
   const picks = [
     ch && ch.creditsSpeedup && ch.creditsSpeedup.squeezeLayout,
@@ -408,12 +482,31 @@ export function squeezeLayoutFor(ch) {
   return picks.find((l) => SQUEEZE_LAYOUTS.includes(l)) || 'side';
 }
 
+/**
+ * When the airing program's slot ends and the next one starts, read from the schedule at the
+ * viewed time (on a fitted channel, the :00/:30 itself).
+ * @param {object} ch The channel config.
+ * @returns {?number} The next program's start in ms, or null when nothing is airing.
+ */
 function nextProgramStartMs(ch) {
   const now = viewNow();
   const pos = computeSourcePosition(resolveActiveSource(ch, now), now, { ignoreContentLost: true });
   return pos && pos.file ? now - pos.offset * 1000 + pos.file.duration * 1000 : null;
 }
 
+/**
+ * Starts the sped-up end credits: plays the program at `rate`, sets the credits sound and shows
+ * the squeeze panel with what's next. Exported (alongside the timer-arming/reset functions above)
+ * so both real call sites and tests can invoke start/finish directly without needing to wait out
+ * a real setTimeout — see tests/ui/verify-credits-speedup.mjs.
+ * @param {object} ch The channel config.
+ * @param {object} file The playlist entry airing.
+ * @param {number} rate The playback rate.
+ * @param {number} leadS Seconds before the file's end the credits begin.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.fit] True for a fitted program's credits (scheduleFitCredits), whose time
+ *   is already in the schedule, so none is credited back afterwards.
+ */
 export function startCreditsSpeedup(ch, file, rate, leadS, opts) {
   S.creditsSpeedupPrevMuted = player.muted;
   S.creditsSpeedupFit = !!(opts && opts.fit);
@@ -484,13 +577,15 @@ export function startCreditsSpeedup(ch, file, rate, leadS, opts) {
   creditsSqueezePanelEl.classList.remove('hidden');
 }
 
-// Called from handleContentEnded, BEFORE it checks for the next break/file —
-// if a speedup was actually running for the file that just ended naturally,
-// credit the time it saved back to S.contentLostMs (the same accumulator
-// breaks use to credit time LOST, just the opposite sign — see this file's
-// top-of-function comments on computeLiveContentPosition) so the live-tuned
-// channel's position catches back up to what the pure schedule says should
-// be airing next, then restores normal playback/audio + the squeeze visual.
+/**
+ * Called from handleContentEnded, BEFORE it checks for the next break/file —
+ * if a speedup was actually running for the file that just ended naturally,
+ * credit the time it saved back to S.contentLostMs (the same accumulator
+ * breaks use to credit time LOST, just the opposite sign — see this file's
+ * top-of-function comments on computeLiveContentPosition) so the live-tuned
+ * channel's position catches back up to what the pure schedule says should
+ * be airing next, then restores normal playback/audio + the squeeze visual.
+ */
 export function finishCreditsSpeedupIfActive() {
   if (!S.creditsSpeedupActive) return;
   const realElapsedMs = viewNow() - S.creditsSpeedupRealStartMs;
@@ -505,8 +600,12 @@ export function finishCreditsSpeedupIfActive() {
 // malformed config).
 const FALLBACK_LOGO_BUG_PROFILE = { x: 94, y: 90, size: 46 };
 
-// The profiles a channel actually draws from — its own override array if it
-// has one, else the box-wide default (S.config.display.logoBugProfiles).
+/**
+ * The profiles a channel actually draws from — its own override array if it
+ * has one, else the box-wide default (S.config.display.logoBugProfiles).
+ * @param {?object} ch The channel config.
+ * @returns {Array<object>} Logo bug profiles.
+ */
 function activeLogoBugProfiles(ch) {
   return (ch && ch.logoBugProfiles) || (S.config.display && S.config.display.logoBugProfiles) || [];
 }
@@ -519,6 +618,10 @@ function activeLogoBugProfiles(ch) {
 // follows the content.
 const REFERENCE_LOGO_BUG_CONTEXT = { aspect: '16:9', resolution: 'native' };
 
+/**
+ * Returns the display context logo bug profiles are matched against.
+ * @returns {object} `{ aspect, resolution }`.
+ */
 export function activeLogoBugContext() {
   if (!(S.config.display && S.config.display.logoBugVaryWithContent)) return REFERENCE_LOGO_BUG_CONTEXT;
   return S.config.display && S.config.display.logoBugAutoAdjust
@@ -536,6 +639,11 @@ export function activeLogoBugContext() {
 // against the height the profile was set on: its own stamp (the live editor
 // writes one), else DISPLAY › Logo bug › "Sizes were set on". 0 = off.
 const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 1080;
+/**
+ * Returns the factor a logo bug profile's pixel sizes are scaled by for this screen.
+ * @param {object} profile The logo bug profile.
+ * @returns {number} The scale, 0.25..4; 1 when scaling is off.
+ */
 export function logoBugScale(profile) {
   const display = S.config.display || {};
   const setting = display.logoBugReferenceHeight;
@@ -547,9 +655,13 @@ export function logoBugScale(profile) {
   return h > 0 ? Math.min(4, Math.max(0.25, h / refH)) : 1;
 }
 
-// Whether the channel number chip is left off the bug: this channel's own
-// setting (true hides it, false shows it) over the box-wide one (DISPLAY ›
-// Logo bug); unset inherits.
+/**
+ * Whether the channel number chip is left off the bug: this channel's own
+ * setting (true hides it, false shows it) over the box-wide one (DISPLAY ›
+ * Logo bug); unset inherits.
+ * @param {?object} ch The channel config.
+ * @returns {boolean} True when the number chip is hidden.
+ */
 function logoBugHidesNumber(ch) {
   if (ch && (ch.logoBugHideNumber === true || ch.logoBugHideNumber === false)) return ch.logoBugHideNumber;
   return !!(S.config.display && S.config.display.logoBugHideNumber);
@@ -560,13 +672,21 @@ function logoBugHidesNumber(ch) {
 // is now. Profiles with no shape were placed on the current frame.
 export const logoBugAuthoredWidth = authoredFrameWidth;
 
-// One axis of a bug anchored to the picture. The profile's position is a share
-// of the frame it was laid out on (`whole`), and the gap it leaves to the nearer
-// edge of that frame is kept, in pixels, as the gap to the picture's edge. So a
-// bug placed with a comfortable margin on a 16:9 screen keeps that margin on
-// 4:3 or letterboxed content instead of shrinking with the picture. The editor
-// inverts this exactly (overlay-layout-editor.js), so what is dragged is where
-// it lands.
+/**
+ * One axis of a bug anchored to the picture. The profile's position is a share
+ * of the frame it was laid out on (`whole`), and the gap it leaves to the nearer
+ * edge of that frame is kept, in pixels, as the gap to the picture's edge. So a
+ * bug placed with a comfortable margin on a 16:9 screen keeps that margin on
+ * 4:3 or letterboxed content instead of shrinking with the picture. The editor
+ * inverts this exactly (overlay-layout-editor.js), so what is dragged is where
+ * it lands.
+ * @param {number} percent The profile's position, in percent of `whole`.
+ * @param {number} size The bug's size on this axis, in pixels.
+ * @param {number} start The picture's start on this axis, in pixels.
+ * @param {number} span The picture's length on this axis, in pixels.
+ * @param {number} whole The length of the frame the profile was laid out on; 0 or less places against the picture.
+ * @returns {number} The bug's start position, in pixels.
+ */
 export function logoBugPosition(percent, size, start, span, whole) {
   if (!(whole > 0)) return start + Math.min(Math.max(0, (percent / 100) * span), Math.max(0, span - size));
   const at = (percent / 100) * whole;
@@ -576,6 +696,11 @@ export function logoBugPosition(percent, size, start, span, whole) {
   return Math.min(Math.max(start, pos), start + Math.max(0, span - size));
 }
 
+/**
+ * Sizes and places an element by a logo bug profile, on the picture or on the screen.
+ * @param {HTMLElement} element The logo bug or its ghost.
+ * @param {object} profile The logo bug profile.
+ */
 function applyLogoBugProfileStyles(element, profile) {
   const scale = logoBugScale(profile);
   const { width: rawWidth, height: rawHeight } = logoBugProfileDimensions(profile);
@@ -604,14 +729,17 @@ function applyLogoBugProfileStyles(element, profile) {
   element.style.top = `clamp(0px, ${profile.y}%, max(0px, calc(100% - var(--logo-bug-height))))`;
 }
 
-// Position + size are resolution-aware now (S.config.display.logoBugProfiles
-// / ch.logoBugProfiles — see pickLogoBugProfile, channels.js), keyed off the
-// actively-playing video's own width. `player.videoWidth` reads 0 before
-// `loadedmetadata` fires, which pickLogoBugProfile treats as "unknown" (any
-// non-catch-all breakpoint is skipped, falling through to the DEFAULT
-// profile) — playChannelLive's onMeta handler re-calls this once the real
-// width is known, so a resolution-specific profile still gets a chance to
-// apply within the same tune, not just on the next one.
+/**
+ * Position + size are resolution-aware now (S.config.display.logoBugProfiles
+ * / ch.logoBugProfiles — see pickLogoBugProfile, channels.js), keyed off the
+ * actively-playing video's own width. `player.videoWidth` reads 0 before
+ * `loadedmetadata` fires, which pickLogoBugProfile treats as "unknown" (any
+ * non-catch-all breakpoint is skipped, falling through to the DEFAULT
+ * profile) — playChannelLive's onMeta handler re-calls this once the real
+ * width is known, so a resolution-specific profile still gets a chance to
+ * apply within the same tune, not just on the next one.
+ * @param {?object} ch The channel config.
+ */
 export function applyLogoBugPlacement(ch) {
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
   applyLogoBugProfileStyles(logoBugEl, profile);
@@ -622,11 +750,13 @@ export function applyLogoBugPlacement(ch) {
   fitLogoBugToPictureBox();
 }
 
-// On the cable-guide layout a menu or page shrinks the picture into a box in
-// its header's corner (cable-guide/picture-box.js). The bug is part of the
-// picture, so it goes with it: the same spot on the small picture, at the
-// box's scale. The individual translate/scale properties, not transform, so
-// the motion presets' transform animations still run on top.
+/**
+ * Moves the logo bug into the picture box. On the cable-guide layout a menu or page shrinks the
+ * picture into a box in its header's corner (cable-guide/picture-box.js). The bug is part of the
+ * picture, so it goes with it: the same spot on the small picture, at the
+ * box's scale. The individual translate/scale properties, not transform, so
+ * the motion presets' transform animations still run on top.
+ */
 function fitLogoBugToPictureBox() {
   const screen = logoBugEl.parentElement;
   const fit = screen && bugInPictureBox(
@@ -657,15 +787,18 @@ window.addEventListener('reruntv:picture-framed', () => {
 });
 
 // ---------- OS media session ----------
-// Tells the operating system what's airing, so the media keys on a keyboard
-// and the system's own now-playing overlay both work on a box that is
-// explicitly meant to keep running behind other windows. Channel up/down is
-// the honest mapping for next/previous track — there is no "track" here, and
-// skipping within a programme would contradict the whole live-schedule
-// premise. Play/pause is deliberately left to the element's own default:
-// pausing genuinely pauses, and the drift watchdog (playback-core.js) snaps
-// the channel back to live the moment it resumes, which is exactly the
-// behaviour a viewer would expect from a set-top box.
+/**
+ * Tells the operating system what's airing, so the media keys on a keyboard
+ * and the system's own now-playing overlay both work on a box that is
+ * explicitly meant to keep running behind other windows. Channel up/down is
+ * the honest mapping for next/previous track — there is no "track" here, and
+ * skipping within a programme would contradict the whole live-schedule
+ * premise. Play/pause is deliberately left to the element's own default:
+ * pausing genuinely pauses, and the drift watchdog (playback-core.js) snaps
+ * the channel back to live the moment it resumes, which is exactly the
+ * behaviour a viewer would expect from a set-top box.
+ * @param {(delta: number) => void} onChannelDelta Called with 1 or -1 for next and previous track.
+ */
 export function initMediaSession(onChannelDelta) {
   const ms = navigator.mediaSession;
   if (!ms || typeof ms.setActionHandler !== 'function') return;
@@ -676,6 +809,11 @@ export function initMediaSession(onChannelDelta) {
   bind('previoustrack', () => onChannelDelta(-1));
 }
 
+/**
+ * Tells the operating system's media session what is airing.
+ * @param {?object} ch The channel config; `null` clears it.
+ * @param {?object} file The playlist entry airing.
+ */
 export function updateMediaSession(ch, file) {
   const ms = navigator.mediaSession;
   if (!ms || typeof window.MediaMetadata !== 'function') return;
@@ -691,6 +829,10 @@ export function updateMediaSession(ch, file) {
   }
 }
 
+/**
+ * Redraws the logo bug for a channel: icon or coloured number, ghost and motion.
+ * @param {?object} ch The channel config; `null` hides it.
+ */
 export function updateLogoBug(ch) {
   logoBugEl.innerHTML = '';
   logoBugEl.style.background = '';
@@ -732,13 +874,15 @@ export function updateLogoBug(ch) {
   applyLogoBugMotion();
 }
 
-// Box-wide only (S.config.display.logoBugMotion) — a CSS animation preset
-// applied to the real logo bug (never the burn-in ghost, which has its own
-// separate fade-based animation already). 'slide-in' is one-shot and needs
-// to replay on every call (a fresh tune, or any other updateLogoBug trigger)
-// — forcing a reflow between remove and add is the same trick
-// attachSliderReadout's pulse uses (setup-util.js); 'pulse'/'glow' are
-// persistent CSS `@keyframes` loops that don't need replaying.
+/**
+ * Box-wide only (S.config.display.logoBugMotion) — a CSS animation preset
+ * applied to the real logo bug (never the burn-in ghost, which has its own
+ * separate fade-based animation already). 'slide-in' is one-shot and needs
+ * to replay on every call (a fresh tune, or any other updateLogoBug trigger)
+ * — forcing a reflow between remove and add is the same trick
+ * attachSliderReadout's pulse uses (setup-util.js); 'pulse'/'glow' are
+ * persistent CSS `@keyframes` loops that don't need replaying.
+ */
 export function applyLogoBugMotion() {
   const preset = (S.config.display && S.config.display.logoBugMotion) || 'none';
   LOGO_MOTION_PRESETS.forEach((p) => logoBugEl.classList.remove(`logo-motion-${p}`));
@@ -754,6 +898,11 @@ export function applyLogoBugMotion() {
 // during a normal viewing session instead of only in theory.
 const BURN_IN_FULL_MS = 30 * 60000;
 
+/**
+ * Returns the key that identifies one logo in one place, for burn-in tracking.
+ * @param {?object} ch The channel config.
+ * @returns {?string} The key, or `null` with no channel.
+ */
 function logoBugBurnKeyFor(ch) {
   if (!ch) return null;
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
@@ -763,6 +912,9 @@ function logoBugBurnKeyFor(ch) {
   return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}:${resolveEffectiveIcon(ch, viewNow()) || ''}:${logoBugHidesNumber(ch) ? 'n' : 'c'}`;
 }
 
+/**
+ * Sets the burn-in ghost's opacity from how long the logo has sat in place.
+ */
 function tickLogoBugGhost() {
   const cap = ((S.config.crtIntensity && S.config.crtIntensity.burnIn) || 0) / 100 * 0.35;
   if (cap <= 0 || !S.logoBugBurnStartMs) {
@@ -783,13 +935,19 @@ function tickLogoBugGhost() {
 // Real wall-clock time (Date.now()), not viewNow() — burn-in tracks actual
 // screen-on time, unaffected by the time machine scrubbing simulated
 // broadcast time back and forth.
-// Re-applies the ghost for whatever's currently tuned — for the DISPLAY
-// settings screen's LOGO BURN-IN slider (setup-settings.js) to get instant
-// feedback on drag instead of waiting for the next channel change.
+/**
+ * Re-applies the ghost for whatever's currently tuned — for the DISPLAY
+ * settings screen's LOGO BURN-IN slider (setup-settings.js) to get instant
+ * feedback on drag instead of waiting for the next channel change.
+ */
 export function refreshLogoBugGhost() {
   applyLogoBugGhost(getChannel(S.currentNumber));
 }
 
+/**
+ * Tracks how long the current logo has sat in place and draws its burn-in ghost.
+ * @param {?object} ch The channel config.
+ */
 function applyLogoBugGhost(ch) {
   const burnIn = (S.config.crtIntensity && S.config.crtIntensity.burnIn) || 0;
   clearInterval(S.logoBugBurnTimer);
@@ -847,13 +1005,17 @@ function applyLogoBugGhost(ch) {
   }
 }
 
-// TV content-rating bug — flashed briefly whenever a program starts, mirrors
-// the logo bug's show/hide but auto-hides on a timer like the up-next bar.
-// `rating` is resolved by the caller (currently-airing file's own rating,
-// falling back to the channel-wide one — see playChannelLive's onMeta) so
-// this stays a dumb renderer, not a second place that re-derives the
-// fallback chain. Real US ratings bugs hold ~15-17s at program start; 6s was
-// an arbitrary compression from before per-file ratings existed.
+/**
+ * TV content-rating bug — flashed briefly whenever a program starts, mirrors
+ * the logo bug's show/hide but auto-hides on a timer like the up-next bar.
+ * `rating` is resolved by the caller (currently-airing file's own rating,
+ * falling back to the channel-wide one — see playChannelLive's onMeta) so
+ * this stays a dumb renderer, not a second place that re-derives the
+ * fallback chain. Real US ratings bugs hold ~15-17s at program start; 6s was
+ * an arbitrary compression from before per-file ratings existed.
+ * @param {object} ch The channel config.
+ * @param {string} rating The rating text.
+ */
 export function flashRatingBug(ch, rating) {
   ratingBugEl.textContent = rating;
   ratingBugEl.classList.add('show');
@@ -861,11 +1023,15 @@ export function flashRatingBug(ch, rating) {
   S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, programCardMs(), () => ratingBugEl.classList.remove('show'));
 }
 
-// Full-screen movie-rating-card analogue of flashRatingBug above — real
-// broadcast movies got a plain black "the following program is rated..."
-// slide before the film started rather than a small corner bug. Shown
-// instead of (not alongside) flashRatingBug when the caller has already
-// determined the airing file is a movie (see playChannelLive's onMeta).
+/**
+ * Full-screen movie-rating-card analogue of flashRatingBug above — real
+ * broadcast movies got a plain black "the following program is rated..."
+ * slide before the film started rather than a small corner bug. Shown
+ * instead of (not alongside) flashRatingBug when the caller has already
+ * determined the airing file is a movie (see playChannelLive's onMeta).
+ * @param {object} ch The channel config.
+ * @param {string} rating The rating text.
+ */
 export function showMovieRatingCard(ch, rating) {
   movieRatingCardEl.innerHTML = '';
   const line = document.createElement('div');
@@ -881,9 +1047,13 @@ export function showMovieRatingCard(ch, rating) {
   S.movieRatingCardTimer = autoHideAfter(S.movieRatingCardTimer, programCardMs(), () => movieRatingCardEl.classList.remove('show'));
 }
 
-// "NEW EPISODE"/"REPEAT" bug — same show/hide shape as flashRatingBug,
-// separate element/timer so it can coexist with the rating bug (opposite
-// screen corner by default, see .episode-status-bug in overlays.css).
+/**
+ * "NEW EPISODE"/"REPEAT" bug — same show/hide shape as flashRatingBug,
+ * separate element/timer so it can coexist with the rating bug (opposite
+ * screen corner by default, see .episode-status-bug in overlays.css).
+ * @param {object} ch The channel config.
+ * @param {string} status The bug text.
+ */
 export function flashEpisodeStatusBug(ch, status) {
   episodeStatusBugEl.textContent = status;
   episodeStatusBugEl.classList.add('show');
@@ -891,8 +1061,12 @@ export function flashEpisodeStatusBug(ch, status) {
   S.episodeStatusBugTimer = autoHideAfter(S.episodeStatusBugTimer, programCardMs(), () => episodeStatusBugEl.classList.remove('show'));
 }
 
-// "Formatted to fit your screen"/widescreen disclaimer card — same
-// show/hide shape as the bugs above, own element/timer.
+/**
+ * "Formatted to fit your screen"/widescreen disclaimer card — same
+ * show/hide shape as the bugs above, own element/timer.
+ * @param {object} ch The channel config.
+ * @param {string} text The disclaimer text.
+ */
 export function flashFormatDisclaimer(ch, text) {
   formatDisclaimerCardEl.textContent = text;
   formatDisclaimerCardEl.classList.add('show');
@@ -900,9 +1074,13 @@ export function flashFormatDisclaimer(ch, text) {
   S.formatDisclaimerCardTimer = autoHideAfter(S.formatDisclaimerCardTimer, programCardMs(), () => formatDisclaimerCardEl.classList.remove('show'));
 }
 
-// Content advisory disclaimer card — same show/hide shape as the bugs
-// above, own element/timer. `text` is the file's own free-text advisory
-// (file.advisory, setup-panels.js's TITLES tab), never auto-generated.
+/**
+ * Content advisory disclaimer card — same show/hide shape as the bugs
+ * above, own element/timer. `text` is the file's own free-text advisory
+ * (file.advisory, setup-panels.js's TITLES tab), never auto-generated.
+ * @param {object} ch The channel config.
+ * @param {string} text The advisory text.
+ */
 export function flashContentAdvisory(ch, text) {
   contentAdvisoryCardEl.textContent = text;
   contentAdvisoryCardEl.classList.add('show');
@@ -910,9 +1088,13 @@ export function flashContentAdvisory(ch, text) {
   S.contentAdvisoryCardTimer = autoHideAfter(S.contentAdvisoryCardTimer, programCardMs(), () => contentAdvisoryCardEl.classList.remove('show'));
 }
 
-// CC/SAP/STEREO capability badge — same show/hide shape as the bugs above.
-// `labels` is whichever of ['CC','SAP','STEREO'] apply to this file
-// (file.hasCC/hasSAP/hasStereo, setup-panels.js's TITLES tab).
+/**
+ * CC/SAP/STEREO capability badge — same show/hide shape as the bugs above.
+ * `labels` is whichever of ['CC','SAP','STEREO'] apply to this file
+ * (file.hasCC/hasSAP/hasStereo, setup-panels.js's TITLES tab).
+ * @param {object} ch The channel config.
+ * @param {string[]} labels The capability labels.
+ */
 export function flashCapabilityBadge(ch, labels) {
   capabilityBadgeEl.textContent = labels.join(' · ');
   capabilityBadgeEl.classList.add('show');

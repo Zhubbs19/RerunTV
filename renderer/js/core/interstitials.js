@@ -21,29 +21,43 @@ import { fadeSnapWindowMs, fadesOf, snapOffsetsToFades } from './fades.js';
 // The real US TV sweeps months — a pure function of atMs, no per-channel
 // config needed for "which months" (see resolveBreakAt's sweepsPromo gate).
 const SWEEPS_MONTHS = new Set([1, 4, 6, 10]); // Feb, May, Jul, Nov (0-indexed)
+/**
+ * Whether an instant falls in a sweeps month (Feb, May, Jul, Nov).
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {boolean} True in a sweeps month.
+ */
 function isSweepsMonth(atMs) {
   return SWEEPS_MONTHS.has(new Date(atMs).getMonth());
 }
 
-// The start of the local wall-clock hour containing atMs, for the station-ID
-// bumper's :00/:15/:30/:45 anchor below. Math.floor(atMs / 3600000) * 3600000
-// floors to a UTC hour boundary, which only equals the LOCAL hour boundary
-// when the machine's UTC offset is a whole number of hours — in a
-// half/quarter-hour-offset timezone (UTC+5:30, +9:30, +5:45) it drifts off
-// the advertised top-of-hour alignment. setMinutes/etc. use the Date's local
-// getters/setters, so this holds regardless of the offset's fractional part.
+/**
+ * The start of the local wall-clock hour containing atMs, for the station-ID
+ * bumper's :00/:15/:30/:45 anchor below. Math.floor(atMs / 3600000) * 3600000
+ * floors to a UTC hour boundary, which only equals the LOCAL hour boundary
+ * when the machine's UTC offset is a whole number of hours — in a
+ * half/quarter-hour-offset timezone (UTC+5:30, +9:30, +5:45) it drifts off
+ * the advertised top-of-hour alignment. setMinutes/etc. use the Date's local
+ * getters/setters, so this holds regardless of the offset's fractional part.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {number} The local hour start, in ms.
+ */
 function localHourAnchorMs(atMs) {
   const d = new Date(atMs);
   d.setMinutes(0, 0, 0);
   return d.getTime();
 }
 
-// A recurring weekly preemption window (S.config.preemptionWindows entries
-// with kind:'weekly') — matches atMs's own weekday/time-of-day against
-// { weekday (0=Sun), startHour, startMinute, durationMin }, returning that
-// day's concrete { windowStart, windowEnd } in ms when it matches, or null.
-// Deliberately doesn't handle a window crossing midnight (durationMin
-// pushing past 24:00) — real standing special-event slots don't.
+/**
+ * A recurring weekly preemption window (S.config.preemptionWindows entries
+ * with kind:'weekly') — matches atMs's own weekday/time-of-day against
+ * { weekday (0=Sun), startHour, startMinute, durationMin }, returning that
+ * day's concrete { windowStart, windowEnd } in ms when it matches, or null.
+ * Deliberately doesn't handle a window crossing midnight (durationMin
+ * pushing past 24:00) — real standing special-event slots don't.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} w A `preemptionWindows` entry with `kind: 'weekly'`.
+ * @returns {?{windowStart: number, windowEnd: number}} The matching window, or null.
+ */
 function matchesWeeklyPreemptionWindow(atMs, w) {
   const d = new Date(atMs);
   if (d.getDay() !== w.weekday) return null;
@@ -56,13 +70,21 @@ function matchesWeeklyPreemptionWindow(atMs, w) {
   return { windowStart, windowEnd };
 }
 
-// BREAKS › STATION BREAKS › "Trivia card on screen" (trivia.cardSeconds, 4-20,
-// default 8) and "Station ID bar on screen" (stationId.textSeconds, 3-15,
-// default 5). Part of the schedule, so a pure read of config.
+/**
+ * How long a trivia card stays on screen: BREAKS › STATION BREAKS › "Trivia card on screen"
+ * (trivia.cardSeconds, 4-20, default 8). Part of the schedule, so a pure read of config.
+ * @returns {number} The card's length in seconds.
+ */
 function triviaDurationS() {
   const v = Number(S.config.trivia && S.config.trivia.cardSeconds);
   return Number.isFinite(v) && v >= 4 ? Math.min(20, v) : 8;
 }
+/**
+ * How long a text-only station ID bar stays on screen: BREAKS › STATION BREAKS › "Station ID bar
+ * on screen" (stationId.textSeconds, 3-15, default 5). Part of the schedule, so a pure read of
+ * config.
+ * @returns {number} The bar's length in seconds.
+ */
 function channelIdTextDurationS() {
   const v = Number(S.config.stationId && S.config.stationId.textSeconds);
   return Number.isFinite(v) && v >= 3 ? Math.min(15, v) : 5;
@@ -98,6 +120,12 @@ const JUMP_SEARCH_TIME_BUDGET_MS = 1200;
 export const BREAK_END_LEAD_MS = 5000;
 const DAY_MS = 86400000;
 
+/**
+ * Returns a copy of `arr` shuffled by a seeded PRNG, so the same seed always gives the same order.
+ * @param {Array<*>} arr The items to shuffle; not modified.
+ * @param {number} seed The PRNG seed (`mulberry32`).
+ * @returns {Array<*>} The shuffled copy.
+ */
 function seededShuffle(arr, seed) {
   const rand = mulberry32(seed);
   const out = arr.slice();
@@ -108,37 +136,52 @@ function seededShuffle(arr, seed) {
   return out;
 }
 
-// A channel can carry its own contentTags (setup-panels.js's ADS tab) that
-// apply to EVERY file airing on it, in addition to that file's own tags —
-// for a themed channel (e.g. a 24/7 Christmas Movies channel) where an
-// ad-pool preset/entry wants to target "this channel's content" by tag
-// without tagging every individual file. Every fileTags derivation below
-// (resolveBreakAt, nextCandidateBoundary) folds this in via this helper, so
-// pool/preset/flow content-tag matching sees both sources uniformly.
-// Exported for setup-aircheck.js's preview simulator and
-// channel-package.js's export-scoping, which need the exact same union.
+/**
+ * A channel can carry its own contentTags (setup-panels.js's ADS tab) that
+ * apply to EVERY file airing on it, in addition to that file's own tags —
+ * for a themed channel (e.g. a 24/7 Christmas Movies channel) where an
+ * ad-pool preset/entry wants to target "this channel's content" by tag
+ * without tagging every individual file. Every fileTags derivation below
+ * (resolveBreakAt, nextCandidateBoundary) folds this in via this helper, so
+ * pool/preset/flow content-tag matching sees both sources uniformly.
+ * Exported for setup-aircheck.js's preview simulator and
+ * channel-package.js's export-scoping, which need the exact same union.
+ * @param {object} ch The channel config.
+ * @param {?object} file The channel file entry airing, if any.
+ * @returns {string[]} The file's tags plus the channel's `contentTags`.
+ */
 export function effectiveContentTags(ch, file) {
   const fromFile = (file && file.tags) || [];
   const fromChannel = (ch && ch.contentTags) || [];
   return fromChannel.length ? [...fromFile, ...fromChannel] : fromFile;
 }
 
-// Entries eligible for a break of this type on this channel/block right now.
-// fileTags (the tags — see setup-panels.js's TITLES tab — of whichever
-// content file is airing around this break, or [] when there isn't one, e.g.
-// an empty channel) additionally narrows to entries whose own contentTags
-// (setup-interstitials.js) are unset/empty (untargeted — eligible for any
-// content, today's default) or share at least one tag with the content, the
-// same "unset/'any' = wildcard, otherwise must match" pattern channelAffinity/
-// blockAffinity already use above. Entries with contentTiming set ('pre'/
-// 'post'/'both' — see setup-interstitials.js) are excluded here entirely:
-// they don't participate in ordinary cadence-driven breaks at all, only in
-// the dedicated forced-pre/post-roll resolution below, so they never get
-// double-counted between the two mechanisms.
-// Exported so a one-off consumer that just needs "which pool entries are
-// eligible, pick one" (e.g. playback.js's credits-squeeze video mode) can
-// reuse this exact filter/pick pair instead of re-deriving channel-
-// affinity/block-affinity/content-tag matching by hand.
+/**
+ * Entries eligible for a break of this type on this channel/block right now.
+ * fileTags (the tags — see setup-panels.js's TITLES tab — of whichever
+ * content file is airing around this break, or [] when there isn't one, e.g.
+ * an empty channel) additionally narrows to entries whose own contentTags
+ * (setup-interstitials.js) are unset/empty (untargeted — eligible for any
+ * content, today's default) or share at least one tag with the content, the
+ * same "unset/'any' = wildcard, otherwise must match" pattern channelAffinity/
+ * blockAffinity already use above. Entries with contentTiming set ('pre'/
+ * 'post'/'both' — see setup-interstitials.js) are excluded here entirely:
+ * they don't participate in ordinary cadence-driven breaks at all, only in
+ * the dedicated forced-pre/post-roll resolution below, so they never get
+ * double-counted between the two mechanisms.
+ * Exported so a one-off consumer that just needs "which pool entries are
+ * eligible, pick one" (e.g. playback.js's credits-squeeze video mode) can
+ * reuse this exact filter/pick pair instead of re-deriving channel-
+ * affinity/block-affinity/content-tag matching by hand.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {string} type The pool entry type, e.g. `commercial` or `channelId`.
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {string[]} fileTags The airing content's tags (empty when nothing airs).
+ * @param {string} [targetTiming] `pre` or `post` to include entries with a matching
+ *   `contentTiming`; omitted, those entries are left out.
+ * @returns {Array<object>} The eligible entries.
+ */
 export function poolFor(pool, type, ch, block, fileTags, targetTiming) {
   return pool.filter((e) => {
     if (e.type !== type) return false;
@@ -153,13 +196,19 @@ export function poolFor(pool, type, ch, block, fileTags, targetTiming) {
   });
 }
 
-// Unlike every other type, a promo's channelAffinity/blockAffinity name the
-// block being *promoted* (a dateRange-triggered block on this same
-// channel), not "which block this plays during" — so 'any'/unset simply
-// means the entry can never be eligible (see the type def's comment,
-// setup-interstitials.js), rather than falling back to a wildcard. Eligible
-// only inside the entry's own leadDays window counting down to that
-// target's next start.
+/**
+ * Unlike every other type, a promo's channelAffinity/blockAffinity name the
+ * block being *promoted* (a dateRange-triggered block on this same
+ * channel), not "which block this plays during" — so 'any'/unset simply
+ * means the entry can never be eligible (see the type def's comment,
+ * setup-interstitials.js), rather than falling back to a wildcard. Eligible
+ * only inside the entry's own leadDays window counting down to that
+ * target's next start.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {Array<object>} The promo entries that may air now.
+ */
 function eligiblePromoEntries(pool, ch, atMs) {
   return pool.filter((e) => {
     if (e.type !== 'promo' || e.channelAffinity !== ch.number || e.blockAffinity == null) return false;
@@ -172,12 +221,17 @@ function eligiblePromoEntries(pool, ch, atMs) {
   });
 }
 
-// Is `atMs`'s local calendar day the very first day of `target`'s dateRange
-// cycle? nextBlockStartMs is purely forward-looking (schedule.js): called
-// with fromMs pinned to the start of today, it returns today's own midnight
-// exactly when today IS the range's start day (fromMs <= startThisYear with
-// equality), and some other (later) date otherwise — so a straight equality
-// check against today's midnight is sufficient, no separate day-counting.
+/**
+ * Is `atMs`'s local calendar day the very first day of `target`'s dateRange
+ * cycle? nextBlockStartMs is purely forward-looking (schedule.js): called
+ * with fromMs pinned to the start of today, it returns today's own midnight
+ * exactly when today IS the range's start day (fromMs <= startThisYear with
+ * equality), and some other (later) date otherwise — so a straight equality
+ * check against today's midnight is sufficient, no separate day-counting.
+ * @param {?object} target The promoted schedule block.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {boolean} True on the first day of the block's date range.
+ */
 function isBlockPremiereDay(target, atMs) {
   if (!target || target.trigger.type !== 'dateRange') return false;
   const dayStart = new Date(atMs);
@@ -186,27 +240,39 @@ function isBlockPremiereDay(target, atMs) {
   return nextBlockStartMs(target, ds) === ds;
 }
 
-// A one-shot "coming up now!" sting for a dateRange block's premiere —
-// distinct from `promo` (which counts down BEFORE the moment, via
-// leadDays) in that this fires exactly AT it. Scoped to daily/weekly
-// dateRange blocks specifically: that's the shape a "series premiere"
-// takes (a marathon/finale-style block airing day by day, see
-// resolveDailySource/schedule.js) — a plain dateRange block has no single
-// well-defined "first content boundary" of its own to anchor this to, so
-// it's left out rather than guessed at.
+/**
+ * A one-shot "coming up now!" sting for a dateRange block's premiere —
+ * distinct from `promo` (which counts down BEFORE the moment, via
+ * leadDays) in that this fires exactly AT it. Scoped to daily/weekly
+ * dateRange blocks specifically: that's the shape a "series premiere"
+ * takes (a marathon/finale-style block airing day by day, see
+ * resolveDailySource/schedule.js) — a plain dateRange block has no single
+ * well-defined "first content boundary" of its own to anchor this to, so
+ * it's left out rather than guessed at.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing.
+ * @returns {Array<object>} The premiere-jingle entries for that block.
+ */
 function eligiblePremiereJingleEntries(pool, ch, block) {
   if (!block || block.trigger.type !== 'dateRange' || (block.mode !== 'daily' && block.mode !== 'weekly')) return [];
   return pool.filter((e) => e.type === 'premiereJingle' && e.channelAffinity === ch.number && e.blockAffinity === block.id);
 }
 
-// Deterministically picks one entry for a given slot index, with no stored
-// state: an entry with weight N is expanded N times, the expanded list is
-// seeded-shuffled once per "cycle" (a full pass through it) so repeats can't
-// happen within a cycle — the same effect a configured min-repeat cooldown
-// would give, just derived instead of tracked — and re-shuffled (a new seed)
-// every cycle after that for variety over the long run. Same (pool, seedKey,
-// slotIndex) always produces the same result, whether slotIndex is in the
-// past or the future.
+/**
+ * Deterministically picks one entry for a given slot index, with no stored
+ * state: an entry with weight N is expanded N times, the expanded list is
+ * seeded-shuffled once per "cycle" (a full pass through it) so repeats can't
+ * happen within a cycle — the same effect a configured min-repeat cooldown
+ * would give, just derived instead of tracked — and re-shuffled (a new seed)
+ * every cycle after that for variety over the long run. Same (pool, seedKey,
+ * slotIndex) always produces the same result, whether slotIndex is in the
+ * past or the future.
+ * @param {Array<object>} pool The eligible entries; each may carry a numeric `weight`.
+ * @param {string} seedKey Seed that makes the pick repeatable for this break position.
+ * @param {number} slotIndex The slot number the pick is for.
+ * @returns {?object} The picked entry, or null for an empty pool.
+ */
 export function pickDeterministic(pool, seedKey, slotIndex) {
   if (!pool.length) return null;
   const expanded = [];
@@ -223,25 +289,38 @@ export function pickDeterministic(pool, seedKey, slotIndex) {
   return shuffled[((slotIndex % cycleLen) + cycleLen) % cycleLen];
 }
 
-// Which fixed-cadence slot `atMs` falls in, anchored to a content source's
-// own anchor so the cadence is stable regardless of when you tuned in — same
-// day-index-style pattern schedule.js already uses for daily/weekly blocks.
+/**
+ * Which fixed-cadence slot `atMs` falls in, anchored to a content source's
+ * own anchor so the cadence is stable regardless of when you tuned in — same
+ * day-index-style pattern schedule.js already uses for daily/weekly blocks.
+ * @param {number} anchorMs The cadence anchor, in ms.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {number} intervalMs The cadence interval, in ms.
+ * @returns {{slotIndex: number, slotStart: number}} The slot index and its start time.
+ */
 function intervalSlot(anchorMs, atMs, intervalMs) {
   const slotIndex = Math.floor((atMs - anchorMs) / intervalMs);
   return { slotIndex, slotStart: anchorMs + slotIndex * intervalMs };
 }
 
-// The content file "airing" at atMs, as a global ordinal (not just its index
-// within one loop of the folder) plus its exact absolute start/end — derived
-// entirely from computeSourcePosition's own output, no new position math.
-// knownPos lets a caller that already computed computeSourcePosition(source,
-// atMs, { ignoreContentLost: true }) — the exact call this function would
-// otherwise make internally — pass it straight through instead of paying
-// for the same linear file-list scan again. resolveBreakAt below is the
-// main beneficiary: it's on the hottest path in the app (every tune, every
-// break-boundary timer tick, every time-machine shuttle-drag frame) and
-// calls boundarySlot() up to twice per invocation, always for the same
-// (source, atMs) its own posNow already covers.
+/**
+ * The content file "airing" at atMs, as a global ordinal (not just its index
+ * within one loop of the folder) plus its exact absolute start/end — derived
+ * entirely from computeSourcePosition's own output, no new position math.
+ * knownPos lets a caller that already computed computeSourcePosition(source,
+ * atMs, { ignoreContentLost: true }) — the exact call this function would
+ * otherwise make internally — pass it straight through instead of paying
+ * for the same linear file-list scan again. resolveBreakAt below is the
+ * main beneficiary: it's on the hottest path in the app (every tune, every
+ * break-boundary timer tick, every time-machine shuttle-drag frame) and
+ * calls boundarySlot() up to twice per invocation, always for the same
+ * (source, atMs) its own posNow already covers.
+ * @param {object} source A content source from `resolveActiveSource` ({ files, anchor, ... }).
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} [knownPos] An already computed `computeSourcePosition(source, atMs)` result.
+ * @returns {?{ordinal: number, fileStartMs: number, fileEndMs: number}} The file slot, or null when
+ *   nothing airs.
+ */
 export function boundarySlot(source, atMs, knownPos) {
   const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
   if (!pos) return null;
@@ -269,9 +348,17 @@ export function boundarySlot(source, atMs, knownPos) {
 // cadence.
 export { snapOffsetsToFades };
 
-// Raw slots for a cadence, inside the file bs describes, as [{ index, startMs }]:
-// `every` slots skip the file's own start (a boundary break's job) and stop
-// before its end; `percents` keep their position in the list as their index.
+/**
+ * Raw slots for a cadence, inside the file bs describes, as [{ index, startMs }]:
+ * `every` slots skip the file's own start (a boundary break's job) and stop
+ * before its end; `percents` keep their position in the list as their index.
+ * @param {{ordinal: number, fileStartMs: number, fileEndMs: number}} bs The file slot from
+ *   `boundarySlot`.
+ * @param {object} cadence The cadence.
+ * @param {number} [cadence.everyMs=0] Interval between slots, in ms.
+ * @param {?number[]} [cadence.percents=null] Slot positions as percents of the file.
+ * @returns {Array<{index: number, startMs: number}>} The raw slots.
+ */
 function cadenceSlots(bs, { everyMs = 0, percents = null }) {
   const out = [];
   if (everyMs > 0) {
@@ -286,7 +373,14 @@ function cadenceSlots(bs, { everyMs = 0, percents = null }) {
   return out;
 }
 
-/** The mid-show slots of one file for one cadence, lined up with its fades when enabled. */
+/**
+ * The mid-show slots of one file for one cadence, lined up with its fades when enabled.
+ * @param {{ordinal: number, fileStartMs: number, fileEndMs: number}} bs The file slot from
+ *   `boundarySlot`.
+ * @param {?object} file The channel file entry in that slot.
+ * @param {object} cadence The cadence ({ everyMs } or { percents }).
+ * @returns {Array<{index: number, startMs: number}>} The slots, snapped to fades when that is on.
+ */
 export function midSlots(bs, file, cadence) {
   const raw = cadenceSlots(bs, cadence);
   const windowMs = fadeSnapWindowMs(S.config);
@@ -301,45 +395,80 @@ export function midSlots(bs, file, cadence) {
     .filter((slot) => slot && slot.startMs > bs.fileStartMs && slot.startMs < bs.fileEndMs);
 }
 
-// The latest slot that has started by atMs (an every-N cadence's own
-// "which slot am I in").
+/**
+ * The latest slot that has started by atMs (an every-N cadence's own
+ * "which slot am I in").
+ * @param {Array<{index: number, startMs: number}>} slots The slots, ascending.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The latest started slot, or null.
+ */
 function slotStartedBy(slots, atMs) {
   let found = null;
   slots.forEach((slot) => { if (slot.startMs <= atMs) found = slot; });
   return found;
 }
 
+/**
+ * Keeps the percents strictly between 0 and 100, ascending.
+ * @param {?number[]} list The configured percents.
+ * @returns {number[]} The sorted, filtered list.
+ */
 function sortedPercents(list) {
   return (list || []).filter((p) => p > 0 && p < 100).sort((a, b) => a - b);
 }
 
-// A dynamic entry (live text templated over a looping background clip — see
-// setup-interstitials.js's DYNAMIC checkbox and startBreak's dynamic branch,
-// playback.js) has no `file` of its own (the background loops indefinitely,
-// so there's no natural "how long is this" the way a real file's probed
-// duration gives one) — its author-set durationS stands in instead. Centralized
-// here so windowFor/windowEndingAt/buildPod all agree on the same rule.
+/**
+ * A dynamic entry (live text templated over a looping background clip — see
+ * setup-interstitials.js's DYNAMIC checkbox and startBreak's dynamic branch,
+ * playback.js) has no `file` of its own (the background loops indefinitely,
+ * so there's no natural "how long is this" the way a real file's probed
+ * duration gives one) — its author-set durationS stands in instead. Centralized
+ * here so windowFor/windowEndingAt/buildPod all agree on the same rule.
+ * @param {object} entry The pool entry.
+ * @param {number} fallbackDurationS Duration to use when the entry has no file.
+ * @returns {number} The duration in seconds.
+ */
 function entryDurationS(entry, fallbackDurationS) {
   if (entry.dynamic) return entry.durationS || 15;
   return entry.file ? entry.file.duration : fallbackDurationS;
 }
 
-// An optional held beat on black AFTER this entry finishes (setup-
-// interstitials.js's WAIT AFTER field) — unlike fadeInMs/fadeOutMs (purely
-// visual, read only by playback.js, never touches window math), a wait has
-// no content to show during it, so it can't be a sub-range of the entry's
-// own dur — it has to extend the window itself. Folded directly into
-// windowFor/windowEndingAt/buildPod's own windowEnd (not a separate
-// synthetic segment) so segmentAt keeps resolving to this same entry
-// throughout the hold, keeping every window a pure function of
-// (channel, timestamp) exactly as before this existed.
+/**
+ * An optional held beat on black AFTER this entry finishes (setup-
+ * interstitials.js's WAIT AFTER field) — unlike fadeInMs/fadeOutMs (purely
+ * visual, read only by playback.js, never touches window math), a wait has
+ * no content to show during it, so it can't be a sub-range of the entry's
+ * own dur — it has to extend the window itself. Folded directly into
+ * windowFor/windowEndingAt/buildPod's own windowEnd (not a separate
+ * synthetic segment) so segmentAt keeps resolving to this same entry
+ * throughout the hold, keeping every window a pure function of
+ * (channel, timestamp) exactly as before this existed.
+ * @param {?object} entry The pool entry.
+ * @returns {number} The wait after it, in ms (0 when unset).
+ */
 export function entryWaitMs(entry) {
   return (entry && entry.waitMs) || 0;
 }
 
-// lookup: an optional memoized poolFor (the break planner's), same arguments.
-// `alts` on the result is the list the pick came from, which the planner keeps
-// so a later airing can swap in a different entry of the same length.
+/**
+ * Picks an entry for a break and returns its window starting at `windowStart`, including any wait
+ * after it. `alts` on the result is the list the pick came from, which the planner keeps so a
+ * later airing can swap in a different entry of the same length.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {string} type The pool entry type, e.g. `commercial` or `channelId`.
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {string} seedKey Seed that makes the pick repeatable for this break position.
+ * @param {number} slotIndex The slot number the pick is for.
+ * @param {number} windowStart When the window starts, in ms.
+ * @param {number} fallbackDurationS Duration for an entry with no file.
+ * @param {string[]} fileTags The airing content's tags (empty when nothing airs).
+ * @param {Set<object>} [exclude] Entries not to pick.
+ * @param {Function} [lookup] An optional memoized poolFor (the break planner's), called with
+ *   `(type, fileTags)` in place of poolFor.
+ * @returns {?{entry: object, windowStart: number, windowEnd: number, alts: Array<object>}} The
+ *   picked entry, its window and the candidates it came from, or null when none is eligible.
+ */
 function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags, exclude, lookup) {
   const candidates = lookup ? lookup(type, fileTags) : poolFor(pool, type, ch, block, fileTags);
   const entry = pickDeterministic(exclude ? candidates.filter((e) => !exclude.has(e)) : candidates, seedKey, slotIndex);
@@ -348,11 +477,24 @@ function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallb
   return { entry, windowStart, windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry), alts: candidates };
 }
 
-// Same as windowFor but anchored to when the window *ends* rather than
-// starts — used for the sign-off bumper, which needs to finish exactly at
-// the broadcast-hours boundary rather than start there. The wait (if any)
-// still trails the entry's own content, so it's the CONTENT that's pulled
-// earlier to make room, not the wait itself shifted before windowEnd.
+/**
+ * Same as windowFor but anchored to when the window *ends* rather than
+ * starts — used for the sign-off bumper, which needs to finish exactly at
+ * the broadcast-hours boundary rather than start there. The wait (if any)
+ * still trails the entry's own content, so it's the CONTENT that's pulled
+ * earlier to make room, not the wait itself shifted before windowEnd.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {string} type The pool entry type, e.g. `commercial` or `channelId`.
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {string} seedKey Seed that makes the pick repeatable for this break position.
+ * @param {number} slotIndex The slot number the pick is for.
+ * @param {number} windowEnd When the window must end, in ms.
+ * @param {number} fallbackDurationS Duration for an entry with no file.
+ * @param {string[]} fileTags The airing content's tags (empty when nothing airs).
+ * @returns {?{entry: object, windowStart: number, windowEnd: number}} The picked entry and its
+ *   window, or null when none is eligible.
+ */
 function windowEndingAt(pool, type, ch, block, seedKey, slotIndex, windowEnd, fallbackDurationS, fileTags) {
   const entry = pickDeterministic(poolFor(pool, type, ch, block, fileTags), seedKey, slotIndex);
   if (!entry) return null;
@@ -361,9 +503,16 @@ function windowEndingAt(pool, type, ch, block, seedKey, slotIndex, windowEnd, fa
   return { entry, windowStart: windowEnd - durationS * 1000 - waitMs, windowEnd };
 }
 
-// The three SETTINGS › break cadence "no repeats" switches. The single
-// noRepeatInBreak switch that preceded them still applies to all three until
-// one of them is set explicitly.
+/**
+ * The three SETTINGS › break cadence "no repeats" switches. The single
+ * noRepeatInBreak switch that preceded them still applies to all three until
+ * one of them is set explicitly.
+ * @param {string} key The switch: `noRepeatCommercials`, `noRepeatBumpers` or
+ *   `noRepeatInterstitials`.
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing, or null.
+ * @returns {boolean} Whether the switch is on (block, then channel, then box-wide).
+ */
 function noRepeatSetting(key, ch, block) {
   // A block's or channel's own commercials config can force it on or off;
   // unset inherits (block, then channel, then the box-wide setting).
@@ -382,38 +531,60 @@ function noRepeatSetting(key, ch, block) {
 // pod's spots and the next pod's).
 const POD_SLOT_STRIDE = 8;
 
-// A flow step's bumpInTags/commercialTags/bumpOutTags (setup-interstitials.js)
-// is [] — not null/undefined — whenever the user leaves that field blank
-// (''.split(',').filter(Boolean) => []), since an empty array is truthy in
-// JS a plain `step.bumpOutTags || cc.bumpOutTags || fileTags` fallback chain
-// stops at that first empty array instead of cascading to the next tier, so
-// a step with a blank BUMP-OUT TAGS field could only ever match an untagged
-// pool entry — any tagged bump-out ident (the whole point of leaving the
-// field blank: "match whatever this content is tagged") silently never
-// qualified, so the pod fell through to its last commercial as the final
-// segment instead. Treats an empty array the same as absent everywhere a
-// tag-list fallback chain is built.
+/**
+ * A flow step's bumpInTags/commercialTags/bumpOutTags (setup-interstitials.js)
+ * is [] — not null/undefined — whenever the user leaves that field blank
+ * (''.split(',').filter(Boolean) => []), since an empty array is truthy in
+ * JS a plain `step.bumpOutTags || cc.bumpOutTags || fileTags` fallback chain
+ * stops at that first empty array instead of cascading to the next tier, so
+ * a step with a blank BUMP-OUT TAGS field could only ever match an untagged
+ * pool entry — any tagged bump-out ident (the whole point of leaving the
+ * field blank: "match whatever this content is tagged") silently never
+ * qualified, so the pod fell through to its last commercial as the final
+ * segment instead. Treats an empty array the same as absent everywhere a
+ * tag-list fallback chain is built.
+ * @param {...?Array<*>} lists Candidate lists, in priority order.
+ * @returns {Array<*>|undefined} The first non-empty list, or undefined.
+ */
 function firstNonEmpty(...lists) {
   for (const l of lists) if (l && l.length) return l;
   return undefined;
 }
 
-// A real ad "pod" — an optional bump-in ident, `podMin`-`podMax` `commercial`
-// entries chained back-to-back, an optional bump-out ident — instead of one
-// bumper per break. podMin===podMax===1 and no adBreakIn/adBreakOut pool
-// entries degenerates to exactly one commercial-length window, i.e. today's
-// pre-pod behavior, so this is purely additive. Deterministic in the same
-// sense as pickDeterministic: same (pool, seedKey, slotIndex) always
-// produces the same pod. Returns null when the pool has nothing playable at
-// all for this channel/block (mirrors windowFor's null-when-empty).
-// The last 4 conceptually-related values (an explicit bump-in/commercial/
-// bump-out tag override, plus which contentTiming this pod targets) are
-// bundled into one `opts` object rather than 4 more positional params —
-// every call site either supplies all of them together (a flow step's own
-// per-step overrides) or none at all (the ordinary interval/everyNMinutes/
-// breakpoints timing modes never override any of them), so they were
-// always conceptually one unit, not 4 independent choices a caller picks
-// separately.
+/**
+ * A real ad "pod" — an optional bump-in ident, `podMin`-`podMax` `commercial`
+ * entries chained back-to-back, an optional bump-out ident — instead of one
+ * bumper per break. podMin===podMax===1 and no adBreakIn/adBreakOut pool
+ * entries degenerates to exactly one commercial-length window, i.e. today's
+ * pre-pod behavior, so this is purely additive. Deterministic in the same
+ * sense as pickDeterministic: same (pool, seedKey, slotIndex) always
+ * produces the same pod. Returns null when the pool has nothing playable at
+ * all for this channel/block (mirrors windowFor's null-when-empty).
+ * The last 4 conceptually-related values (an explicit bump-in/commercial/
+ * bump-out tag override, plus which contentTiming this pod targets) are
+ * bundled into one `opts` object rather than 4 more positional params —
+ * every call site either supplies all of them together (a flow step's own
+ * per-step overrides) or none at all (the ordinary interval/everyNMinutes/
+ * breakpoints timing modes never override any of them), so they were
+ * always conceptually one unit, not 4 independent choices a caller picks
+ * separately.
+ * @param {Array<object>} pool The ad-pool entries (`S.config.interstitials.pool`).
+ * @param {object} ch The channel config.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {string} seedKey Seed that makes the pick repeatable for this break position.
+ * @param {number} slotIndex The slot number the pick is for.
+ * @param {number} windowStart When the pod starts, in ms.
+ * @param {number} podMin Fewest commercials in the pod.
+ * @param {number} podMax Most commercials in the pod.
+ * @param {string[]} fileTags The airing content's tags (empty when nothing airs).
+ * @param {object} [opts] Per-step overrides.
+ * @param {string[]} [opts.inTags] Bump-in tag override.
+ * @param {string[]} [opts.commTags] Commercial tag override.
+ * @param {string[]} [opts.outTags] Bump-out tag override.
+ * @param {string} [opts.targetTiming] The `contentTiming` this pod targets.
+ * @returns {?{segments: Array<object>, windowStart: number, windowEnd: number}} The pod's segments
+ *   and overall window, or null when nothing was picked.
+ */
 function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podMax, fileTags, opts) {
   const { inTags: optInTags, commTags: optCommTags, outTags: optOutTags, targetTiming, lookup } = opts || {};
   // The planner passes a memoized poolFor; each segment keeps the list its
@@ -476,6 +647,13 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   return { segments, windowStart, windowEnd: cursor };
 }
 
+/**
+ * The pod segment showing at `atMs`. A gap between segments, or up to 3 s past the pod's end,
+ * counts as the next segment so the pod plays through.
+ * @param {?object} pod A pod from `buildPod`.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The segment ({ type, entry, windowStart, windowEnd }), or null.
+ */
 function segmentAt(pod, atMs) {
   if (!pod || !pod.segments.length) return null;
   const direct = pod.segments.find((s) => atMs >= s.windowStart && atMs < s.windowEnd);
@@ -487,10 +665,14 @@ function segmentAt(pod, atMs) {
   return null;
 }
 
-// Maps flow-builder step types (setup-interstitials.js) to the corresponding
-// pool entry type strings used throughout the interstitials pool. Keeps this
-// file consistent with normalizePoolType (setup-interstitials.js) without
-// creating a circular import.
+/**
+ * Maps flow-builder step types (setup-interstitials.js) to the corresponding
+ * pool entry type strings used throughout the interstitials pool. Keeps this
+ * file consistent with normalizePoolType (setup-interstitials.js) without
+ * creating a circular import.
+ * @param {string} type The flow step type.
+ * @returns {string} The pool entry type.
+ */
 function normalizeFlowStepType(type) {
   if (type === 'stationId') return 'channelId';
   if (type === 'bumpIn') return 'adBreakIn';   // legacy — kept for backward compat
@@ -503,11 +685,17 @@ function normalizeFlowStepType(type) {
 
 // ---------- Fit to time slots (core/fit.js) ----------
 // On a fitted channel the spare time in each program's slot is part of the
-// schedule: the plan says exactly when each break starts and ends. This fills
-// one such break, [windowStart, windowEnd), end to end: a bump-in, as many
-// pool commercials as fit, a bump-out, and placeholder slots for whatever the
-// pool can't cover ('placeholders' fill uses only placeholders, to show where
-// ads and bumpers would go). Pure in (pool, channel, seedKey, window).
+// schedule: the plan says exactly when each break starts and ends.
+
+/**
+ * A stand-in pool entry for a slot in a fitted break that no real ad or bumper fills: a text
+ * card naming the slot and its length.
+ * @param {string} role 'bumper', 'commercial' or anything else for a filler card.
+ * @param {number} durationS The slot's length in seconds.
+ * @param {number} [index] The commercial slot's number in the break, from 0.
+ * @param {number} [count] How many commercial slots the break has.
+ * @returns {object} The placeholder entry (`placeholder`, `role`, `text`, `durationS`).
+ */
 function placeholderEntry(role, durationS, index, count) {
   const mmss = `${Math.floor(durationS / 60)}:${String(Math.round(durationS % 60)).padStart(2, '0')}`;
   let text;
@@ -517,8 +705,22 @@ function placeholderEntry(role, durationS, index, count) {
   return { placeholder: true, role, text, durationS };
 }
 
-// tags: { in, comm, out } — the tag lists each pick matches, the same way the
-// channel's own breaks would pick them (see fitBreakAt).
+/**
+ * Fills one fitted break, [windowStart, windowEnd), end to end: a bump-in, as many
+ * pool commercials as fit, a bump-out, and placeholder slots for whatever the
+ * pool can't cover ('placeholders' fill uses only placeholders, to show where
+ * ads and bumpers would go). Pure in (pool, channel, seedKey, window).
+ * @param {Array<object>} pool The ad-pool entries.
+ * @param {object} ch The channel.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {object} cfg The channel's fit config (core/fit.js).
+ * @param {string} seedKey Seed that makes the picks repeatable for this break.
+ * @param {number} windowStart When the break starts, in ms.
+ * @param {number} windowEnd When the break ends, in ms.
+ * @param {object} tags `{ in, comm, out }`: the tag lists each pick matches, the same way the
+ *   channel's own breaks would pick them (see fitBreakAt).
+ * @returns {Array<object>} The break's segments in order (`type`, `entry`, `windowStart`, `windowEnd`).
+ */
 function buildFitPod(pool, ch, block, cfg, seedKey, windowStart, windowEnd, tags) {
   const segments = [];
   const usePool = cfg.fill !== 'placeholders';
@@ -584,9 +786,17 @@ function buildFitPod(pool, ch, block, cfg, seedKey, windowStart, windowEnd, tags
   return segments;
 }
 
-// The fitted break segment airing at atMs on a fitted source, or null. Each
-// segment carries fit: true, which tells playback (breaks.js) that the break
-// is already in the schedule, so no lost time is credited back afterwards.
+/**
+ * The fitted break segment airing at atMs on a fitted source, or null. Each
+ * segment carries fit: true, which tells playback (breaks.js) that the break
+ * is already in the schedule, so no lost time is credited back afterwards.
+ * @param {object} ch The channel.
+ * @param {object} source The fitted active source.
+ * @param {number} atMs The instant, in ms.
+ * @param {Array<object>} pool The ad-pool entries.
+ * @param {?object} [knownPos] The source position at atMs, when the caller already has it.
+ * @returns {?object} The segment airing, with the whole break's start, end and segments, or null.
+ */
 function fitBreakAt(ch, source, atMs, pool, knownPos) {
   const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
   if (!pos || !pos.fitAt || pos.fitAt.kind !== 'break') return null;
@@ -647,9 +857,14 @@ function fitBreakAt(ch, source, atMs, pool, knownPos) {
 // block other than the airing source's own) can't be planned per file, so it
 // keeps the overlay model.
 
-// PROGRAMMING › CADENCE & PRESETS › "Shows pause for ad breaks" (default on),
-// which a channel (BREAKS › ADS) or a schedule block can turn on or off for
-// itself: pauseForBreaks 'on' | 'off' | unset (follow the next level up).
+/**
+ * PROGRAMMING › CADENCE & PRESETS › "Shows pause for ad breaks" (default on),
+ * which a channel (BREAKS › ADS) or a schedule block can turn on or off for
+ * itself: pauseForBreaks 'on' | 'off' | unset (follow the next level up).
+ * @param {?object} ch The channel.
+ * @param {?object} block The schedule block airing, or null.
+ * @returns {boolean} True when shows pause for their breaks.
+ */
 export function breaksPauseProgram(ch, block) {
   for (const owner of [block, ch]) {
     const own = owner && owner.pauseForBreaks;
@@ -664,17 +879,25 @@ export function breaksPauseProgram(ch, block) {
 // how close a planned break may sit to either edge before it moves onto that
 // edge. 0 leaves every break where its cadence put it.
 export const PLAN_EDGE_SNAP_DEFAULT_S = 60;
+/**
+ * How close, in seconds, a planned break may sit to a show's start or end before it moves onto
+ * that edge (commercials.breakEdgeSeconds, 0-300).
+ * @returns {number} The snap distance in seconds.
+ */
 function planEdgeSnapS() {
   const v = Number(S.config.commercials && S.config.commercials.breakEdgeSeconds);
   return Number.isFinite(v) && v >= 0 ? Math.min(300, v) : PLAN_EDGE_SNAP_DEFAULT_S;
 }
 
-// PROGRAMMING › CADENCE & PRESETS › "Ad variety": which other spots a planned
-// break may swap in when it airs again. 'same' (default) takes spots of the
-// same length to the second; 'shorter' also takes spots up to
-// adVarietySeconds shorter (the rest of the slot is held on black, breaks.js);
-// 'off' plays the planned spots every time. Never a longer spot: a planned
-// break's length is part of when everything after it airs.
+/**
+ * PROGRAMMING › CADENCE & PRESETS › "Ad variety": which other spots a planned
+ * break may swap in when it airs again. 'same' (default) takes spots of the
+ * same length to the second; 'shorter' also takes spots up to
+ * adVarietySeconds shorter (the rest of the slot is held on black, breaks.js);
+ * 'off' plays the planned spots every time. Never a longer spot: a planned
+ * break's length is part of when everything after it airs.
+ * @returns {{mode: string, shorterS: number}} The variety mode and how much shorter a swap may be, in seconds.
+ */
 function adVarietyRule() {
   const cm = S.config.commercials || {};
   const mode = cm.adVariety === 'off' || cm.adVariety === 'shorter' ? cm.adVariety : 'same';
@@ -685,10 +908,15 @@ function adVarietyRule() {
 let planCacheGen = -1;
 let planCaches = new WeakMap(); // channel -> WeakMap(files array -> { blockId, files })
 
-// The source with its break plan applied, or unchanged (fitted, switched off,
-// nothing to plan, or ads that vary by the clock). Cached per channel object
-// and file list, thrown away when S.configGeneration moves on (CLAUDE.md,
-// "Config mutation").
+/**
+ * The source with its break plan applied, or unchanged (fitted, switched off,
+ * nothing to plan, or ads that vary by the clock). Cached per channel object
+ * and file list, thrown away when S.configGeneration moves on (CLAUDE.md,
+ * "Config mutation").
+ * @param {?object} ch The channel.
+ * @param {?object} source The active source.
+ * @returns {?object} A copy of the source with planned files and `breakPlan: true`, or the source itself.
+ */
 export function applyBreakPlan(ch, source) {
   if (!ch || !source || source.fit || !source.anchor || !source.files || !source.files.length) return source;
   if (!breaksPauseProgram(ch, source.block)) return source;
@@ -714,21 +942,39 @@ export function applyBreakPlan(ch, source) {
   return { ...source, files: hit.files, breakPlan: true };
 }
 
-// A channel's own file list as it airs (each file at its air length, breaks
-// included), for code that measures the loop itself, like re-anchoring a
-// changed playlist (library/reanchor.js). Unchanged when nothing is planned.
+/**
+ * A channel's own file list as it airs (each file at its air length, breaks
+ * included), for code that measures the loop itself, like re-anchoring a
+ * changed playlist (library/reanchor.js). Unchanged when nothing is planned.
+ * @param {?object} ch The channel.
+ * @param {?Array<object>} files The channel's files.
+ * @returns {?Array<object>} The files as they air.
+ */
 export function airFilesFor(ch, files) {
   if (!files || !files.length) return files;
   return applyBreakPlan(ch, { files, anchor: (ch && ch.anchor) || 1, key: -1, block: null }).files;
 }
 
+/**
+ * A file's program length in seconds, or 0 when it is missing or not a positive number.
+ * @param {?object} file The playlist file.
+ * @returns {number} The duration in seconds.
+ */
 function planDurationS(file) {
   const d = Number(file && file.duration);
   return Number.isFinite(d) && d > 0 ? d : 0;
 }
 
-// A pod or window as the plan stores it: [{ type, label, entry, durMs, swaps }].
-// `swaps` are the other eligible entries that may air in its place (adVarietyRule).
+/**
+ * One spot of a pod or window as the plan stores it: `{ type, label, entry, durMs, swaps }`.
+ * `swaps` are the other eligible entries that may air in its place (adVarietyRule).
+ * @param {string} type The pool entry type.
+ * @param {string} [label] 'pre' or 'post' for a boundary pod, else undefined.
+ * @param {object} entry The entry picked.
+ * @param {number} durMs The spot's planned length, in ms.
+ * @param {Array<object>} [alts] The entries the pick came from.
+ * @returns {object} The plan reference.
+ */
 function planRef(type, label, entry, durMs, alts) {
   const rule = adVarietyRule();
   if (rule.mode === 'off') return { type, label, entry, durMs, swaps: null };
@@ -742,6 +988,12 @@ function planRef(type, label, entry, durMs, alts) {
   return { type, label, entry, durMs, swaps: swaps.length > 1 ? swaps : null };
 }
 
+/**
+ * A built pod's segments as plan references (planRef), skipping any of zero length.
+ * @param {?object} pod The pod from buildPod, or null.
+ * @param {string} [label] 'pre' or 'post' for a boundary pod.
+ * @returns {Array<object>} The plan references, in order.
+ */
 function podRefs(pod, label) {
   if (!pod) return [];
   return pod.segments
@@ -749,7 +1001,12 @@ function podRefs(pod, label) {
     .map((s) => planRef(s.type, label, s.entry, s.windowEnd - s.windowStart, s.alts));
 }
 
-// Every file of the source swapped for its planned copy.
+/**
+ * Every file of the source swapped for its planned copy.
+ * @param {object} ch The channel.
+ * @param {object} source The active source.
+ * @returns {Array<object>} The planned files (a file with no length stays as is).
+ */
 function planFiles(ch, source) {
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   const files = source.files;
@@ -782,9 +1039,15 @@ function planFiles(ch, source) {
   });
 }
 
-// When a planned file's current airing started, from its fixed place in the
-// loop rather than from the instant asked about, so every lookup inside one
-// airing returns exactly the same windows (playback keys a break on its start).
+/**
+ * When a planned file's current airing started, from its fixed place in the
+ * loop rather than from the instant asked about, so every lookup inside one
+ * airing returns exactly the same windows (playback keys a break on its start).
+ * @param {object} source The active source.
+ * @param {object} pos The source position at atMs.
+ * @param {number} atMs The instant, in ms.
+ * @returns {number} When the airing started, in ms.
+ */
 function planFileStartMs(source, pos, atMs) {
   const plan = pos.file.fit;
   if (!plan || plan.loopAirStartS == null) return atMs - pos.offset * 1000;
@@ -792,11 +1055,24 @@ function planFileStartMs(source, pos, atMs) {
   return source.anchor + (cycles * pos.total + plan.loopAirStartS) * 1000;
 }
 
-// One file's plan. Breaks at its start come first: the commercial cadence's
-// boundary pods (pre/post, a flow's between-episode steps), then tag-forced
-// post/pre roll, then the up-next ident. Mid-show breaks follow at their
-// program positions; a position inside the sped-up credits moves to where the
-// credits start.
+/**
+ * One file's plan. Breaks at its start come first: the commercial cadence's
+ * boundary pods (pre/post, a flow's between-episode steps), then tag-forced
+ * post/pre roll, then the up-next ident. Mid-show breaks follow at their
+ * program positions; a position inside the sped-up credits moves to where the
+ * credits start.
+ * @param {object} ch The channel.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {Array<object>} pool The ad-pool entries.
+ * @param {Function} lookup The memoized poolFor, called with `(type, tags, timing)`.
+ * @param {Array<object>} forcedPool The commercials forced before or after content by its tags.
+ * @param {Array<object>} files The source's files.
+ * @param {object} file The file being planned.
+ * @param {number} i The file's index in `files`.
+ * @param {number} d The file's length in seconds.
+ * @param {number} startS Program seconds before this file in one pass of the loop.
+ * @returns {object} The plan in core/fit.js's shape (assemblePlan).
+ */
 function planFile(ch, block, pool, lookup, forcedPool, files, file, i, d, startS) {
   const tags = effectiveContentTags(ch, file);
   const { commercials: cc, key } = commercialsForPlan(ch, block, tags);
@@ -880,9 +1156,23 @@ function planFile(ch, block, pool, lookup, forcedPool, files, file, i, d, startS
   return assemblePlan(d, atStart, mids, useCredits);
 }
 
-// A flow's steps between episodes, then its mid-show cadence — the same
-// selection resolveBreakAt's overlay path makes, with the file's place in one
-// pass of the loop (i) where that path uses its global ordinal.
+/**
+ * Adds a flow's steps between episodes, then its mid-show cadence, to a file's plan — the same
+ * selection resolveBreakAt's overlay path makes, with the file's place in one
+ * pass of the loop (i) where that path uses its global ordinal.
+ * @param {object} ch The channel.
+ * @param {?object} block The schedule block airing, or null.
+ * @param {Array<object>} pool The ad-pool entries.
+ * @param {Function} lookup The memoized poolFor.
+ * @param {object} cc The resolved commercial settings (the flow).
+ * @param {string} seedKey Seed that makes the picks repeatable.
+ * @param {object} file The file being planned.
+ * @param {number} i The file's index in one pass of the loop.
+ * @param {string[]} tags The file's content tags.
+ * @param {object} bs The file's slot in program time, for midSlots.
+ * @param {Function} addAt Adds plan references at a program position, called with `(atS, refs)`.
+ * @param {Function} podOpts Builds buildPod's options with the lookup included.
+ */
 function planFlow(ch, block, pool, lookup, cc, seedKey, file, i, tags, bs, addAt, podOpts) {
   const cycleLen = Math.max(1, cc.segmentCount || 1);
   const isLastInCycle = i % cycleLen === cycleLen - 1;
@@ -947,9 +1237,16 @@ function planFlow(ch, block, pool, lookup, cc, seedKey, file, i, tags, bs, addAt
   }
 }
 
-// The plan in core/fit.js's shape (mode 'breaks'): program segments at normal
-// speed, a break segment per run of breaks (its `refs` are the pods in order),
-// and the sped-up credits last when END CREDITS applies.
+/**
+ * The plan in core/fit.js's shape (mode 'breaks'): program segments at normal
+ * speed, a break segment per run of breaks (its `refs` are the pods in order),
+ * and the sped-up credits last when END CREDITS applies.
+ * @param {number} d The file's length in seconds.
+ * @param {Array<object>} atStart Plan references for the break before the program.
+ * @param {Array<object>} mids Mid-show breaks, each `{ atS, refs }`.
+ * @param {?object} credits The END CREDITS speed-up (`{ leadS, rate }`), or null.
+ * @returns {object} The plan.
+ */
 function assemblePlan(d, atStart, mids, credits) {
   const segments = [];
   let air = 0;
@@ -1001,11 +1298,18 @@ function assemblePlan(d, atStart, mids, credits) {
   };
 }
 
-// The break segments airing for one planned break that starts at breakStart:
-// the plan's pods back to back at their planned lengths, each spot swapped for
-// another of the same length (to the second), seeded by when the break airs
-// so the same break differs from one airing to the next. A spot is never
-// swapped for one already in this break.
+/**
+ * The break segments airing for one planned break that starts at breakStart:
+ * the plan's pods back to back at their planned lengths, each spot swapped for
+ * another of the same length (to the second), seeded by when the break airs
+ * so the same break differs from one airing to the next. A spot is never
+ * swapped for one already in this break.
+ * @param {object} ch The channel.
+ * @param {object} seg The plan's break segment (its `refs` and `index`).
+ * @param {number} breakStart When this airing of the break starts, in ms.
+ * @param {number} breakEnd When it ends, in ms.
+ * @returns {Array<object>} The segments (`type`, `label`, `pod`, `entry`, `windowStart`, `windowEnd`).
+ */
 function plannedSegments(ch, seg, breakStart, breakEnd) {
   const out = [];
   const used = new Set(seg.refs.map((r) => r.entry));
@@ -1029,10 +1333,17 @@ function plannedSegments(ch, seg, breakStart, breakEnd) {
   return out;
 }
 
-// The planned break segment airing at atMs, or null. Carries fit: true (it's
-// in the schedule, so nothing is credited back live, breaks.js) and planned:
-// true (the Q key skips it by moving the view forward, breaks.js), plus the
-// whole break's start/end and segments.
+/**
+ * The planned break segment airing at atMs, or null. Carries fit: true (it's
+ * in the schedule, so nothing is credited back live, breaks.js) and planned:
+ * true (the Q key skips it by moving the view forward, breaks.js), plus the
+ * whole break's start/end and segments.
+ * @param {object} ch The channel.
+ * @param {object} source The planned active source.
+ * @param {number} atMs The instant, in ms.
+ * @param {?object} [knownPos] The source position at atMs, when the caller already has it.
+ * @returns {?object} The segment airing, or null.
+ */
 function planBreakAt(ch, source, atMs, knownPos) {
   const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
   if (!pos || !pos.file || !pos.file.fit || pos.file.fit.mode !== 'breaks') return null;
@@ -1062,17 +1373,30 @@ function planBreakAt(ch, source, atMs, knownPos) {
   };
 }
 
-// When the program itself starts in a planned file: after its leading break.
+/**
+ * When the program itself starts in a planned file: after its leading break.
+ * @param {object} source The active source.
+ * @param {?object} pos The source position at atMs.
+ * @param {number} atMs The instant, in ms.
+ * @returns {number} When the program starts, in ms.
+ */
 function planProgramStartMs(source, pos, atMs) {
   const first = pos && pos.file && pos.file.fit && pos.file.fit.segments[0];
   const fileStartMs = planFileStartMs(source, pos, atMs);
   return first && first.kind === 'break' ? fileStartMs + first.airEnd * 1000 : fileStartMs;
 }
 
-// Where a planned source's breaks can change: every segment edge of the
-// airing file's plan, its end (where the next file's leading break starts) and
-// every pod edge inside a planned break on screen. Exact instants: planBreakAt
-// decides on the same fixed windows, so no nudge past the edge is needed.
+/**
+ * Adds where a planned source's breaks can change: every segment edge of the
+ * airing file's plan, its end (where the next file's leading break starts) and
+ * every pod edge inside a planned break on screen. Exact instants: planBreakAt
+ * decides on the same fixed windows, so no nudge past the edge is needed.
+ * @param {object} ch The channel.
+ * @param {object} source The active source.
+ * @param {number} fromMs Only instants after this one are added, in ms.
+ * @param {?object} pos The source position at fromMs.
+ * @param {Array<number>} candidates The list the instants are pushed onto.
+ */
 function planCandidates(ch, source, fromMs, pos, candidates) {
   if (!pos || !pos.file || !pos.file.fit) return;
   const fileStartMs = planFileStartMs(source, pos, fromMs);
@@ -1086,14 +1410,20 @@ function planCandidates(ch, source, fromMs, pos, candidates) {
   if (brk) brk.segments.forEach((s) => { if (s.windowStart > fromMs) candidates.push(s.windowStart); });
 }
 
-// Is a break showing on this channel at this exact instant? Checks
-// commercial (per its resolved timing mode), channelId, trivia, then upNext,
-// in that order — first one whose window contains atMs wins (two break
-// types are never meant to overlap in practice: they're spaced by
-// intervalMinutes/content-boundaries, not by design against each other, but
-// a fixed priority order keeps behavior well-defined on paper either way).
-// Returns null when nothing is airing at atMs (including "no content
-// scheduled at all," e.g. an empty channel).
+/**
+ * Is a break showing on this channel at this exact instant? Checks
+ * commercial (per its resolved timing mode), channelId, trivia, then upNext,
+ * in that order — first one whose window contains atMs wins (two break
+ * types are never meant to overlap in practice: they're spaced by
+ * intervalMinutes/content-boundaries, not by design against each other, but
+ * a fixed priority order keeps behavior well-defined on paper either way).
+ * Returns null when nothing is airing at atMs (including "no content
+ * scheduled at all," e.g. an empty channel).
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The break showing ({ type, entry, windowStart, windowEnd, and sometimes label
+ *   }), or null for content.
+ */
 export function resolveBreakAt(ch, atMs) {
   const source = resolveActiveSource(ch, atMs);
   const brk = breakAtSource(ch, source, atMs);
@@ -1105,6 +1435,14 @@ export function resolveBreakAt(ch, atMs) {
   return brk;
 }
 
+/**
+ * The break showing on a channel at an instant, given the source already resolved for it
+ * (resolveBreakAt's body). Checks preemption first, then every other break type in priority order.
+ * @param {object} ch The channel config.
+ * @param {object} source The active source at atMs.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The break showing, or null for content.
+ */
 function breakAtSource(ch, source, atMs) {
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   if (!source.anchor) return null;
@@ -1603,9 +1941,14 @@ function breakAtSource(ch, source, atMs) {
 // and trivially small next to any real break's multi-second window.
 const BOUNDARY_EPSILON_MS = 50;
 
-// The earliest candidate boundary >= fromMs across every break-producing
-// type, ignoring whether a break actually resolves there — used internally
-// by nextBreakBoundary to avoid scanning.
+/**
+ * The earliest candidate boundary >= fromMs across every break-producing
+ * type, ignoring whether a break actually resolves there — used internally
+ * by nextBreakBoundary to avoid scanning.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {?number} The earliest candidate boundary, or null when there is none.
+ */
 function nextCandidateBoundary(ch, fromMs) {
   const source = resolveActiveSource(ch, fromMs);
   if (!source.anchor) return null;
@@ -1703,9 +2046,15 @@ function nextCandidateBoundary(ch, fromMs) {
   return candidates.length ? Math.min(...candidates) : null;
 }
 
-// A fitted source's candidates: every segment edge of the airing file's plan
-// (program/credits/break), every pod segment edge inside a break on screen,
-// the file's end, and the broadcast-hours edges.
+/**
+ * The next instant a fitted source's break state can change. Its candidates: every segment edge
+ * of the airing file's plan (program/credits/break), every pod segment edge inside a break on
+ * screen, the file's end, and the broadcast-hours edges.
+ * @param {object} ch The channel.
+ * @param {object} source The fitted active source.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {?number} The earliest candidate, in ms, or null when there is none.
+ */
 function nextFitCandidate(ch, source, fromMs) {
   const candidates = [];
   const pos = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
@@ -1730,11 +2079,16 @@ function nextFitCandidate(ch, source, fromMs) {
   return candidates.length ? Math.min(...candidates) : null;
 }
 
-// Next wall-clock instant where the break state changes — either the end of
-// a break already showing at fromMs, or the start of the next one. Mirrors
-// schedule.js's nextSourceBoundary (Infinity when nothing's ever scheduled),
-// but computed analytically per-type instead of scanned, since a candidate
-// boundary is cheap to derive exactly for every type here.
+/**
+ * Next wall-clock instant where the break state changes — either the end of
+ * a break already showing at fromMs, or the start of the next one. Mirrors
+ * schedule.js's nextSourceBoundary (Infinity when nothing's ever scheduled),
+ * but computed analytically per-type instead of scanned, since a candidate
+ * boundary is cheap to derive exactly for every type here.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {number} The next change in break state, in ms, or Infinity.
+ */
 export function nextBreakBoundary(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
   if (current) {
@@ -1765,35 +2119,44 @@ export function nextBreakBoundary(ch, fromMs) {
   return Infinity;
 }
 
-// A text-only "YOU'RE WATCHING <channel>" station-ID bar (channelId with no
-// real pool entry file — see startBreak's isTextOnlyChannelId, playback.js)
-// never interrupts content or changes anything on screen: startBreak skips
-// swapping player.src for it entirely, it's just an overlay bar on top of
-// whatever's already playing. nextBreakStart/prevBreakStart below exist
-// specifically for the time machine's "jump to break" control (the VCR
-// OSD's [ / ] keys, timemachine.js) — landing on a station-ID instant is a
-// no-op from the viewer's perspective ("the clock jumped but nothing
-// visibly happened"), and since it fires far more often than real ad
-// content (every 15 min by default, wall-clock-aligned), it was winning
-// almost every jump. Everything else (commercial, adBreakIn/Out, trivia,
-// upNext, promo, signOff/signOn, premiereJingle, localAvail, or a channelId
-// that DOES have a real video entry) is a real, visible interruption and
-// stays a valid jump target.
+/**
+ * A text-only "YOU'RE WATCHING <channel>" station-ID bar (channelId with no
+ * real pool entry file — see startBreak's isTextOnlyChannelId, playback.js)
+ * never interrupts content or changes anything on screen: startBreak skips
+ * swapping player.src for it entirely, it's just an overlay bar on top of
+ * whatever's already playing. nextBreakStart/prevBreakStart below exist
+ * specifically for the time machine's "jump to break" control (the VCR
+ * OSD's [ / ] keys, timemachine.js) — landing on a station-ID instant is a
+ * no-op from the viewer's perspective ("the clock jumped but nothing
+ * visibly happened"), and since it fires far more often than real ad
+ * content (every 15 min by default, wall-clock-aligned), it was winning
+ * almost every jump. Everything else (commercial, adBreakIn/Out, trivia,
+ * upNext, promo, signOff/signOn, premiereJingle, localAvail, or a channelId
+ * that DOES have a real video entry) is a real, visible interruption and
+ * stays a valid jump target.
+ * @param {object} brk A break from `resolveBreakAt` ({ type, entry, windowStart, windowEnd }).
+ * @returns {boolean} False for a text-only station-ID bar.
+ */
 function isJumpableBreak(brk) {
   return !(brk.type === 'channelId' && !(brk.entry && brk.entry.file));
 }
 
-// Walks forward from the end of an already-found break through every
-// directly back-to-back segment that follows it (e.g. an adBreakIn bumper's
-// end is exactly where the next commercial in the same pod begins, chained
-// straight through to the bump-out — see buildPod above), stopping at the
-// first real gap. Used by nextBreakStart/prevBreakStart so "jump to next/
-// prev break" treats a whole multi-segment ad pod as ONE break to land on,
-// not a chain of individually-jumpable segments — without it, repeated ']'
-// presses just stepped commercial-by-commercial through the pod you're
-// already in instead of ever reaching a break meaningfully later in time.
-// Also used directly by breakEntriesInWindow below to size a pod's guide
-// block to its real full span.
+/**
+ * Walks forward from the end of an already-found break through every
+ * directly back-to-back segment that follows it (e.g. an adBreakIn bumper's
+ * end is exactly where the next commercial in the same pod begins, chained
+ * straight through to the bump-out — see buildPod above), stopping at the
+ * first real gap. Used by nextBreakStart/prevBreakStart so "jump to next/
+ * prev break" treats a whole multi-segment ad pod as ONE break to land on,
+ * not a chain of individually-jumpable segments — without it, repeated ']'
+ * presses just stepped commercial-by-commercial through the pod you're
+ * already in instead of ever reaching a break meaningfully later in time.
+ * Also used directly by breakEntriesInWindow below to size a pod's guide
+ * block to its real full span.
+ * @param {object} ch The channel config.
+ * @param {object} brk A break from `resolveBreakAt` ({ type, entry, windowStart, windowEnd }).
+ * @returns {number} When the back-to-back run ends, in ms.
+ */
 export function endOfBreakRun(ch, brk) {
   let end = brk.windowEnd;
   let safety = 0;
@@ -1806,10 +2169,15 @@ export function endOfBreakRun(ch, brk) {
   return end;
 }
 
-// Symmetric counterpart for prevBreakStart — walks backward through every
-// segment directly preceding an already-found break to the start of the
-// whole run, so probing "just before this break" lands ahead of the entire
-// pod instead of ahead of just its current segment.
+/**
+ * Symmetric counterpart for prevBreakStart — walks backward through every
+ * segment directly preceding an already-found break to the start of the
+ * whole run, so probing "just before this break" lands ahead of the entire
+ * pod instead of ahead of just its current segment.
+ * @param {object} ch The channel config.
+ * @param {object} brk A break from `resolveBreakAt` ({ type, entry, windowStart, windowEnd }).
+ * @returns {number} When the back-to-back run starts, in ms.
+ */
 export function startOfBreakRun(ch, brk) {
   let start = brk.windowStart;
   let safety = 0;
@@ -1822,16 +2190,23 @@ export function startOfBreakRun(ch, brk) {
   return start;
 }
 
-// Start of the next break strictly after fromMs — for the time machine's
-// "jump to next break" control (timemachine.js), not live scheduling.
-// Deliberately distinct from nextBreakBoundary: that function answers "when
-// does the break STATE next change" (so if fromMs is already inside a break,
-// it returns that break's *end*); this one always answers "where's the next
-// (jumpable) break's *start*," skipping past the ENTIRE pod currently
-// playing (endOfBreakRun, above — not just its current segment) — and past
-// any non-interrupting station-ID bars in between — so repeated presses
-// keep landing meaningfully further ahead in time instead of stepping
-// segment-by-segment through the pod they're already in.
+/**
+ * Start of the next break strictly after fromMs — for the time machine's
+ * "jump to next break" control (timemachine.js), not live scheduling.
+ * Deliberately distinct from nextBreakBoundary: that function answers "when
+ * does the break STATE next change" (so if fromMs is already inside a break,
+ * it returns that break's *end*); this one always answers "where's the next
+ * (jumpable) break's *start*," skipping past the ENTIRE pod currently
+ * playing (endOfBreakRun, above — not just its current segment) — and past
+ * any non-interrupting station-ID bars in between — so repeated presses
+ * keep landing meaningfully further ahead in time instead of stepping
+ * segment-by-segment through the pod they're already in.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @param {number} [deadlineMs] Real-time (`Date.now()`) cutoff; defaults to a 1.2 s budget from
+ *   now.
+ * @returns {number} The next break's start in ms, or Infinity when none is found.
+ */
 export function nextBreakStart(ch, fromMs, deadlineMs) {
   const deadline = deadlineMs != null ? deadlineMs : Date.now() + JUMP_SEARCH_TIME_BUDGET_MS;
   const current = resolveBreakAt(ch, fromMs);
@@ -1859,13 +2234,19 @@ export function nextBreakStart(ch, fromMs, deadlineMs) {
   return Infinity;
 }
 
-// Where the time machine's "end of break" jump (\ key, TV menu › TIME MACHINE ›
-// END OF BREAK) lands: a few seconds before the show comes back from the break
-// airing at fromMs, or from the next break when none is on (or the one on is
-// already that close to its end). Walks the whole back-to-back run of
-// interrupting segments, like endOfBreakRun, but stops at a text-only
-// station-ID bar, which plays over the show rather than instead of it.
-// Returns { target, breakEnd } in ms, or null when no break is found.
+/**
+ * Where the time machine's "end of break" jump (\ key, TV menu › TIME MACHINE ›
+ * END OF BREAK) lands: a few seconds before the show comes back from the break
+ * airing at fromMs, or from the next break when none is on (or the one on is
+ * already that close to its end). Walks the whole back-to-back run of
+ * interrupting segments, like endOfBreakRun, but stops at a text-only
+ * station-ID bar, which plays over the show rather than instead of it.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @param {number} [leadMs=BREAK_END_LEAD_MS] How long before the break's end to land.
+ * @returns {?{target: number, breakEnd: number}} The landing time and the break's end in ms, or
+ *   null when no break is found.
+ */
 export function breakEndAt(ch, fromMs, leadMs = BREAK_END_LEAD_MS) {
   const runEnd = (brk) => {
     let end = brk.windowEnd;
@@ -1890,18 +2271,26 @@ export function breakEndAt(ch, fromMs, leadMs = BREAK_END_LEAD_MS) {
   return { target: Math.max(start, end - leadMs), breakEnd: end };
 }
 
-// The latest break start strictly before `beforeMs`, within the single file
-// bs describes — needed because 'interval'/'everyNMinutes'/'breakpoints'
-// timing (and the flow mid-show cadence panel built on the same mechanism)
-// can land a break anywhere inside a file, not just at its start/end, unlike
-// every other break type prevBreakStart otherwise only has to anchor to file
-// boundaries for. Rather than re-deriving each timing mode's slot math
-// backward (error-prone to keep in sync with the forward math in
-// resolveBreakAt/nextCandidateBoundary above), this just re-walks forward
-// with the already-correct nextBreakStart, one break at a time, and keeps
-// the last one found before beforeMs — cheap since a single file only ever
-// holds a handful of breaks. Bounded by BOUNDARY_SAFETY_CAP as a backstop,
-// though a real file's break count within itself will never come close.
+/**
+ * The latest break start strictly before `beforeMs`, within the single file
+ * bs describes — needed because 'interval'/'everyNMinutes'/'breakpoints'
+ * timing (and the flow mid-show cadence panel built on the same mechanism)
+ * can land a break anywhere inside a file, not just at its start/end, unlike
+ * every other break type prevBreakStart otherwise only has to anchor to file
+ * boundaries for. Rather than re-deriving each timing mode's slot math
+ * backward (error-prone to keep in sync with the forward math in
+ * resolveBreakAt/nextCandidateBoundary above), this just re-walks forward
+ * with the already-correct nextBreakStart, one break at a time, and keeps
+ * the last one found before beforeMs — cheap since a single file only ever
+ * holds a handful of breaks. Bounded by BOUNDARY_SAFETY_CAP as a backstop,
+ * though a real file's break count within itself will never come close.
+ * @param {object} ch The channel config.
+ * @param {{ordinal: number, fileStartMs: number, fileEndMs: number}} bs The file slot from
+ *   `boundarySlot`.
+ * @param {number} beforeMs Only breaks starting before this count, in ms.
+ * @param {number} deadlineMs Real-time (`Date.now()`) cutoff for the search.
+ * @returns {?number} The latest break start, or null when the file has none before `beforeMs`.
+ */
 function latestBreakStartInFile(ch, bs, beforeMs, deadlineMs) {
   let latest = null;
   let t = bs.fileStartMs;
@@ -1917,21 +2306,26 @@ function latestBreakStartInFile(ch, bs, beforeMs, deadlineMs) {
   return latest;
 }
 
-// Start of the previous break at or before fromMs — the time machine's
-// "jump to previous break" control. No cheap analytical form exists walking
-// backward (candidates are naturally derived forward from a source's
-// anchor), so this walks file boundaries backward instead: each step moves
-// to the start of the file immediately before the current probe position
-// (bs.fileStartMs - 1 lands 1ms into the previous file) and checks whether
-// a break is showing anywhere from a bit before that boundary (a 'pre'/
-// signOff-style break, which ends AT the boundary) through a bit after it
-// (a 'post'/flow/interval-style break, which starts AT the boundary), plus
-// anywhere strictly inside the file itself (latestBreakStartInFile, for the
-// timing modes that aren't boundary-anchored at all) — bs.fileEndMs itself
-// needs the same BOUNDARY_EPSILON_MS nudge nextBreakStart relies on, for the
-// same float-precision reason (see BOUNDARY_EPSILON_MS). Bounded to
-// BOUNDARY_SAFETY_CAP files back so a channel with no breaks configured at
-// all can't spin forever.
+/**
+ * Start of the previous break at or before fromMs — the time machine's
+ * "jump to previous break" control. No cheap analytical form exists walking
+ * backward (candidates are naturally derived forward from a source's
+ * anchor), so this walks file boundaries backward instead: each step moves
+ * to the start of the file immediately before the current probe position
+ * (bs.fileStartMs - 1 lands 1ms into the previous file) and checks whether
+ * a break is showing anywhere from a bit before that boundary (a 'pre'/
+ * signOff-style break, which ends AT the boundary) through a bit after it
+ * (a 'post'/flow/interval-style break, which starts AT the boundary), plus
+ * anywhere strictly inside the file itself (latestBreakStartInFile, for the
+ * timing modes that aren't boundary-anchored at all) — bs.fileEndMs itself
+ * needs the same BOUNDARY_EPSILON_MS nudge nextBreakStart relies on, for the
+ * same float-precision reason (see BOUNDARY_EPSILON_MS). Bounded to
+ * BOUNDARY_SAFETY_CAP files back so a channel with no breaks configured at
+ * all can't spin forever.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search back from, in ms.
+ * @returns {number} The previous break's start in ms, or -Infinity when none is found.
+ */
 export function prevBreakStart(ch, fromMs) {
   const deadline = Date.now() + JUMP_SEARCH_TIME_BUDGET_MS;
   const current = resolveBreakAt(ch, fromMs);
@@ -1988,16 +2382,23 @@ export function prevBreakStart(ch, fromMs) {
 // runaway-loop backstop, not a realistic ceiling.
 const GUIDE_BREAK_SCAN_CAP = 200;
 
-// Every break's [start, end) inside [windowStart, windowEnd) — for the
-// on-screen guide (guide.js), which otherwise only ever shows real content
-// entries (getChannelSchedule, schedule.js) and silently absorbs any ad
-// break into whichever program it interrupts. Deliberately NOT folded into
-// getChannelSchedule itself, since that function has other callers
-// (program-search.js, the guide-channel plugin, setup-channels-diagnostics.js)
-// that want content-only entries — this is guide.js's own concern. Reuses
-// nextBreakStart/resolveBreakAt (both already boundary-driven/analytic —
-// see their own comments — not a per-second scan), so this costs one call
-// per actual break in the window, not one per second of it.
+/**
+ * Every break's [start, end) inside [windowStart, windowEnd) — for the
+ * on-screen guide (guide.js), which otherwise only ever shows real content
+ * entries (getChannelSchedule, schedule.js) and silently absorbs any ad
+ * break into whichever program it interrupts. Deliberately NOT folded into
+ * getChannelSchedule itself, since that function has other callers
+ * (program-search.js, the guide-channel plugin, setup-channels-diagnostics.js)
+ * that want content-only entries — this is guide.js's own concern. Reuses
+ * nextBreakStart/resolveBreakAt (both already boundary-driven/analytic —
+ * see their own comments — not a per-second scan), so this costs one call
+ * per actual break in the window, not one per second of it.
+ * @param {object} ch The channel config.
+ * @param {number} windowStart Window start, in ms.
+ * @param {number} windowEnd Window end, in ms.
+ * @returns {Array<object>} Break entries ({ start, end, isBreak: true, breakType }), clamped to the
+ *   window.
+ */
 export function breakEntriesInWindow(ch, windowStart, windowEnd) {
   const entries = [];
   const current = resolveBreakAt(ch, windowStart);

@@ -39,11 +39,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { atomicWriteFile } = require('../util/atomic-write');
 
+// Default lifetime of a session for a service that does not set `sessionTtlMs`.
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 // A control session can rewrite the lineup, so it gets a hard ceiling that
 // sliding renewal never extends past (the pairing code is entered again).
 const CONTROL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// Most sessions one service keeps at once.
 const MAX_SESSIONS = 64;
+// Length of one rate-limit window.
 const WINDOW_MS = 60 * 1000;
 // The per-IP write rate limit (checkRateLimit below) bounds one source
 // address, but the 8-digit pairing code (~26.6 bits of entropy) has no cap
@@ -72,9 +75,13 @@ const MAX_PAIR_FAIL_TRACKED_IPS = 2000;
 // that unboundedly. Cap it the same way sessions already are.
 const MAX_RATE_WINDOWS = 2000;
 
-// Sessions used to be stored as token -> expiresAt. They now carry a scope, so
-// a file written by an older build is read as the view-only sessions it
-// described — never silently promoted to something writable.
+/**
+ * Sessions used to be stored as token -> expiresAt. They now carry a scope, so
+ * a file written by an older build is read as the view-only sessions it
+ * described — never silently promoted to something writable.
+ * @param {*} value A stored session (a bare expiry number from an older build, or an object).
+ * @returns {?object} `{ expiresAt, scope, profileId, createdAt }`, or null when unusable.
+ */
 function normalizeSession(value) {
   if (Number.isFinite(value)) return { expiresAt: value, scope: 'view', profileId: null, createdAt: Date.now() };
   if (value && Number.isFinite(value.expiresAt)) {
@@ -91,6 +98,11 @@ function normalizeSession(value) {
   return null;
 }
 
+/**
+ * Reads remembered sessions from disk.
+ * @param {string} sessionsFile Absolute path of the sessions file.
+ * @returns {Map<string, object>} Token to session; empty when the file is missing or corrupt.
+ */
 function loadPersistedSessions(sessionsFile) {
   try {
     const parsed = JSON.parse(fs.readFileSync(sessionsFile, 'utf-8'));
@@ -108,6 +120,11 @@ function loadPersistedSessions(sessionsFile) {
 // crash mid-write can't leave a truncated sessions file.
 const sessionWrites = new Map();
 
+/**
+ * Queues an atomic, serialized, fire-and-forget write of the sessions map.
+ * @param {string} sessionsFile Absolute path of the sessions file.
+ * @param {Map<string, object>} sessions Token to session.
+ */
 function savePersistedSessions(sessionsFile, sessions) {
   // Fire-and-forget async write: this runs on nearly every authenticated
   // request (renewSessionIfNeeded), and main is single-threaded — a
@@ -132,15 +149,31 @@ function savePersistedSessions(sessionsFile, sessions) {
   })();
 }
 
+/**
+ * Whether a LAN service is switched on in config (`party.enabled` or `network.<service>Enabled`).
+ * @param {object} config The config.
+ * @param {string} service The service name.
+ * @returns {boolean} True when enabled.
+ */
 function isLanServiceEnabled(config, service) {
   if (service === 'party') return !!(config && config.party && config.party.enabled);
   return !!(config && config.network && config.network[`${service}Enabled`]);
 }
 
+/**
+ * Client IPv4/IPv6 address of a request, without the IPv4-mapped prefix.
+ * @param {http.IncomingMessage} req The request.
+ * @returns {string} The address, or 'unknown'.
+ */
 function requestIp(req) {
   return (req.socket && req.socket.remoteAddress || '').replace(/^::ffff:/, '') || 'unknown';
 }
 
+/**
+ * Parses a Cookie header.
+ * @param {?string} header The raw header value.
+ * @returns {object} Cookie name to decoded value.
+ */
 function parseCookies(header) {
   const out = {};
   String(header || '').split(';').forEach((part) => {
@@ -155,35 +188,65 @@ function parseCookies(header) {
   return out;
 }
 
-// A browser attaches Origin to cross-site writes. A native LAN client (the
-// companion app) sends none; a client that does send one must be talking to
-// the host it is addressing. Shared by every mutating route via authorize().
+/**
+ * A browser attaches Origin to cross-site writes. A native LAN client (the
+ * companion app) sends none; a client that does send one must be talking to
+ * the host it is addressing. Shared by every mutating route via authorize().
+ * @param {http.IncomingMessage} req The request.
+ * @returns {boolean} True when there is no Origin or it matches the Host header.
+ */
 function originMatchesHost(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
 }
 
-// JSON writes only: an HTML form cannot send application/json, so requiring
-// it closes the simple-request CSRF route. Multipart is allowed only where the
-// caller says so (the asset upload), and still passes the Origin check.
+/**
+ * JSON writes only: an HTML form cannot send application/json, so requiring
+ * it closes the simple-request CSRF route. Multipart is allowed only where the
+ * caller says so (the asset upload), and still passes the Origin check.
+ * @param {http.IncomingMessage} req The request.
+ * @returns {boolean} True for an `application/json` Content-Type.
+ */
 function hasJsonContentType(req) {
   return /^application\/json\b/i.test(String(req.headers['content-type'] || ''));
 }
+/**
+ * Whether a request declares a multipart form body.
+ * @param {http.IncomingMessage} req The request.
+ * @returns {boolean} True for a `multipart/form-data` Content-Type.
+ */
 function hasMultipartContentType(req) {
   return /^multipart\/form-data\b/i.test(String(req.headers['content-type'] || ''));
 }
 
+/**
+ * Constant-time string comparison.
+ * @param {*} a One value (stringified).
+ * @param {*} b The other value (stringified).
+ * @returns {boolean} True when equal.
+ */
 function safeEqual(a, b) {
   const aa = Buffer.from(String(a || ''));
   const bb = Buffer.from(String(b || ''));
   return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
 }
 
+/**
+ * Strips spaces and dashes from an entered pairing code.
+ * @param {*} value The entered code.
+ * @returns {string} Digits as typed, without separators.
+ */
 function normalizePairingCode(value) {
   return String(value || '').replace(/[\s-]/g, '');
 }
 
+/**
+ * HTML of the pairing-code entry page.
+ * @param {string} service The service name, used in the title.
+ * @param {string} [message] An alert line to show (a rejected code), or empty for the default prompt.
+ * @returns {string} The full HTML document.
+ */
 function pairingPage(service, message) {
   const title = `${service[0].toUpperCase()}${service.slice(1)} pairing`;
   const note = message
@@ -192,6 +255,12 @@ function pairingPage(service, message) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px system-ui;background:#171a3b;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0}main{width:min(360px,calc(100% - 40px));background:#292f6b;padding:28px;border-radius:16px}input,button{font:inherit;width:100%;box-sizing:border-box;padding:12px;margin-top:12px;border:3px solid transparent}input{letter-spacing:.25em;text-align:center}button{background:#f0b429;color:#171a3b;font-weight:700}input:focus,button:focus{outline:4px solid #73ddff;outline-offset:3px;border-color:#fff}p{line-height:1.45}@media(min-width:900px){body{font-size:26px}main{width:min(680px,calc(100% - 96px));padding:48px;border-radius:24px}input,button{padding:20px;margin-top:20px}input:focus,button:focus{outline-width:6px;outline-offset:5px}}</style></head><body><main><h1>${title}</h1>${note}<form method="post" action="/_pair"><input name="code" type="text" inputmode="numeric" pattern="[0-9 ]*" autocomplete="one-time-code" maxlength="12" required autofocus aria-label="Pairing code"><button type="submit">PAIR DEVICE</button></form></main></body></html>`;
 }
 
+/**
+ * Reads a small urlencoded form body.
+ * @param {http.IncomingMessage} req The request.
+ * @param {number} [maxBytes=1024] Largest body accepted.
+ * @returns {Promise<URLSearchParams>} The parsed form fields.
+ */
 function readFormBody(req, maxBytes = 1024) {
   return new Promise((resolve, reject) => {
     // Collect Buffers and decode once: a multi-byte character split across
@@ -208,11 +277,32 @@ function readFormBody(req, maxBytes = 1024) {
   });
 }
 
+/**
+ * Short, non-reversible id of a session token, for listing and revoking without exposing it.
+ * @param {string} token The session token.
+ * @returns {string} A 12-character hex id.
+ */
 const sessionId = (token) => crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
+/**
+ * Generates a pairing code.
+ * @returns {string} A fresh random 8-digit pairing code.
+ */
 const newCode = () => String(crypto.randomInt(0, 100000000)).padStart(8, '0');
 
-// opts.scopes: which scopes this service hands out, most privileged last.
-// Omitted means view-only, which is every existing caller.
+/**
+ * opts.scopes: which scopes this service hands out, most privileged last.
+ * Omitted means view-only, which is every existing caller.
+ * Creates the pairing, session, scope and rate-limit gate for one LAN service.
+ * @param {string} service The service name (also names the session cookie).
+ * @param {object} [opts={}] Options.
+ * @param {string[]} [opts.scopes] Scopes offered, most privileged last; defaults to `['view']`.
+ * @param {string} [opts.sessionsFile] Absolute path to persist sessions to; omitted keeps them in memory.
+ * @param {number} [opts.sessionTtlMs] Session lifetime.
+ * @param {number} [opts.controlSessionMaxAgeMs] Hard ceiling on a control session's age.
+ * @param {number} [opts.readLimit=600] Read requests per minute per address.
+ * @param {number} [opts.writeLimit=90] Write requests per minute per address.
+ * @returns {object} The access gate (`authorize`, `pairingUrl`, `scopeOf`, `requireScope`, session listing and revocation, and so on).
+ */
 function createLanAccess(service, opts = {}) {
   const scopes = Array.isArray(opts.scopes) && opts.scopes.length ? opts.scopes : ['view'];
   // One code per scope. They are independent: knowing the view code tells you

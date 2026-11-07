@@ -6,10 +6,14 @@ import { attachTagAutocomplete, buildBreakpointTrack, commitOwnerFields, parsePo
 import { channelOverrides, settingById } from '../core/settings-registry.js';
 import { OverrideRow } from './override-row.js';
 
-// Per-channel BREAKS › ADS page: the channel's master switch for ads, then
-// every box-wide break setting a channel may override (the registry's
-// override.page 'ads': shows pause for breaks, ad break interval), as
-// OverrideRows. Content tags moved to OVERVIEW (buildChannelContentTags).
+/**
+ * Per-channel BREAKS › ADS page: the channel's master switch for ads, then
+ * every box-wide break setting a channel may override (the registry's
+ * override.page 'ads': shows pause for breaks, ad break interval), as
+ * OverrideRows. Content tags moved to OVERVIEW (buildChannelContentTags).
+ * @param {object} ch The channel config.
+ * @param {HTMLElement} panelEl The panel element to fill.
+ */
 export function buildChannelAdsPanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -37,12 +41,16 @@ export function buildChannelAdsPanel(ch, panelEl) {
   panelEl.appendChild(hint);
 }
 
-// Channel-wide content tags — applied to EVERY file on this channel, on
-// top of that file's own tags, wherever an ad-pool entry/preset/flow checks
-// content tags (interstitials.js's effectiveContentTags). Exists for a themed
-// channel (a 24/7 holiday-movies channel, say) where tagging every individual
-// file the same way would be busywork. On the channel's OVERVIEW page: they
-// describe the channel, they aren't an ad setting.
+/**
+ * Builds the channel-wide content tags field — tags applied to EVERY file on this channel, on
+ * top of that file's own tags, wherever an ad-pool entry/preset/flow checks
+ * content tags (interstitials.js's effectiveContentTags). Exists for a themed
+ * channel (a 24/7 holiday-movies channel, say) where tagging every individual
+ * file the same way would be busywork. On the channel's OVERVIEW page: they
+ * describe the channel, they aren't an ad setting.
+ * @param {object} ch The channel config.
+ * @returns {HTMLElement} The field's element.
+ */
 export function buildChannelContentTags(ch) {
   const panelEl = document.createElement('div');
   panelEl.className = 'channel-content-tags';
@@ -69,11 +77,18 @@ export function buildChannelContentTags(ch) {
   return panelEl;
 }
 
-// Builds the ad-settings UI for a daypart block override (block.commercials).
-// Only shown when a block opts out of inheriting the channel/flow default via
-// the OVERRIDE ADS DURING THIS BLOCK checkbox (allowInherit: true).
-// opts.onChange fires after every edit so the block row's summary can stay
-// in sync without rebuilding the whole schedule panel.
+/**
+ * Builds the ad-settings UI for a daypart block override (block.commercials).
+ * Only shown when a block opts out of inheriting the channel/flow default via
+ * the OVERRIDE ADS DURING THIS BLOCK checkbox (allowInherit: true).
+ * opts.onChange fires after every edit so the block row's summary can stay
+ * in sync without rebuilding the whole schedule panel.
+ * @param {object} owner The block config whose `commercials` is edited.
+ * @param {HTMLElement} panelEl The panel element to fill.
+ * @param {object} [opts] Panel options.
+ * @param {boolean} [opts.allowInherit] Show the override checkbox that switches between inheriting and a block-level setting.
+ * @param {Function} [opts.onChange] Called after every edit.
+ */
 export function buildCommercialsPanel(owner, panelEl, opts) {
   opts = opts || {};
 

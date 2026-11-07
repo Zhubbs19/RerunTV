@@ -7,9 +7,14 @@ import { Button } from './button.js';
 import { ModalSurface } from './dialog.js';
 import { h } from './kit-core.js';
 
+// The open keyboard's modal surface and the resolver of its promise.
 let surface = null;
 let finish = null;
 
+/**
+ * Closes the keyboard and resolves its promise.
+ * @param {?string} result The typed text, or null when cancelled.
+ */
 function close(result) {
   const done = finish;
   finish = null;
@@ -17,10 +22,22 @@ function close(result) {
   if (done) done(result);
 }
 
+/**
+ * Whether the on-screen keyboard is showing.
+ * @returns {boolean} True while open.
+ */
 export function onScreenKeyboardOpen() {
   return !!surface;
 }
 
+/**
+ * Opens the on-screen keyboard, cancelling any one already open.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.title='ENTER TEXT'] Title above the field.
+ * @param {string} [opts.value=''] Starting text (upper-cased).
+ * @param {number} [opts.maxLength=60] Maximum length.
+ * @returns {Promise<?string>} The text on DONE, or null when cancelled.
+ */
 export function openOnScreenKeyboard({ title = 'ENTER TEXT', value = '', maxLength = 60 } = {}) {
   if (surface) close(null);
   return new Promise((resolve) => {

@@ -8,19 +8,35 @@
 // raw manifest entries are kept separately in `technical`, for a Details
 // fold, so nothing the plugin declares is hidden.
 
+// Plain-language wording for each `capabilities.system` action a plugin can declare.
 const SYSTEM_ACTIONS = {
   'shell.openExternal': 'Open web links in your browser',
   'desktopCapturer.getSources': 'See what is on your screens and windows (to capture them)',
 };
 
+/**
+ * Returns a plugin entry's normalized capabilities, or an empty object.
+ * @param {object} p The plugin entry from `plugins:list`.
+ * @returns {object} The capabilities object.
+ */
 function caps(p) {
   return p.capabilities || {};
 }
 
+/**
+ * Returns the value if it is an array, else an empty array.
+ * @param {*} value A capability list that may be missing.
+ * @returns {Array} The array, or `[]`.
+ */
 function list(value) {
   return Array.isArray(value) ? value : [];
 }
 
+/**
+ * Describes in plain words what a plugin can do, for the approval prompt and its plugin page.
+ * @param {object} p The plugin entry from `plugins:list` (manifest fields, capabilities, integrity status).
+ * @returns {object} `{ sections, technical, fullAccess }` as described in the file header.
+ */
 export function describePermissions(p) {
   const c = caps(p);
   const sections = [];
@@ -126,9 +142,14 @@ export function describePermissions(p) {
   return { sections, technical, fullAccess: hasBackground && !p.isolated };
 }
 
-// The activity record from plugins:activity (main/plugins/bridge.js), in the
-// same plain shape. `p` decides what can be said: a full-access plugin's
-// connections aren't watched at all.
+/**
+ * The activity record from plugins:activity (main/plugins/bridge.js), in the
+ * same plain shape. `p` decides what can be said: a full-access plugin's
+ * connections aren't watched at all.
+ * @param {object} p The plugin entry from `plugins:list`.
+ * @param {?object} activity The activity record (`calls`, `refused`, `hosts`, `blocked`).
+ * @returns {Array<object>} Lines `{ text, tone }` for the plugin page.
+ */
 export function describeActivity(p, activity) {
   const a = activity || {};
   const lines = [];

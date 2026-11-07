@@ -8,9 +8,14 @@
 // (plugin-isolation-runtime.js) as well as the host.
 const path = require('path');
 
-// True if `resolved` is `base` itself or somewhere inside it. A string-prefix
-// check, not a directory walk — caller must pass already path.resolve()'d/
-// normalize()'d paths, since this does no normalization of its own.
+/**
+ * True if `resolved` is `base` itself or somewhere inside it. A string-prefix
+ * check, not a directory walk — caller must pass already path.resolve()'d/
+ * normalize()'d paths, since this does no normalization of its own.
+ * @param {string} base The resolved root directory.
+ * @param {string} resolved The resolved path to check.
+ * @returns {boolean} Whether `resolved` is inside `base`.
+ */
 function isPathContained(base, resolved) {
   if (resolved === base) return true;
   // A base that already ends in a separator (a drive or filesystem root such as
@@ -19,9 +24,13 @@ function isPathContained(base, resolved) {
   return resolved.startsWith(prefix);
 }
 
-// Windows executables carry a .exe suffix a manifest author shouldn't have
-// to declare twice (once for dev, once for a packaged Windows build) — a
-// declared "ffmpeg" matches a spawned "ffmpeg.exe" and vice versa.
+/**
+ * Windows executables carry a .exe suffix a manifest author shouldn't have
+ * to declare twice (once for dev, once for a packaged Windows build) — a
+ * declared "ffmpeg" matches a spawned "ffmpeg.exe" and vice versa.
+ * @param {string} basename The executable name.
+ * @returns {string} The lowercased name without a trailing `.exe`.
+ */
 function stripExeSuffix(basename) {
   return basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -4).toLowerCase() : basename.toLowerCase();
 }

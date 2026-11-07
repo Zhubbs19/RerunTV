@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for ambient signal glitches: on/off, interval range,
+// intensity, glitch length and which effects may fire.
 import { rearmSignalGlitches } from './renderer.js';
 
 // The section's own `ctx.settings` is a one-time snapshot (taken when the

@@ -3,14 +3,16 @@
 import { S, dispatch } from '../core/state.js';
 import { viewerEnabledEl, viewerUrlStatusEl, controlUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen } from '../core/dom.js';
 
-// The URL list is a live property of whatever network adapters the machine
-// currently has (see getLanUrls, main.js) — not part of S.config, so this
-// is a fresh main-process query on demand, same pattern a plugin with its
-// own LAN-facing URL panel would use, one port over — see
-// startViewerServer/getViewerUrls (main.js). Any browser on the LAN that
-// opens one of these URLs gets a fully independent, read-only instance of
-// this same app (browser-api-shim.js), tuning its own channel and seeing
-// the exact same breaks/bumpers/CRT effects the host does.
+/**
+ * The URL list is a live property of whatever network adapters the machine
+ * currently has (see getLanUrls, main.js) — not part of S.config, so this
+ * is a fresh main-process query on demand, same pattern a plugin with its
+ * own LAN-facing URL panel would use, one port over — see
+ * startViewerServer/getViewerUrls (main.js). Any browser on the LAN that
+ * opens one of these URLs gets a fully independent, read-only instance of
+ * this same app (browser-api-shim.js), tuning its own channel and seeing
+ * the exact same breaks/bumpers/CRT effects the host does.
+ */
 export function renderViewerUrlStatus() {
   viewerEnabledEl.checked = !!(S.config.network && S.config.network.viewerEnabled);
   if (!viewerEnabledEl.checked) {
@@ -33,10 +35,12 @@ viewerEnabledEl.addEventListener('change', () => {
   renderViewerControlUrlStatus();
 });
 
-// docs/design/06 §4's control pairing code, previously visible only on the
-// loopback /server page (host-only IPC — see api-contract.js). Uses the same
-// "share with devices" toggle as the read-only viewer above, since /control
-// is served by the same LAN process.
+/**
+ * docs/design/06 §4's control pairing code, previously visible only on the
+ * loopback /server page (host-only IPC — see api-contract.js). Uses the same
+ * "share with devices" toggle as the read-only viewer above, since /control
+ * is served by the same LAN process.
+ */
 export function renderViewerControlUrlStatus() {
   if (!controlUrlStatusEl || typeof window.api.getViewerControlUrl !== 'function') return;
   if (!viewerEnabledEl.checked) {
@@ -58,6 +62,11 @@ export function renderViewerControlUrlStatus() {
 const startupWindowEnabledEl = document.getElementById('startup-window-enabled');
 const startupWindowStatusEl = document.getElementById('startup-window-status');
 
+/**
+ * Shows whether RerunTV opens its window when Windows starts, and why it can't when it can't.
+ * @param {?object} [statusOverride=null] A status already fetched (`{ supported, enabled, reason, error, launchAllowed }`); fetched from the host when null.
+ * @returns {Promise<void>}
+ */
 async function renderStartupWindowStatus(statusOverride = null) {
   if (!startupWindowEnabledEl || !startupWindowStatusEl || typeof window.api.getStartupWindowStatus !== 'function') return;
   let status = statusOverride;
@@ -100,6 +109,12 @@ startupWindowEnabledEl?.addEventListener('change', async () => {
   renderStartupServerStatus();
 });
 
+/**
+ * Shows the start-with-Windows background server toggle and its status line.
+ * Hides the panel on clients (the LAN viewer) that have no host-only OS controls.
+ * @param {?object} [statusOverride=null] A status already fetched; fetched from the host when null.
+ * @returns {Promise<void>}
+ */
 export async function renderStartupServerStatus(statusOverride = null) {
   if (!startupServerEnabledEl || !startupServerStatusEl) return;
   renderStartupWindowStatus();
@@ -162,10 +177,16 @@ startupServerEnabledEl?.addEventListener('change', async () => {
 // once you leave setup instead of needing a matching stop call wired into
 // every place setup can close.
 const CONNECTED_DEVICES_POLL_MS = 5000;
+// Display names for each LAN server a device can be connected through.
 const SERVER_LABELS = { remote: 'PHONE REMOTE', viewer: 'LAN VIEWER', party: 'PARTY GUEST' };
+// Set once the connected-devices refresh timer has been started.
 let connectedDevicesPollStarted = false;
 let connectedDevicesInFlight = false; // a slow IPC reply must not stack up further polls
 
+/**
+ * Lists the devices currently connected to the LAN servers.
+ * Skips the call while a previous request is still in flight.
+ */
 export function renderConnectedDevices() {
   if (connectedDevicesInFlight) return;
   connectedDevicesInFlight = true;

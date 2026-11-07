@@ -1,6 +1,11 @@
 // Pure update-history transformations. Kept free of Electron/filesystem
 // dependencies so the important old-version -> new-version behavior can be
 // exercised without launching or installing the app.
+/**
+ * Flattens electron-updater's release notes (a string, or a list of `{ version, note }`) into plain text.
+ * @param {*} notes The release notes.
+ * @returns {string} The text, possibly empty.
+ */
 function releaseNotesText(notes) {
   if (typeof notes === 'string') return notes.trim();
   const list = Array.isArray(notes) ? notes : (notes && typeof notes === 'object' ? [notes] : []);
@@ -12,6 +17,12 @@ function releaseNotesText(notes) {
   }).filter(Boolean).join('\n\n').trim();
 }
 
+/**
+ * Records a version change as a pending post-update notice, using the downloaded release's notes when they match; a first run only sets the baseline.
+ * @param {object} state The update state, changed in place.
+ * @param {string} currentVersion The running app version.
+ * @returns {object} The same state.
+ */
 function prepareVersionTransition(state, currentVersion) {
   if (!state.lastSeenVersion) {
     state.lastSeenVersion = currentVersion;
@@ -32,6 +43,12 @@ function prepareVersionTransition(state, currentVersion) {
   return state;
 }
 
+/**
+ * Stores a downloaded release's name, notes and date for the notice after it installs.
+ * @param {object} state The update state, changed in place.
+ * @param {object} info electron-updater's update info.
+ * @returns {object} The same state.
+ */
 function rememberDownloadedRelease(state, info) {
   state.downloadedRelease = {
     version: info.version,
@@ -50,10 +67,14 @@ const UPDATE_STRATEGIES = Object.freeze([
   'off',
 ]);
 
-// One update policy describes both when a check happens and what happens
-// after download. Older configs used two overlapping fields (mode and
-// showLaunchPopup); preserve their exact behavior when migrating instead of
-// silently turning an existing user's background check into a launch gate.
+/**
+ * One update policy describes both when a check happens and what happens
+ * after download. Older configs used two overlapping fields (mode and
+ * showLaunchPopup); preserve their exact behavior when migrating instead of
+ * silently turning an existing user's background check into a launch gate.
+ * @param {?object} updates The config's `updates` section.
+ * @returns {string} One of `UPDATE_STRATEGIES`.
+ */
 function normalizeUpdateStrategy(updates) {
   const value = updates && updates.strategy;
   if (UPDATE_STRATEGIES.includes(value)) return value;

@@ -35,13 +35,18 @@ const REMOTE_DIR = path.join(__dirname, 'remote');
 // playback.js).
 let latestRemoteState = { number: null, name: null };
 
-// Same one-liner as core's main-path-safety.js, duplicated rather than
-// require()'d — a plugin's on-disk location isn't stable relative to the
-// app root (a packaged install seeds plugins under userData/plugins, not
-// alongside main/), so a relative require('../../main/main-path-safety')
-// resolves at dev time but throws "Cannot find module" once packaged. True
-// if `resolved` is `base` itself or somewhere inside it; caller must pass
-// already path.resolve()'d/normalize()'d paths.
+/**
+ * Same one-liner as core's main-path-safety.js, duplicated rather than
+ * require()'d — a plugin's on-disk location isn't stable relative to the
+ * app root (a packaged install seeds plugins under userData/plugins, not
+ * alongside main/), so a relative require('../../main/main-path-safety')
+ * resolves at dev time but throws "Cannot find module" once packaged. True
+ * if `resolved` is `base` itself or somewhere inside it; caller must pass
+ * already path.resolve()'d/normalize()'d paths.
+ * @param {string} base The resolved root directory.
+ * @param {string} resolved The resolved path to check.
+ * @returns {boolean} Whether `resolved` is inside `base`.
+ */
 function isPathContained(base, resolved) {
   return resolved === base || resolved.startsWith(base + path.sep);
 }
@@ -54,6 +59,11 @@ function isPathContained(base, resolved) {
 // current values are redacted, allowing replacement without sending an
 // existing secret back over the LAN.
 const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth)/i;
+/**
+ * A copy of `value` with the same object and array shape but every leaf replaced by null.
+ * @param {*} value The value under a credential-looking key.
+ * @returns {*} The redacted shape.
+ */
 function redactSensitiveShape(value) {
   if (Array.isArray(value)) return value.map(redactSensitiveShape);
   if (value && typeof value === 'object') {
@@ -61,6 +71,11 @@ function redactSensitiveShape(value) {
   }
   return null;
 }
+/**
+ * A deep copy of a config with the values under credential-looking keys (`SENSITIVE_CONFIG_KEY`) redacted.
+ * @param {*} value The config, or any part of it.
+ * @returns {*} The sanitized copy.
+ */
 function sanitizeSensitiveConfig(value) {
   if (Array.isArray(value)) return value.map(sanitizeSensitiveConfig);
   if (!value || typeof value !== 'object') return value;
@@ -70,15 +85,19 @@ function sanitizeSensitiveConfig(value) {
       : sanitizeSensitiveConfig(child)]));
 }
 
-// One root per distinct local channel folder — ch.folders[] entries are
-// {id, source, ref, label} (see normalizeChannel, renderer/js/channels.js);
-// `ref` IS the folder's real filesystem path for a source: 'local' entry
-// (a plugin-sourced folder's ref is an opaque provider reference, not a
-// path on this disk at all, so those are skipped). Deduped by resolved path
-// so multiple channels sharing a folder collapse into one browsable root.
-// This is the whole access-control model for the Files tab: only
-// directories the user already pointed a channel at are reachable, nothing
-// else on disk.
+/**
+ * One root per distinct local channel folder — ch.folders[] entries are
+ * {id, source, ref, label} (see normalizeChannel, renderer/js/channels.js);
+ * `ref` IS the folder's real filesystem path for a source: 'local' entry
+ * (a plugin-sourced folder's ref is an opaque provider reference, not a
+ * path on this disk at all, so those are skipped). Deduped by resolved path
+ * so multiple channels sharing a folder collapse into one browsable root.
+ * This is the whole access-control model for the Files tab: only
+ * directories the user already pointed a channel at are reachable, nothing
+ * else on disk.
+ * @param {object} config The app config (uses `channels[].folders`).
+ * @returns {Array<object>} `{ id, label, path }` for each distinct local folder.
+ */
 function buildRoots(config) {
   const seen = new Map(); // resolved dir -> {id, label, path}
   (config.channels || []).forEach((ch) => {
@@ -92,6 +111,12 @@ function buildRoots(config) {
   return [...seen.values()];
 }
 
+/**
+ * Resolves a client-supplied relative path inside a browsable root.
+ * @param {object} root A root from `buildRoots`.
+ * @param {string} relPath The path relative to the root.
+ * @returns {?string} The absolute path, or null when it would escape the root.
+ */
 function resolveWithinRoot(root, relPath) {
   const rel = String(relPath || '').replace(/^[/\\]+/, '');
   const resolved = path.normalize(path.join(root.path, rel));
@@ -99,6 +124,12 @@ function resolveWithinRoot(root, relPath) {
   return resolved;
 }
 
+/**
+ * Lists the files and folders in a directory, folders first, then by name.
+ * @param {string} absDir The absolute directory path.
+ * @returns {Array<object>} `{ name, isDir, size, mtime }` per entry; `size` is null for folders.
+ * @throws {Error} When the directory cannot be read.
+ */
 function listDirectory(absDir) {
   return fs.readdirSync(absDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() || entry.isDirectory())
@@ -116,9 +147,15 @@ function listDirectory(absDir) {
     .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
 }
 
-// Range-aware file download, same semantics as the core LAN viewer's /media
-// route — lets the companion app's file browser scrub/resume large video
-// files instead of only supporting whole-file GETs.
+/**
+ * Range-aware file download, same semantics as the core LAN viewer's /media
+ * route — lets the companion app's file browser scrub/resume large video
+ * files instead of only supporting whole-file GETs.
+ * @param {string} absPath The file to send.
+ * @param {http.IncomingMessage} req The request (its Range header is honored).
+ * @param {http.ServerResponse} res The response to write.
+ * @param {Function} mimeFor Maps a file path to its MIME type.
+ */
 function streamFile(absPath, req, res, mimeFor) {
   const stat = fs.statSync(absPath);
   const range = req.headers.range;
@@ -154,6 +191,12 @@ function streamFile(absPath, req, res, mimeFor) {
 // has the box on its LAN.
 const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
+/**
+ * Starts the companion LAN server (settings, files and remote routes) when companion access is enabled.
+ * Always registers the `remote:state` listener; the server itself needs the LAN service switched on, and every request is checked by the shared pairing and session auth.
+ * @param {object} ctx The main-process plugin context.
+ * @returns {Promise<void>}
+ */
 async function activate(ctx) {
   const {
     ipcMain, createServer, getMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, mimeFor,

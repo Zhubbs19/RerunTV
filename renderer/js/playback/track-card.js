@@ -16,8 +16,11 @@
 import { S } from '../core/state.js';
 import { autoHideAfter, stripReleaseTags } from '../core/util.js';
 
-// Looked up on use rather than imported from core/dom.js, so the pure part of
-// this module (trackInfoFor) loads in Node for its tests.
+/**
+ * Looked up on use rather than imported from core/dom.js, so the pure part of
+ * this module (trackInfoFor) loads in Node for its tests.
+ * @returns {?HTMLElement} The `#track-card` element, or null.
+ */
 const trackCardEl = () => document.getElementById('track-card');
 
 const ARTIST_TITLE = /^(.{1,80}?)\s+[-–—]\s+(.+)$/;
@@ -27,10 +30,20 @@ const YEAR = /\(((?:19|20)\d\d)\)/;
 // needs for both cards not to overlap.
 const END_LEAD_S = 4;
 
+/**
+ * Returns a path's file name without its extension.
+ * @param {string} path A file path with either slash style.
+ * @returns {string} The bare name.
+ */
 function basenameNoExt(path) {
   return String(path || '').split(/[\\/]/).pop().replace(/\.[^.]+$/, '');
 }
 
+/**
+ * Turns dots and underscores into spaces and collapses whitespace.
+ * @param {*} text The text to tidy; empty for null or undefined.
+ * @returns {string} The cleaned text.
+ */
 function clean(text) {
   return String(text || '').replace(/[._]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
@@ -38,6 +51,8 @@ function clean(text) {
 /**
  * { artist, title, album, year } for a playlist entry, or null when there is
  * nothing worth a card (no artist and no song title).
+ * @param {?object} file A playlist entry (`path`, optional `artist`, `title`, `album`, `year`, `facets`).
+ * @returns {?object} `{ artist, title, album, year }`, or null.
  */
 export function trackInfoFor(file) {
   if (!file) return null;
@@ -59,8 +74,12 @@ export function trackInfoFor(file) {
 }
 
 let startTimer = null;
+// Timer that shows the closing card near the video's end.
 let endTimer = null;
 
+/**
+ * Hides the card and cancels both pending showings.
+ */
 export function hideTrackCard() {
   clearTimeout(startTimer);
   clearTimeout(endTimer);
@@ -70,6 +89,10 @@ export function hideTrackCard() {
   if (el) el.classList.remove('show');
 }
 
+/**
+ * Fills the card with the artist, quoted title and album/year lines, skipping empty ones.
+ * @param {object} info Track info from `trackInfoFor`.
+ */
 function render(info) {
   const card = trackCardEl();
   if (!card) return;
@@ -92,6 +115,10 @@ function render(info) {
 // own bottom applies. Measured in the overlay layer's pixels so a scaled or
 // inset layer (display/mode.js) still lands the card where it looks right.
 const BANNER_GAP_PX = 12;
+/**
+ * Lifts the card above the now-playing banner while the banner is visible.
+ * @param {HTMLElement} card The track card element.
+ */
 function clearBanner(card) {
   card.style.bottom = '';
   const banner = document.getElementById('guide-overlay');
@@ -113,6 +140,11 @@ function clearBanner(card) {
   if (lift > base) card.style.bottom = `${Math.round(lift)}px`;
 }
 
+/**
+ * Shows the card with `info` and hides it again after `seconds`.
+ * @param {object} info Track info from `trackInfoFor`.
+ * @param {number} seconds How long the card stays up.
+ */
 function show(info, seconds) {
   const card = trackCardEl();
   if (!card) return;
@@ -126,6 +158,9 @@ function show(info, seconds) {
  * Called when real content starts on `ch` at `offsetS` seconds into `file`
  * (playback/core.js, next to the contentStart overlay trigger). Shows the
  * opening card if the video has only just begun, and arms the closing one.
+ * @param {object} ch The channel config (reads `ch.trackCard`).
+ * @param {object} file The playlist entry that started.
+ * @param {number} offsetS Seconds into the file the playback started at.
  */
 export function scheduleTrackCard(ch, file, offsetS) {
   hideTrackCard();

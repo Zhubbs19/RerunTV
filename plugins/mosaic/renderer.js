@@ -27,6 +27,11 @@ let pageIndex = 0;
 // release each one's decoder rather than trusting innerHTML alone to do it.
 let liveTiles = [];
 
+/**
+ * Reads the mosaic's settings, rounding and bounding each number and falling back to defaults.
+ * @param {object} ctx The plugin context.
+ * @returns {object} `{ tilesPerPage, pageSeconds, refreshSeconds, showTitles }`.
+ */
 function settings(ctx) {
   const cfg = ctx.settings.getPluginSettings('mosaic') || {};
   const int = (value, min, max, fallback) => (
@@ -40,15 +45,20 @@ function settings(ctx) {
   };
 }
 
+/**
+ * Clears the page, refresh and clock timers.
+ */
 function stopTimers() {
   clearInterval(pageTimer); pageTimer = null;
   clearInterval(refreshTimer); refreshTimer = null;
   clearInterval(clockTimer); clockTimer = null;
 }
 
-// Dropping the src and calling load() is what actually frees a decoder;
-// removing the element alone leaves it to the garbage collector, and a
-// channel this page-heavy should not be waiting on that.
+/**
+ * Dropping the src and calling load() is what actually frees a decoder;
+ * removing the element alone leaves it to the garbage collector, and a
+ * channel this page-heavy should not be waiting on that.
+ */
 function releaseTiles() {
   liveTiles.forEach((video) => {
     try {
@@ -59,18 +69,27 @@ function releaseTiles() {
   liveTiles = [];
 }
 
-// Only real, tunable channels with content — a plugin channel has no
-// schedule to resolve and nothing to pull a frame from, and a hidden channel
-// is hidden everywhere else too.
+/**
+ * Only real, tunable channels with content — a plugin channel has no
+ * schedule to resolve and nothing to pull a frame from, and a hidden channel
+ * is hidden everywhere else too.
+ * @param {object} ctx The plugin context.
+ * @returns {Array<object>} The channel configs to show, in guide order.
+ */
 function mosaicChannels(ctx) {
   return ctx.channels.sortedChannels().filter((channel) => (
     !channel.hidden && channel.number !== CHANNEL_NUMBER
   ));
 }
 
-// What is airing on one channel at this instant, plus how far into that file
-// the schedule currently is — the offset is what each tile seeks to, so a
-// mosaic page genuinely shows the moment those channels are at.
+/**
+ * What is airing on one channel at this instant, plus how far into that file
+ * the schedule currently is — the offset is what each tile seeks to, so a
+ * mosaic page genuinely shows the moment those channels are at.
+ * @param {object} ctx The plugin context.
+ * @param {object} channel The channel config.
+ * @returns {?object} `{ entry, offset }` with `offset` in seconds, or null when nothing playable is airing.
+ */
 function liveEntry(ctx, channel) {
   const now = ctx.viewNow();
   const schedule = ctx.channels.getChannelSchedule(channel, now, now + 60000);
@@ -89,6 +108,16 @@ function liveEntry(ctx, channel) {
 // lands quickly and the page fills in visibly from the top left.
 const TILE_LOAD_STAGGER_MS = 140;
 
+/**
+ * Builds one tile: label, optional title and a paused video seeked to the channel's live position.
+ * The video's source is set after `opts.loadDelayMs` so a page's tiles load in sequence.
+ * @param {object} ctx The plugin context.
+ * @param {object} channel The channel config.
+ * @param {object} opts Settings from `settings()` plus the load delay.
+ * @param {boolean} opts.showTitles Whether to show the program title.
+ * @param {number} [opts.loadDelayMs] Delay before the video source is set, in milliseconds.
+ * @returns {HTMLElement} The tile element.
+ */
 function buildTile(ctx, channel, opts) {
   const tile = document.createElement('div');
   tile.className = 'mosaic-tile';
@@ -175,6 +204,10 @@ function buildTile(ctx, channel, opts) {
   return tile;
 }
 
+/**
+ * Releases the old tiles and draws the current page of the grid and its pager text.
+ * @param {object} ctx The plugin context.
+ */
 function renderPage(ctx) {
   if (!currentContainer) return;
   const grid = currentContainer.querySelector('[data-el="grid"]');
@@ -218,6 +251,10 @@ function renderPage(ctx) {
   }
 }
 
+/**
+ * Writes the time-machine-aware clock into the header.
+ * @param {object} ctx The plugin context.
+ */
 function updateClock(ctx) {
   if (!currentContainer) return;
   const clock = currentContainer.querySelector('[data-el="clock"]');

@@ -28,21 +28,40 @@ let callbacks = {};
 let tiles = [];
 let resizeWatch = null;
 
+/**
+ * Names the cable-guide menu that is up.
+ * @returns {?string} 'quick', 'main', or null when neither is open.
+ */
 export function cgMenuMode() {
   return mode;
 }
 
-// The Main Menu item in focus (tv/menu.js redraws at it when the layout
-// changes under the menu).
+/**
+ * The Main Menu item in focus (tv/menu.js redraws at it when the layout
+ * changes under the menu).
+ * @returns {number} The focused item's index.
+ */
 export function cgMenuFocus() {
   return focus;
 }
 
+/**
+ * Finds the screen element a menu overlay sits in.
+ * @param {HTMLElement} el The menu's host overlay.
+ * @returns {?HTMLElement} The `.crt` element.
+ */
 function crtOf(el) {
   return el.closest('.crt') || document.querySelector('#tv-screen .crt');
 }
 
 // ---------- Quick Menu ----------
+
+/**
+ * Opens the Quick Menu: one row of icon tiles over the picture.
+ * @param {HTMLElement} overlay The `#shortcuts-overlay` element.
+ * @param {Array<object>} quickTiles The tiles (`label`, `icon`, `help`, `disabled`, `toMain`, `run`).
+ * @param {object} cb Callbacks from tv/menu.js (`toMain`, `close`).
+ */
 export function openQuickMenu(overlay, quickTiles, cb) {
   host = overlay;
   closeMain();
@@ -63,6 +82,9 @@ export function openQuickMenu(overlay, quickTiles, cb) {
   paintQuick();
 }
 
+/**
+ * Redraws the Quick Menu tiles and the focused tile's line.
+ */
 function paintQuick() {
   const current = tiles[focus] || {};
   quickEl.innerHTML = `
@@ -78,6 +100,9 @@ function paintQuick() {
   });
 }
 
+/**
+ * Runs the focused Quick Menu tile, or moves on to the Main Menu for its More tile.
+ */
 function runTile() {
   const tile = tiles[focus];
   if (!tile || tile.disabled) return;
@@ -87,18 +112,33 @@ function runTile() {
 }
 
 // ---------- Main Menu ----------
+
+/**
+ * Picks how a menu view is laid out.
+ * @param {object} v The menu view (`items`, optional `columns`).
+ * @returns {string|number} A column count for a keypad, 'rows' when any item has a value to change, otherwise 'grid'.
+ */
 function layoutOf(v) {
   if (typeof v.columns === 'number' && v.columns > 1) return v.columns;
   return v.items.some((item) => typeof item.adjust === 'function') ? 'rows' : 'grid';
 }
 
-// "TV MENU · CHANNELS" → "Channels"; the root is "Main Menu".
+/**
+ * "TV MENU · CHANNELS" → "Channels"; the root is "Main Menu".
+ * @param {object} v The menu view.
+ * @returns {string} The header's where line.
+ */
 function whereOf(v) {
   if (v.where) return v.where;
   const parts = String(v.title || '').split(' · ').filter((p) => p && p !== 'TV MENU');
   return parts.length ? parts.map(menuLabel).join(' › ') : 'Main Menu';
 }
 
+/**
+ * Gives a menu item's display name, without the value part of a `Label: value` setting.
+ * @param {object} item The menu item.
+ * @returns {string} The name in menu case.
+ */
 function itemName(item) {
   // Text that is the viewer's own (a channel's name) is shown as written.
   if (item.text) return item.text;
@@ -108,6 +148,11 @@ function itemName(item) {
   return menuLabel(colon > 0 ? label.slice(0, colon) : label);
 }
 
+/**
+ * Gives a setting item's current value.
+ * @param {object} item The menu item.
+ * @returns {string} The value in menu case, or '' when the item has none.
+ */
 function itemValue(item) {
   if (item.value != null) return menuLabel(String(item.value));
   const label = String(item.label || '');
@@ -115,6 +160,11 @@ function itemValue(item) {
   return colon > 0 ? menuLabel(label.slice(colon + 2)) : '';
 }
 
+/**
+ * Gives the header help line for a menu item.
+ * @param {object} item The menu item.
+ * @returns {string} The item's own help, or a hint for how to use it.
+ */
 function itemHelp(item) {
   if (item.help) return item.help;
   if (typeof item.adjust === 'function') return 'Press ◀ ▶ to change this setting.';
@@ -122,6 +172,13 @@ function itemHelp(item) {
   return '';
 }
 
+/**
+ * Draws a Main Menu view as a full page, replacing the Quick Menu.
+ * @param {HTMLElement} overlay The `#shortcuts-overlay` element.
+ * @param {object} v The menu view (`title`, `items`, optional `columns`).
+ * @param {number} focusIndex The item to focus.
+ * @param {object} cb Callbacks from tv/menu.js (`activate`, `adjust`, `back`, `close`).
+ */
 export function renderMainMenu(overlay, v, focusIndex, cb) {
   host = overlay;
   callbacks = cb;
@@ -151,6 +208,9 @@ export function renderMainMenu(overlay, v, focusIndex, cb) {
   paintMain();
 }
 
+/**
+ * Redraws the Main Menu's current page and the header for the focused item.
+ */
 function paintMain() {
   const items = view.items;
   const perPage = layout === 'rows' ? MENU_ROWS : (typeof layout === 'number' ? items.length : MENU_PAGE);
@@ -198,7 +258,11 @@ function paintMain() {
 }
 
 // ---------- Keys ----------
-// Returns true when the key was the menu's.
+/**
+ * Returns true when the key was the menu's.
+ * @param {KeyboardEvent} e The key event.
+ * @returns {boolean} True when a menu was up and took the key.
+ */
 export function cgMenuKey(e) {
   if (mode === 'quick') {
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -237,6 +301,9 @@ export function cgMenuKey(e) {
 }
 
 // ---------- Close ----------
+/**
+ * Removes the Main Menu page and its header, watcher and picture box.
+ */
 function closeMain() {
   if (resizeWatch) { resizeWatch.disconnect(); resizeWatch = null; }
   if (header) { header.destroy(); header = null; }
@@ -248,6 +315,9 @@ function closeMain() {
   if (grid) syncListingsPicture(grid, document.querySelector('#tv-screen .crt'));
 }
 
+/**
+ * Closes whichever cable-guide menu is up and clears its state.
+ */
 export function closeCgMenu() {
   closeMain();
   if (quickEl) { quickEl.remove(); quickEl = null; }

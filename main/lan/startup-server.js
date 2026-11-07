@@ -16,11 +16,17 @@ const STARTUP_NAME = 'RerunTV Server';
 const WINDOW_STARTUP_ARGS = Object.freeze(['--login-startup']);
 const WINDOW_STARTUP_NAME = 'RerunTV';
 
+// The two login entries: the browser-based server mode and the full window.
 const ENTRIES = Object.freeze({
   server: { name: STARTUP_NAME, args: STARTUP_ARGS },
   window: { name: WINDOW_STARTUP_NAME, args: WINDOW_STARTUP_ARGS },
 });
 
+/**
+ * Login-item options for an entry: this executable plus the entry's arguments.
+ * @param {object} [entry=ENTRIES.server] An entry from `ENTRIES`.
+ * @returns {object} `{ path, args }`.
+ */
 function startupOptions(entry = ENTRIES.server) {
   return {
     path: process.execPath,
@@ -28,11 +34,24 @@ function startupOptions(entry = ENTRIES.server) {
   };
 }
 
+/**
+ * Case-insensitive path comparison, as Windows paths are.
+ * @param {*} left One path.
+ * @param {*} right The other path.
+ * @returns {boolean} True when both are strings that match ignoring case.
+ */
 function sameWindowsPath(left, right) {
   return typeof left === 'string' && typeof right === 'string'
     && left.toLowerCase() === right.toLowerCase();
 }
 
+/**
+ * Reads whether a named login entry is registered and allowed to launch.
+ * @param {object} settings The result of `app.getLoginItemSettings`.
+ * @param {string} [targetPath=process.execPath] The executable the entry should point at.
+ * @param {string} [name=STARTUP_NAME] The entry's registered name.
+ * @returns {object} `{ enabled, launchAllowed }`.
+ */
 function statusFromLoginSettings(settings, targetPath = process.execPath, name = STARTUP_NAME) {
   // Electron 43.4.0 writes the complete Run value correctly, including
   // --server/--login-startup, but its Windows readback currently reports an
@@ -53,6 +72,11 @@ function statusFromLoginSettings(settings, targetPath = process.execPath, name =
   };
 }
 
+/**
+ * Startup registration status of one entry; unsupported outside a packaged Windows build.
+ * @param {object} entry An entry from `ENTRIES`.
+ * @returns {object} `{ supported, enabled, launchAllowed?, reason? }`.
+ */
 function getStartupStatus(entry) {
   if (process.platform !== 'win32') {
     return { supported: false, enabled: false, reason: 'windows-only' };
@@ -70,6 +94,12 @@ function getStartupStatus(entry) {
   };
 }
 
+/**
+ * Turns one login entry on or off. Turning one on turns the other off, since only one may be on.
+ * @param {object} entry An entry from `ENTRIES`.
+ * @param {boolean} enabled Whether it should launch at sign-in.
+ * @returns {object} The entry's status afterwards.
+ */
 function setStartupEnabled(entry, enabled) {
   if (process.platform !== 'win32' || !app.isPackaged) {
     return getStartupStatus(entry);
@@ -89,11 +119,35 @@ function setStartupEnabled(entry, enabled) {
   return getStartupStatus(entry);
 }
 
+/**
+ * Whether server mode launches at sign-in.
+ * @returns {object} Startup status of the server-mode entry.
+ */
 const getStartupServerStatus = () => getStartupStatus(ENTRIES.server);
+/**
+ * Turns the server-mode login entry on or off.
+ * @param {boolean} enabled Whether server mode should launch at sign-in.
+ * @returns {object} The server-mode entry's status afterwards.
+ */
 const setStartupServerEnabled = (enabled) => setStartupEnabled(ENTRIES.server, enabled);
+/**
+ * Whether the full window launches at sign-in.
+ * @returns {object} Startup status of the full-window entry.
+ */
 const getStartupWindowStatus = () => getStartupStatus(ENTRIES.window);
+/**
+ * Turns the full-window login entry on or off.
+ * @param {boolean} enabled Whether the window should launch at sign-in.
+ * @returns {object} The full-window entry's status afterwards.
+ */
 const setStartupWindowEnabled = (enabled) => setStartupEnabled(ENTRIES.window, enabled);
 
+/**
+ * Wraps a setter as an IPC handler that returns the current status plus `error` instead of throwing.
+ * @param {Function} setter Takes `enabled` and returns the new status.
+ * @param {Function} getter Returns the current status.
+ * @returns {Function} The IPC handler.
+ */
 function handleSet(setter, getter) {
   return async (event, enabled) => {
     try {
@@ -107,6 +161,10 @@ function handleSet(setter, getter) {
   };
 }
 
+/**
+ * Registers the `startupServer:*` and `startupWindow:*` IPC handlers.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ */
 function registerStartupServerIpc(ipcMain) {
   ipcMain.handle('startupServer:getStatus', async () => getStartupServerStatus());
   ipcMain.handle('startupServer:setEnabled', handleSet(setStartupServerEnabled, getStartupServerStatus));

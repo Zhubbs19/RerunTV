@@ -58,38 +58,47 @@ const runningChildren = new Set(); // { child, pluginId } — for teardown + dia
 // static path changes) — anyone else's write is dropped.
 const serviceOwners = new Map(); // key -> pluginId
 
-// Node's --experimental-permission model is coarser than Phase 1's per-value
-// JS checks (it can't scope "may spawn ffmpeg" vs "may spawn anything" — only
-// "may spawn at all"), but what it DOES give is real, OS-enforced: a plugin
-// that bypasses ctx.fs/ctx.spawn entirely and calls require('fs')/
-// require('child_process') directly — which defeated Phase 1's same-process
-// check completely — throws here instead. fs-read is scoped to this app's own
-// install directory (needed for node_modules resolution + this app's own
-// electron-free main-*.js helpers the runtime requires — see
-// plugin-isolation-runtime.js) plus the plugin's own folder, which is
-// necessarily broader than "just this plugin" but still meaningfully narrower
-// than the unrestricted filesystem access every plugin had before Phase 2.
-// fs-write is scoped to the plugin's declared dataDir ONLY (no dataDir
-// declared means no filesystem write access at all, full stop — stronger
-// than Phase 1, which always allowed writes as long as they targeted SOME
-// dataDir; here there isn't one to target). child-process spawn is only
-// granted at all if the manifest declares at least one capabilities.spawn
-// entry.
-//
-// `helperBinaries` are the individual executable FILES core itself already
-// resolved and is handing this child in its own init payload (today: the
-// ffmpeg binary, either bundled or found on PATH, plus whatever path the
-// user configured for it). They are granted read because a plugin has to be
-// able to check that a binary core told it about actually exists before
-// spawning it — and a plugin that couldn't check would still be allowed to
-// spawn it, so this reveals nothing it doesn't already have. Found the hard
-// way: this build doesn't bundle ffmpeg, so the ffmpeg-transcode plugin
-// resolves a system one from PATH, and every such path sits outside the two
-// directories below. fs.existsSync() doesn't throw under the permission
-// model, it just answers false — so the plugin concluded the binary wasn't
-// there and refused to activate, silently taking the codec fix, caption
-// extraction, thumbnail capture and recording down with it. Each entry is
-// one exact file, never a directory.
+/**
+ * Node's --experimental-permission model is coarser than Phase 1's per-value
+ * JS checks (it can't scope "may spawn ffmpeg" vs "may spawn anything" — only
+ * "may spawn at all"), but what it DOES give is real, OS-enforced: a plugin
+ * that bypasses ctx.fs/ctx.spawn entirely and calls require('fs')/
+ * require('child_process') directly — which defeated Phase 1's same-process
+ * check completely — throws here instead. fs-read is scoped to this app's own
+ * install directory (needed for node_modules resolution + this app's own
+ * electron-free main-*.js helpers the runtime requires — see
+ * plugin-isolation-runtime.js) plus the plugin's own folder, which is
+ * necessarily broader than "just this plugin" but still meaningfully narrower
+ * than the unrestricted filesystem access every plugin had before Phase 2.
+ * fs-write is scoped to the plugin's declared dataDir ONLY (no dataDir
+ * declared means no filesystem write access at all, full stop — stronger
+ * than Phase 1, which always allowed writes as long as they targeted SOME
+ * dataDir; here there isn't one to target). child-process spawn is only
+ * granted at all if the manifest declares at least one capabilities.spawn
+ * entry.
+ *
+ * `helperBinaries` are the individual executable FILES core itself already
+ * resolved and is handing this child in its own init payload (today: the
+ * ffmpeg binary, either bundled or found on PATH, plus whatever path the
+ * user configured for it). They are granted read because a plugin has to be
+ * able to check that a binary core told it about actually exists before
+ * spawning it — and a plugin that couldn't check would still be allowed to
+ * spawn it, so this reveals nothing it doesn't already have. Found the hard
+ * way: this build doesn't bundle ffmpeg, so the ffmpeg-transcode plugin
+ * resolves a system one from PATH, and every such path sits outside the two
+ * directories below. fs.existsSync() doesn't throw under the permission
+ * model, it just answers false — so the plugin concluded the binary wasn't
+ * there and refused to activate, silently taking the codec fix, caption
+ * extraction, thumbnail capture and recording down with it. Each entry is
+ * one exact file, never a directory.
+ * @param {object} manifest The plugin's manifest.
+ * @param {string} appRootDir The app's root folder.
+ * @param {string} pluginDir The plugin's install folder.
+ * @param {?string} dataDir The plugin's data folder, or null.
+ * @param {Array<?string>} [helperBinaries=[]] Executable files to grant read access to.
+ * @param {string[]} [userDirs=[]] Folders the user picked for the plugin.
+ * @returns {string[]} Node permission flags for the forked process.
+ */
 function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries = [], userDirs = []) {
   // Packaged plugins are seeded under portable userData/plugins, which is a
   // sibling of resources/app.asar rather than a child of appRootDir. Grant
@@ -117,22 +126,15 @@ function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries 
   return args;
 }
 
-// Resolves and invokes a published/registered service by key, regardless of
-// whether it lives same-process (a plain function in `pluginServices`) or in
-// an isolated plugin's own process (proxied through its childRpc) — the
-// exact body of the `services:call` RPC handler below, lifted out so
-// main-media-dispatch.js (media-source provider dispatch) and
-// buildCheckedCtx()'s ctx.callService (main-plugins.js, the non-isolated
-// path) can both reuse this one resolution order instead of each
-// reimplementing it. `args` is an explicit array (not rest-params) so an
-// optional trailing `timeoutMsOverride` can't be mistaken for a call
-// argument; it's passed straight through to childRpc.request() for the
-// isolated-provider case — see rpc-channel.js's comment on why a
-// media-source call needs more headroom than this channel's default.
-// Shared with main-plugins.js's non-isolated registerService, so ownership
-// of a services key is enforced the same way regardless of which process
-// published it first. Returns false (write refused) if another plugin
-// already owns this key.
+/**
+ * Shared with main-plugins.js's non-isolated registerService, so ownership
+ * of a services key is enforced the same way regardless of which process
+ * published it first. Returns false (write refused) if another plugin
+ * already owns this key.
+ * @param {string} pluginId The plugin publishing the key.
+ * @param {string} key The `ctx.services` key.
+ * @returns {boolean} True when the key is free or already owned by this plugin.
+ */
 function claimServiceKey(pluginId, key) {
   const owner = serviceOwners.get(key);
   if (owner && owner !== pluginId) return false;
@@ -140,6 +142,12 @@ function claimServiceKey(pluginId, key) {
   return true;
 }
 
+/**
+ * Claims a party route for a plugin; the first plugin to register a route owns it.
+ * @param {string} pluginId The plugin registering the route.
+ * @param {string} routeKey The route as `"METHOD pathname"`.
+ * @returns {boolean} True when the route is free or already owned by this plugin.
+ */
 function claimPartyRoute(pluginId, routeKey) {
   const owner = partyRouteOwners.get(routeKey);
   if (owner && owner !== pluginId) return false;
@@ -147,6 +155,25 @@ function claimPartyRoute(pluginId, routeKey) {
   return true;
 }
 
+/**
+ * Resolves and invokes a published/registered service by key, regardless of
+ * whether it lives same-process (a plain function in `pluginServices`) or in
+ * an isolated plugin's own process (proxied through its childRpc) — the
+ * exact body of the `services:call` RPC handler below, lifted out so
+ * main-media-dispatch.js (media-source provider dispatch) and
+ * buildCheckedCtx()'s ctx.callService (main-plugins.js, the non-isolated
+ * path) can both reuse this one resolution order instead of each
+ * reimplementing it. `args` is an explicit array (not rest-params) so an
+ * optional trailing `timeoutMsOverride` can't be mistaken for a call
+ * argument; it's passed straight through to childRpc.request() for the
+ * isolated-provider case — see rpc-channel.js's comment on why a
+ * media-source call needs more headroom than this channel's default.
+ * @param {object} pluginServices The shared plugin service registry.
+ * @param {string} key The service key.
+ * @param {Array} [args] Arguments for the service.
+ * @param {number} [timeoutMsOverride] RPC timeout for an isolated provider, in milliseconds.
+ * @returns {Promise<*>|*} The service's result; a rejected promise when no plugin published the key.
+ */
 function callAnyService(pluginServices, key, args, timeoutMsOverride) {
   if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
   const provider = serviceProviders.get(key);
@@ -155,12 +182,18 @@ function callAnyService(pluginServices, key, args, timeoutMsOverride) {
 }
 
 // ---- handlers for requests/events the CHILD initiates ----
-// Split out of activateIsolatedPlugin() below — this whole block wires up
-// what happens when the forked process calls back into the host (an IPC
-// registration, a service publish, a party route claim, ...); none of it
-// touches that function's own per-activation state (settle/resolve, the
-// handshake), so it was just adding to how far you had to scroll to find
-// where activation itself actually starts and ends.
+/**
+ * Split out of activateIsolatedPlugin() below — this whole block wires up
+ * what happens when the forked process calls back into the host (an IPC
+ * registration, a service publish, a party route claim, ...); none of it
+ * touches that function's own per-activation state (settle/resolve, the
+ * handshake), so it was just adding to how far you had to scroll to find
+ * where activation itself actually starts and ends.
+ * @param {object} childRpc The RPC channel to the plugin's process.
+ * @param {object} baseCtx The shared plugin context.
+ * @param {object} pluginServices The shared plugin service registry.
+ * @param {object} manifest The plugin's manifest.
+ */
 function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest) {
   // The client-side check in plugin-isolation-runtime.js's ctx.ipcMain only
   // stops a plugin going through ctx — nothing stops its own code calling
@@ -267,18 +300,14 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
   });
 }
 
-// Runs one isolated plugin's main.js in its own forked process and waits for
-// it to finish activate() (or fail) before returning — same "one plugin's
-// failure doesn't take the rest down" contract loadMainPlugins() already
-// gives non-isolated plugins, just async now since forking a real process
-// can't be synchronous. `baseCtx` is the same {fetchJsonCached, loadConfig,
-// ...} extraCtx object main.js builds for the non-isolated path; `manifest`
-// is one entry from discoverPlugins(); `pluginDir` is its absolute install
-// path; `pluginServices` is the single shared services object.
-// The executables core resolves for plugins to spawn — read-granted above so
-// an isolated plugin can stat one before spawning it. A config read that
-// fails (a corrupt or missing config at boot) costs the user-configured
-// override, not the whole activation.
+/**
+ * The executables core resolves for plugins to spawn — read-granted above so
+ * an isolated plugin can stat one before spawning it. A config read that
+ * fails (a corrupt or missing config at boot) costs the user-configured
+ * override, not the whole activation.
+ * @param {object} baseCtx The shared plugin context (`ffmpegStaticPath`, `loadConfig`).
+ * @returns {Array<?string>} The resolved ffmpeg path plus any configured override.
+ */
 function helperBinaryPaths(baseCtx) {
   const paths = [baseCtx.ffmpegStaticPath];
   try {
@@ -288,6 +317,22 @@ function helperBinaryPaths(baseCtx) {
   return paths;
 }
 
+/**
+ * Runs one isolated plugin's main.js in its own forked process and waits for
+ * it to finish activate() (or fail) before returning — same "one plugin's
+ * failure doesn't take the rest down" contract loadMainPlugins() already
+ * gives non-isolated plugins, just async now since forking a real process
+ * can't be synchronous. `baseCtx` is the same {fetchJsonCached, loadConfig,
+ * ...} extraCtx object main.js builds for the non-isolated path; `manifest`
+ * is one entry from discoverPlugins(); `pluginDir` is its absolute install
+ * path; `pluginServices` is the single shared services object.
+ * @param {object} manifest The plugin's manifest.
+ * @param {string} pluginDir The plugin's install folder.
+ * @param {object} baseCtx The shared plugin context.
+ * @param {object} pluginServices The shared plugin service registry.
+ * @param {string} appRootDir The app's root folder.
+ * @returns {Promise<object>} `{ ok: true }` once activated, or `{ ok: false, error }`; never rejects.
+ */
 function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir) {
   return new Promise((resolve) => {
     // Single plain folder name only (discovery already filters it; re-checked here
@@ -417,12 +462,14 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
   });
 }
 
-// Called once at boot, after every app.whenReady() setup, so a listener
-// registered here fires before any isolated plugin's own before-quit cleanup
-// would otherwise be needed — mirrors the "electronApp.on('before-quit', ...)"
-// pattern non-isolated plugins already use, just fanned out to every
-// isolated child that asked for it instead of
-// running inline.
+/**
+ * Called once at boot, after every app.whenReady() setup, so a listener
+ * registered here fires before any isolated plugin's own before-quit cleanup
+ * would otherwise be needed — mirrors the "electronApp.on('before-quit', ...)"
+ * pattern non-isolated plugins already use, just fanned out to every
+ * isolated child that asked for it instead of
+ * running inline.
+ */
 function wireAppQuitPropagation() {
   app.on('before-quit', () => {
     beforeQuitChildren.forEach((childRpc) => childRpc.emit('app:before-quit', {}));

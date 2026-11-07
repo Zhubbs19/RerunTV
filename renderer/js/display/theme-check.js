@@ -33,6 +33,15 @@ export const THEME_CHECK_TOKENS = Array.from(new Set(THEME_CHECK_PAIRS.flatMap((
 // Tokens that may hold a gradient; the rest are plain colours.
 export const BACKGROUND_TOKENS = new Set(THEME_CHECK_PAIRS.flatMap((p) => [p.bg, p.under]).filter(Boolean));
 
+/**
+ * Lists the opaque colours a background token can end up as.
+ * Flattens the token's layers over whatever surface it sits on, recursing through each
+ * background's own `under` token and ending on black.
+ * @param {object} tokens Resolved token values keyed by token name.
+ * @param {?string} name The background token to flatten.
+ * @param {Set<string>} [seen] Tokens already visited, to stop cycles.
+ * @returns {Array<object>} Opaque `{ r, g, b, a }` colours.
+ */
 function surfaceCandidates(tokens, name, seen = new Set()) {
   const black = [{ r: 0, g: 0, b: 0, a: 1 }];
   if (!name || seen.has(name)) return black;
@@ -44,9 +53,15 @@ function surfaceCandidates(tokens, name, seen = new Set()) {
   return flattenLayers(layers, surfaceCandidates(tokens, owner && owner.under, seen));
 }
 
-// tokens: { '--text': 'rgb(…)', '--surface-panel': 'linear-gradient(…)', … }
-// as resolved values. Returns { failures, passed, unresolved }; a failure
-// carries the worst ratio, the colours that produced it and any exemption.
+/**
+ * tokens: { '--text': 'rgb(…)', '--surface-panel': 'linear-gradient(…)', … }
+ * as resolved values. Returns { failures, passed, unresolved }; a failure
+ * carries the worst ratio, the colours that produced it and any exemption.
+ * @param {object} tokens Resolved token values keyed by token name.
+ * @param {object} [opts] Options.
+ * @param {object} [opts.exempt] Pair id to exemption reason.
+ * @returns {object} `{ failures, passed, unresolved }`.
+ */
 export function checkThemeTokens(tokens, { exempt = {} } = {}) {
   const failures = [];
   const unresolved = [];
@@ -71,7 +86,11 @@ export function checkThemeTokens(tokens, { exempt = {} } = {}) {
   return { failures, passed, unresolved };
 }
 
-// The badge a result earns: null (clean), 'low' or 'low-exempt'.
+/**
+ * The badge a result earns: null (clean), 'low' or 'low-exempt'.
+ * @param {?object} result A `checkThemeTokens` result.
+ * @returns {?string} `null`, `'low'` or `'low-exempt'`.
+ */
 export function themeCheckBadge(result) {
   if (!result || !result.failures.length) return null;
   return result.failures.every((f) => f.exempt) ? 'low-exempt' : 'low';
@@ -86,6 +105,12 @@ export function themeCheckBadge(result) {
 // resolve var() and color-mix() there.
 const CORE_SELECTORS = new Set([':root', 'html']);
 
+/**
+ * Builds the selectors that hold a theme's own token declarations.
+ * @param {string} themeId The theme id.
+ * @param {string} mode The usage mode (`desktop` or `tv`); TV adds the TV refinements.
+ * @returns {Set<string>} Selector texts to match.
+ */
 function themeSelectors(themeId, mode) {
   const theme = `[data-theme="${themeId}"]`;
   const set = new Set([`html${theme}`, `:root${theme}`]);
@@ -96,6 +121,12 @@ function themeSelectors(themeId, mode) {
   return set;
 }
 
+/**
+ * Copies every custom-property declaration from rules whose selector is in the set.
+ * Looks inside `@supports` blocks too; cross-origin sheets are skipped.
+ * @param {Set<string>} selectors Selector texts to match.
+ * @returns {Array<Array<string>>} `[name, value]` pairs in stylesheet order.
+ */
 function collectDeclarations(selectors) {
   const out = [];
   const visit = (rules) => {
@@ -119,6 +150,14 @@ function collectDeclarations(selectors) {
   return out;
 }
 
+/**
+ * Resolves a theme's checked tokens without switching the document's theme.
+ * Uses a hidden probe element carrying the core and theme declarations.
+ * @param {string} themeId The theme id.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.mode] The usage mode to resolve for; defaults to the current one.
+ * @returns {object} Computed values keyed by token name; `''` for a token never declared.
+ */
 export function resolveThemeTokens(themeId, { mode = document.documentElement.dataset.mode || 'desktop' } = {}) {
   const probe = document.createElement('div');
   probe.setAttribute('aria-hidden', 'true');
@@ -156,6 +195,14 @@ export function resolveThemeTokens(themeId, { mode = document.documentElement.da
 const results = new Map();
 const listeners = new Set();
 
+/**
+ * Checks one theme's contrast, stores the result and tells listeners.
+ * @param {string} themeId The theme id.
+ * @param {object} [opts] Options.
+ * @param {object} [opts.exempt] Pair id to exemption reason.
+ * @param {string} [opts.mode] The usage mode to resolve for.
+ * @returns {object} The result: `{ themeId, failures, passed, unresolved }`.
+ */
 export function checkTheme(themeId, { exempt = {}, mode } = {}) {
   const tokens = resolveThemeTokens(themeId, { mode });
   const result = { themeId, ...checkThemeTokens(tokens, { exempt }) };
@@ -164,21 +211,39 @@ export function checkTheme(themeId, { exempt = {}, mode } = {}) {
   return result;
 }
 
+/**
+ * Returns the last check result for a theme.
+ * @param {string} themeId The theme id.
+ * @returns {?object} The stored result, or `null` if it was never checked.
+ */
 export function themeCheckResult(themeId) {
   return results.get(themeId) || null;
 }
 
+/**
+ * Returns every stored check result.
+ * @returns {Array<object>} Results in the order they were first checked.
+ */
 export function allThemeCheckResults() {
   return Array.from(results.values());
 }
 
+/**
+ * Subscribes to theme check results.
+ * @param {(result: object) => void} listener Called with each new result.
+ * @returns {Function} Unsubscribes.
+ */
 export function onThemeCheck(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 
-// Checks every theme in idle time, one per slice, the current one first.
-// entries: [{ id, contrastExempt }] (themePackEntries()).
+/**
+ * Checks every theme in idle time, one per slice, the current one first.
+ * entries: [{ id, contrastExempt }] (themePackEntries()).
+ * @param {Array<object>} entries Theme pack entries with `id` and optional `contrastExempt`.
+ * @returns {Promise<Array<object>>} Every stored result once the queue is done.
+ */
 export function checkThemesWhenIdle(entries) {
   const current = document.documentElement.dataset.theme;
   const queue = [...entries].sort((a, b) => (a.id === current ? -1 : b.id === current ? 1 : 0));

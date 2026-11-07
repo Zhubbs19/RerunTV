@@ -33,22 +33,39 @@ import { S } from './state.js';
 const DAYS_PER_CHANNEL_MAX = 28;
 const channelCaches = new WeakMap();
 
-// Local midnight, via Date setters rather than ms arithmetic, so a DST day is
-// 23 or 25 hours long exactly as the resolvers see it.
+/**
+ * Local midnight, via Date setters rather than ms arithmetic, so a DST day is
+ * 23 or 25 hours long exactly as the resolvers see it.
+ * @param {number} ms An instant, in ms.
+ * @returns {number} Local midnight of that day, in ms.
+ */
 export function startOfDay(ms) {
   const d = new Date(ms);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 }
 
+/**
+ * Moves a local day start by `n` calendar days (DST-safe).
+ * @param {number} dayMs A local midnight, in ms.
+ * @param {number} n Days to add; may be negative.
+ * @returns {number} The resulting instant, in ms.
+ */
 export function addDays(dayMs, n) {
   const d = new Date(dayMs);
   d.setDate(d.getDate() + n);
   return d.getTime();
 }
 
-// Signed-off stretches inside [from, to), from the channel's broadcast hours.
-// Broadcast hours flip only on the hour, so walking hour starts is exact.
+/**
+ * Signed-off stretches inside [from, to), from the channel's broadcast hours.
+ * Broadcast hours flip only on the hour, so walking hour starts is exact.
+ * @param {object} ch The channel config.
+ * @param {number} from Window start, in ms.
+ * @param {number} to Window end, in ms.
+ * @returns {Array<{start: number, end: number}>} The off-air ranges, merged and clamped to the
+ *   window.
+ */
 export function offAirRanges(ch, from, to) {
   const bh = ch.broadcastHours;
   if (!bh || !bh.enabled) return [];
@@ -68,6 +85,11 @@ export function offAirRanges(ch, from, to) {
   return ranges;
 }
 
+/**
+ * The per-day cache for a channel object, reset when `S.configGeneration` has moved on.
+ * @param {object} ch The channel config.
+ * @returns {{generation: number, days: Map<number, object>}} The cache.
+ */
 function cacheFor(ch) {
   let cache = channelCaches.get(ch);
   if (!cache || cache.generation !== S.configGeneration) {
@@ -77,14 +99,21 @@ function cacheFor(ch) {
   return cache;
 }
 
-// One local day, whole. Programs and breaks are each computed on first use
-// only — the guide-style callers that want programs alone shouldn't pay for
-// break enumeration.
-//
-// Returns { dayStart, dayEnd, programs, breaks, offAir, ms } where programs
-// are getChannelSchedule entries ({ file, start, end, block }) exactly as
-// that function yields them for this day — an entry crossing midnight is cut
-// at the day edge here, and querySchedule stitches it back together.
+/**
+ * One local day, whole. Programs and breaks are each computed on first use
+ * only — the guide-style callers that want programs alone shouldn't pay for
+ * break enumeration.
+ *
+ * Returns { dayStart, dayEnd, programs, breaks, offAir, ms } where programs
+ * are getChannelSchedule entries ({ file, start, end, block }) exactly as
+ * that function yields them for this day — an entry crossing midnight is cut
+ * at the day edge here, and querySchedule stitches it back together.
+ * @param {object} ch The channel config.
+ * @param {number} dayStart Local midnight of the day, in ms.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.breaks=true] Whether to compute breaks too.
+ * @returns {object} The day record.
+ */
 export function queryDay(ch, dayStart, { breaks = true } = {}) {
   const cache = cacheFor(ch);
   let day = cache.days.get(dayStart);
@@ -130,6 +159,11 @@ export function queryDay(ch, dayStart, { breaks = true } = {}) {
 // a duplicate airing at midnight.
 const SAME_AIRING_TOLERANCE_MS = 1;
 
+/**
+ * Concatenates per-day program lists, joining the two halves of an airing cut at midnight.
+ * @param {Array<Array<object>>} lists Program lists, one per day, in order.
+ * @returns {Array<object>} The stitched entries (copies).
+ */
 function stitchPrograms(lists) {
   const out = [];
   lists.forEach((list) => list.forEach((entry) => {
@@ -145,8 +179,12 @@ function stitchPrograms(lists) {
   return out;
 }
 
-// A break pod cut at midnight is clamped on both sides, so the halves meet
-// exactly at the day boundary.
+/**
+ * A break pod cut at midnight is clamped on both sides, so the halves meet
+ * exactly at the day boundary.
+ * @param {Array<Array<object>>} lists Break lists, one per day, in order.
+ * @returns {Array<object>} The stitched entries (copies).
+ */
 function stitchBreaks(lists) {
   const out = [];
   lists.forEach((list) => list.forEach((entry) => {
@@ -160,6 +198,11 @@ function stitchBreaks(lists) {
   return out;
 }
 
+/**
+ * Merges overlapping or touching ranges; the input must be sorted by start.
+ * @param {Array<{start: number, end: number}>} ranges The ranges.
+ * @returns {Array<{start: number, end: number}>} The merged ranges (copies).
+ */
 function mergeRanges(ranges) {
   const out = [];
   ranges.forEach((r) => {
@@ -170,10 +213,20 @@ function mergeRanges(ranges) {
   return out;
 }
 
-// Everything airing in [from, to). Entries are whole airings — an entry that
-// began before `from` keeps its real start — filtered to those overlapping
-// the window, so callers clamp for display themselves the same way they do
-// with getChannelSchedule.
+/**
+ * Everything airing in [from, to). Entries are whole airings — an entry that
+ * began before `from` keeps its real start — filtered to those overlapping
+ * the window, so callers clamp for display themselves the same way they do
+ * with getChannelSchedule.
+ * @param {object} ch The channel config.
+ * @param {number} from Window start, in ms.
+ * @param {number} to Window end, in ms.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.breaks=true] Include breaks.
+ * @param {boolean} [opts.offAir=true] Include off-air ranges.
+ * @returns {object} { from, to, programs, breaks, offAir, ms }, plus `truncated: true` when a day
+ *   hit the entry cap.
+ */
 export function querySchedule(ch, from, to, { breaks = true, offAir = true } = {}) {
   const days = [];
   for (let day = startOfDay(from); day < to; day = addDays(day, 1)) days.push(queryDay(ch, day, { breaks }));
@@ -194,9 +247,14 @@ export function querySchedule(ch, from, to, { breaks = true, offAir = true } = {
   };
 }
 
-// What the channel resolves to at one instant, and the pieces that decided
-// it. Data only: turning it into sentences is the caller's job (Air Check,
-// ON AIR), since the same facts get worded differently per screen.
+/**
+ * What the channel resolves to at one instant, and the pieces that decided
+ * it. Data only: turning it into sentences is the caller's job (Air Check,
+ * ON AIR), since the same facts get worded differently per screen.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms.
+ * @returns {object} { atMs, onAir, source, position, commercials, break, slot }.
+ */
 export function explainAt(ch, atMs) {
   const source = resolveActiveSource(ch, atMs);
   const position = computeSourcePosition(source, atMs, { ignoreContentLost: true });
@@ -212,17 +270,31 @@ export function explainAt(ch, atMs) {
   };
 }
 
-// Whole milliseconds, for the same float-noise reason as the stitching above.
+/**
+ * Whole milliseconds, for the same float-noise reason as the stitching above.
+ * @param {object} entry A program entry ({ start, end, file }).
+ * @returns {string} A key for matching the same airing across two schedules.
+ */
 function programKey(entry) {
   return `${Math.round(entry.start)}|${Math.round(entry.end)}|${entry.file && entry.file.path}`;
 }
+/**
+ * Whole-millisecond key for a break entry, for matching across two schedules.
+ * @param {object} entry A break entry ({ start, end, breakType }).
+ * @returns {string} The key.
+ */
 function breakKey(entry) {
   return `${Math.round(entry.start)}|${Math.round(entry.end)}|${entry.breakType}`;
 }
 
-// Resolvers read box-wide programming (presets, flows, the ad pool, station
-// IDs) from S.config, so a proposed edit to any of those is resolved with
-// S.config pointing at the proposal for the duration of one synchronous call.
+/**
+ * Resolvers read box-wide programming (presets, flows, the ad pool, station
+ * IDs) from S.config, so a proposed edit to any of those is resolved with
+ * S.config pointing at the proposal for the duration of one synchronous call.
+ * @param {?object} config The config to resolve against; null or S.config runs `fn` as is.
+ * @param {Function} fn The synchronous work to run.
+ * @returns {*} Whatever `fn` returns.
+ */
 function withConfig(config, fn) {
   if (!config || config === S.config) return fn();
   const live = S.config;
@@ -243,10 +315,17 @@ const CHANNEL_SCOPED_TYPES = new Set([
 ]);
 const SHARED_COLLECTIONS = new Set(['pool', 'presets', 'flows']);
 
-// What config and the channel would look like with `commands` applied, without
-// touching either: { config, channel }. The channel is always a fresh copy, so
-// its cached days (and cached ad policy) never mix with the live channel's.
-// Throws, like dispatch, if a command doesn't fit.
+/**
+ * What config and the channel would look like with `commands` applied, without
+ * touching either: { config, channel }. The channel is always a fresh copy, so
+ * its cached days (and cached ad policy) never mix with the live channel's.
+ * Throws, like dispatch, if a command doesn't fit.
+ * @param {object} config The live config.
+ * @param {number} channelNumber The channel being edited.
+ * @param {Array<object>|object} commands The command, or commands, to apply to a copy.
+ * @returns {{config: object, channel: ?object}} The proposed config and the channel in it.
+ * @throws {Error} When a command does not apply.
+ */
 export function proposeEdit(config, channelNumber, commands) {
   const list = Array.isArray(commands) ? commands : [commands];
   const shallow = list.every((cmd) => CHANNEL_SCOPED_TYPES.has(cmd.type)
@@ -265,15 +344,26 @@ export function proposeEdit(config, channelNumber, commands) {
   return { config: proposed, channel: (proposed.channels || []).find((c) => c.number === channelNumber) || null };
 }
 
-// What changes in [from, to) between two versions of a channel — the
-// "this edit moves 14 programs" preview. `before` and `after` must be
-// separate objects (typically the live channel and a deep copy with the edit
-// applied); see the caching note at the top of this file. `afterConfig` (from
-// proposeEdit) resolves `after` against proposed box-wide programming.
-//
-// Returns { identical, added, removed, breaksAdded, breaksRemoved,
-// offAirChanged, changed }, where `changed` is the merged time ranges touched
-// by any difference.
+/**
+ * What changes in [from, to) between two versions of a channel — the
+ * "this edit moves 14 programs" preview. `before` and `after` must be
+ * separate objects (typically the live channel and a deep copy with the edit
+ * applied); see the caching note at the top of this file. `afterConfig` (from
+ * proposeEdit) resolves `after` against proposed box-wide programming.
+ *
+ * Returns { identical, added, removed, breaksAdded, breaksRemoved,
+ * offAirChanged, changed }, where `changed` is the merged time ranges touched
+ * by any difference.
+ * @param {object} before The channel as it is.
+ * @param {object} after A separate copy with the edit applied.
+ * @param {number} from Window start, in ms.
+ * @param {number} to Window end, in ms.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.breaks=true] Compare breaks too.
+ * @param {?object} [opts.afterConfig=null] The proposed config to resolve `after` against.
+ * @returns {object} { identical, added, removed, breaksAdded, breaksRemoved, offAirChanged, changed
+ *   }.
+ */
 export function diffSchedules(before, after, from, to, { breaks = true, afterConfig = null } = {}) {
   const a = querySchedule(before, from, to, { breaks, offAir: true });
   const b = withConfig(afterConfig, () => querySchedule(after, from, to, { breaks, offAir: true }));
@@ -303,23 +393,28 @@ export function diffSchedules(before, after, from, to, { breaks = true, afterCon
   };
 }
 
-// Every layer that had a say in what airs at one instant, in the order they're
-// consulted, each marked with what it did. Data only, like explainAt: the
-// explanation panel words it (docs/design/02 §4.2).
-//
-// Returns { atMs, source, commercials, layers } where each layer is
-//   { group: 'content' | 'breaks', kind, item, role, reason }
-// kind: 'broadcastHours' | 'block' | 'dayOverride' | 'default' |
-//       'adsSwitch' | 'flow' | 'preset' | 'blockAds' | 'channelAds' | 'globalAds'
-// item: the block / flow / preset object (null for channel-wide layers)
-// role: 'wins'     decided the result
-//       'outranked' matched, but a layer above it won
-//       'skipped'   matched, but had nothing to give (no content yet)
-//       'passes'    consulted and let the layers below decide (on the air)
-// Layers that don't match this instant at all aren't listed: they didn't
-// contribute. Winners agree with resolveActiveSource and
-// resolveActiveCommercials by construction, since the matching lists are
-// theirs (schedule.js matchingBlocks/Flows/Presets/AdBlocks).
+/**
+ * Every layer that had a say in what airs at one instant, in the order they're
+ * consulted, each marked with what it did. Data only, like explainAt: the
+ * explanation panel words it (docs/design/02 §4.2).
+ *
+ * Returns { atMs, source, commercials, layers } where each layer is
+ *   { group: 'content' | 'breaks', kind, item, role, reason }
+ * kind: 'broadcastHours' | 'block' | 'dayOverride' | 'default' |
+ *       'adsSwitch' | 'flow' | 'preset' | 'blockAds' | 'channelAds' | 'globalAds'
+ * item: the block / flow / preset object (null for channel-wide layers)
+ * role: 'wins'     decided the result
+ *       'outranked' matched, but a layer above it won
+ *       'skipped'   matched, but had nothing to give (no content yet)
+ *       'passes'    consulted and let the layers below decide (on the air)
+ * Layers that don't match this instant at all aren't listed: they didn't
+ * contribute. Winners agree with resolveActiveSource and
+ * resolveActiveCommercials by construction, since the matching lists are
+ * theirs (schedule.js matchingBlocks/Flows/Presets/AdBlocks).
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms.
+ * @returns {object} { atMs, source, commercials, onAir, layers }.
+ */
 export function explainLayers(ch, atMs) {
   const info = explainAt(ch, atMs);
   const { source } = info;

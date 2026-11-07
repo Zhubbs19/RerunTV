@@ -17,8 +17,14 @@
 // disabled — never hidden — while that checkbox is off.
 import { h, nextId } from './kit-core.js';
 
+// Tag names a <label for> can point at.
 const LABELLABLE = /^(INPUT|SELECT|TEXTAREA)$/;
 
+/**
+ * The first input, select or textarea among the controls or inside them.
+ * @param {Array<?HTMLElement>} controls The row's controls.
+ * @returns {?HTMLElement} The element a label should point at, or null.
+ */
 function firstLabellable(controls) {
   for (const el of controls) {
     if (!el) continue;
@@ -29,7 +35,16 @@ function firstLabellable(controls) {
   return null;
 }
 
-// Field({ label, help, control, error }) → element with setError(text).
+/**
+ * Field({ label, help, control, error }) → element with setError(text).
+ * @param {object} [opts] Options.
+ * @param {string} opts.label Label text.
+ * @param {string} [opts.help=''] Help text below the control.
+ * @param {HTMLElement|HTMLElement[]} opts.control The control or controls.
+ * @param {string} [opts.error=''] Initial error text.
+ * @param {string} [opts.className=''] Extra classes.
+ * @returns {HTMLElement} The field, with `.setError(text)`.
+ */
 export function Field({ label, help = '', control, error = '', className = '' } = {}) {
   const controls = Array.isArray(control) ? control : [control];
   const target = firstLabellable(controls);
@@ -59,6 +74,19 @@ export function Field({ label, help = '', control, error = '', className = '' } 
   return wrap;
 }
 
+/**
+ * Builds a `.setting-row`: a label wired to its control, plus optional help.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.key] Stable search id (`data-setting`).
+ * @param {string} opts.label Sentence-case label.
+ * @param {HTMLElement|HTMLElement[]} opts.control The control or controls.
+ * @param {string} [opts.help=''] One-line help.
+ * @param {string} [opts.title=''] Longer explanation, as the row's title.
+ * @param {string} [opts.dependsOn=''] Id of a checkbox that must be on for the row to be enabled.
+ * @param {string} [opts.synonyms=''] Extra search words.
+ * @param {string} [opts.searchId] Used as `data-setting` when `key` is not given.
+ * @returns {HTMLElement} The row.
+ */
 export function SettingRow({ key, label, control, help = '', title = '', dependsOn = '', synonyms = '', searchId } = {}) {
   const row = h('div', { className: 'setting-row' });
   if (key || searchId) row.dataset.setting = key || searchId;
@@ -82,8 +110,11 @@ export function SettingRow({ key, label, control, help = '', title = '', depends
   return row;
 }
 
-// Disables every row whose parent switch is off. Cheap enough to run on any
-// change: a few dozen rows.
+/**
+ * Disables every row whose parent switch is off. Cheap enough to run on any
+ * change: a few dozen rows.
+ * @param {ParentNode} [root=document] Where to look for rows.
+ */
 export function syncSettingDependencies(root = document) {
   root.querySelectorAll('.setting-row[data-depends-on]').forEach((row) => {
     const parent = document.getElementById(row.dataset.dependsOn);
@@ -97,6 +128,10 @@ export function syncSettingDependencies(root = document) {
 // One listener for every row on the page: any checkbox change re-checks the
 // rows that depend on it.
 let installed = false;
+/**
+ * Installs the one change listener that keeps dependent rows in sync, then syncs once.
+ * @param {ParentNode} [root=document] Where to listen and look for rows.
+ */
 export function installSettingDependencies(root = document) {
   if (installed) return;
   installed = true;
@@ -106,7 +141,11 @@ export function installSettingDependencies(root = document) {
   syncSettingDependencies(root);
 }
 
-// What settings search needs to know about a row.
+/**
+ * What settings search needs to know about a row.
+ * @param {HTMLElement} row A `.setting-row`.
+ * @returns {object} `{ key, label, help, haystack }`; haystack is the lower-cased search text.
+ */
 export function settingRowSearchText(row) {
   const label = row.querySelector('.setting-row-label');
   const help = row.querySelector('.setting-row-help');
@@ -119,6 +158,11 @@ export function settingRowSearchText(row) {
   };
 }
 
+/**
+ * The row's first focusable control.
+ * @param {HTMLElement} row A `.setting-row`.
+ * @returns {?HTMLElement} The control, or null.
+ */
 export function settingRowControl(row) {
   return row.querySelector('.setting-row-control input:not([type="hidden"]):not([tabindex="-1"]), .setting-row-control select:not([tabindex="-1"]), .setting-row-control textarea, .setting-row-control button');
 }

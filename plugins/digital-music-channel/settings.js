@@ -1,15 +1,29 @@
+// PLUGINS-tab settings for the Digital Music channel: on-screen style, era,
+// factoids, playback keys, and the station list with its folder rescans.
 import { DEFAULT_ERA, ERAS, GENRE_THEMES, probeAllDurations } from './renderer.js';
 
-// Station names and paths are user data going into value="..." attributes.
+/**
+ * Station names and paths are user data going into value="..." attributes.
+ * @param {*} value The text to escape.
+ * @returns {string} The HTML-attribute-safe text.
+ */
 function attr(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * A new station id: a random UUID, or a time-and-random fallback.
+ * @returns {string} The id.
+ */
 function newId() {
   return (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `mc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * A blank station with the first genre theme and a gradient background.
+ * @returns {object} The new station config.
+ */
 function newStation() {
   return {
     id: newId(),
@@ -29,6 +43,13 @@ function newStation() {
 // changed. `onProgress(text)` reports each phase.
 const TAG_BATCH = 25;
 
+/**
+ * Reads tags for every track not yet tag-read, in batches, writing `tags` and `tagsRead` onto each track.
+ * Stops at the first failed batch so those tracks are retried on the next rescan.
+ * @param {Array<object>} tracks The station's track objects, updated in place.
+ * @param {Function} onProgress Receives a progress line.
+ * @returns {Promise<void>}
+ */
 async function readTagsInto(tracks, onProgress) {
   if (!window.api.digitalMusicReadTags) return;
   const pending = tracks.filter((t) => !t.tagsRead);
@@ -48,6 +69,13 @@ async function readTagsInto(tracks, onProgress) {
   }
 }
 
+/**
+ * Rescans a station's folder: lists its audio files, keeps saved data for known ones, probes new durations and reads tags.
+ * @param {object} station The station config (uses `folderPath` and `tracks`).
+ * @param {Function} onProgress Receives a progress line for each phase.
+ * @returns {Promise<Array<object>>} The new track list.
+ * @throws {Error} When scanning is unavailable on this device or the scan fails (as a rejection).
+ */
 async function scanStationTracks(station, onProgress) {
   onProgress('SCANNING FOLDER…');
   // Host-only: it reads the host's own filesystem, so it is absent on a LAN
@@ -65,6 +93,11 @@ async function scanStationTracks(station, onProgress) {
   return tracks;
 }
 
+/**
+ * A station's total running time, as `1H 5M` or `45M`.
+ * @param {object} station The station config.
+ * @returns {string} The formatted duration.
+ */
 function totalDuration(station) {
   const secs = (station.tracks || []).reduce((sum, t) => sum + (t.durationSec || 0), 0);
   const h = Math.floor(secs / 3600);

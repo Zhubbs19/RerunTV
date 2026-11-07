@@ -3,15 +3,25 @@
 const os = require('os');
 
 const MAX_LOGS = 250;
+// Ring of captured log entries, oldest first, capped at `MAX_LOGS`.
 const logs = [];
 let captureInstalled = false;
 
+/**
+ * Turns a logged value into text (errors include their stack).
+ * @param {*} value The value passed to a console method.
+ * @returns {string} Its printable form.
+ */
 function printable(value) {
   if (value instanceof Error) return `${value.name}: ${value.message}\n${value.stack || ''}`;
   if (typeof value === 'string') return value;
   try { return JSON.stringify(value); } catch (error) { return String(value); }
 }
 
+/**
+ * Appends one entry to the log ring, redacting its message and trimming the ring.
+ * @param {object} entry `{ at, source, level, message, meta? }`.
+ */
 function push(entry) {
   // Scrub at capture time: the ring feeds the developer console and the
   // support bundle, and a console line can carry a pairing URL.
@@ -20,10 +30,20 @@ function push(entry) {
   if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
 }
 
+/**
+ * Records a diagnostic line from code that is not going through `console`.
+ * @param {string} source Which subsystem it came from.
+ * @param {string} level 'log', 'warn' or 'error'.
+ * @param {*} message The message (made printable).
+ * @param {*} [meta] Optional extra data stored with it.
+ */
 function recordDiagnostic(source, level, message, meta) {
   push({ at: new Date().toISOString(), source, level, message: printable(message), ...(meta === undefined ? {} : { meta }) });
 }
 
+/**
+ * Wraps `console.log/warn/error` so main-process output is also captured in the ring. Idempotent.
+ */
 function installMainLogCapture() {
   if (captureInstalled) return;
   captureInstalled = true;
@@ -36,8 +56,15 @@ function installMainLogCapture() {
   });
 }
 
+// Object keys whose values are always replaced with `[REDACTED]` in a support bundle.
 const SECRET_KEY = /(token|secret|password|passcode|api[-_]?key|authorization|cookie|credential)/i;
 
+/**
+ * Scrubs user paths, secret query parameters, auth headers, URL credentials and tokens from a string.
+ * @param {string} value The text to scrub.
+ * @param {?string[]} roots Paths to replace with `[USER_PATH]`.
+ * @returns {string} The redacted text.
+ */
 function redactString(value, roots) {
   let result = value;
   (roots || []).filter(Boolean).forEach((root) => { result = result.split(String(root)).join('[USER_PATH]'); });
@@ -48,6 +75,15 @@ function redactString(value, roots) {
     .replace(/\b(gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b/g, '[REDACTED_TOKEN]');
 }
 
+/**
+ * Deep-copies a value with secrets and user paths redacted.
+ * @param {*} value Any JSON-like value.
+ * @param {object} [opts={}] Redaction options.
+ * @param {string} [opts.userDataPath] The userData folder to hide.
+ * @param {string} [opts.homePath] The home folder to hide (defaults to `os.homedir()`).
+ * @param {string} [key=''] The object key this value sits under, checked against `SECRET_KEY`.
+ * @returns {*} The redacted copy.
+ */
 function redactDiagnosticValue(value, opts = {}, key = '') {
   if (SECRET_KEY.test(key)) return '[REDACTED]';
   const roots = [opts.userDataPath, opts.homePath || os.homedir()].filter(Boolean);
@@ -63,19 +99,27 @@ function redactDiagnosticValue(value, opts = {}, key = '') {
   return value;
 }
 
+/**
+ * The captured main-process log lines.
+ * @returns {Array<object>} A copy of the captured log ring, oldest first.
+ */
 function getMainLogs() { return logs.slice(); }
 
-// diagnostics:get/export are the one place this otherwise Electron-free
-// module needs Electron (app.getVersion/getPath, dialog.showSaveDialog) and
-// several boot-populated `let`s that live in main.js — rather than require()
-// electron/main-plugins/main-config here (which would break this file's own
-// "no Electron dependency, so redaction is testable" header promise), every
-// bit of that is injected via `deps`, including accessor functions (not raw
-// values) for pluginDisabledAtBoot/pluginMainLoadErrors/pluginsNeedingApproval/
-// pluginsNeedingIntegrityApproval/activatedMediaSourceProviders/
-// pluginServicesRef — all `let`s main.js reassigns once inside
-// app.whenReady(), after this is called, so a snapshot taken here at
-// registration time would silently stay stale forever.
+/**
+ * diagnostics:get/export are the one place this otherwise Electron-free
+ * module needs Electron (app.getVersion/getPath, dialog.showSaveDialog) and
+ * several boot-populated `let`s that live in main.js — rather than require()
+ * electron/main-plugins/main-config here (which would break this file's own
+ * "no Electron dependency, so redaction is testable" header promise), every
+ * bit of that is injected via `deps`, including accessor functions (not raw
+ * values) for pluginDisabledAtBoot/pluginMainLoadErrors/pluginsNeedingApproval/
+ * pluginsNeedingIntegrityApproval/activatedMediaSourceProviders/
+ * pluginServicesRef — all `let`s main.js reassigns once inside
+ * app.whenReady(), after this is called, so a snapshot taken here at
+ * registration time would silently stay stale forever.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ * @param {object} deps Electron objects, config and plugin accessors injected by main.js (see above).
+ */
 function registerDiagnosticsIpc(ipcMain, deps) {
   const {
     app, dialog, fs, getMainWindow, discoverPlugins, loadConfig,

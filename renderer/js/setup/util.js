@@ -19,11 +19,18 @@ export { openDynamicOverlayPositionEditor } from './overlay-editor.js';
 const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
 
-// A single lazy media-preview implementation shared by channel titles, the
-// bumper/ad pool, tag-usage reporting, and flow-builder match previews. Video
-// thumbnails seek to an early frame after metadata loads so they do not all
-// appear as the same black first frame. Failed or non-file sources degrade to
-// a labelled placeholder instead of leaving a broken media element behind.
+/**
+ * A single lazy media-preview implementation shared by channel titles, the
+ * bumper/ad pool, tag-usage reporting, and flow-builder match previews. Video
+ * thumbnails seek to an early frame after metadata loads so they do not all
+ * appear as the same black first frame. Failed or non-file sources degrade to
+ * a labelled placeholder instead of leaving a broken media element behind.
+ * @param {?string} filePath The media file path; null gives a placeholder.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.label='MEDIA'] Placeholder text (first five characters shown).
+ * @param {string} [opts.className=''] Extra class for the tile.
+ * @returns {HTMLElement} The thumbnail tile, which loads its media once scrolled near view.
+ */
 export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' } = {}) {
   const thumb = document.createElement('div');
   thumb.className = `media-thumbnail${className ? ` ${className}` : ''}`;
@@ -83,12 +90,15 @@ export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' 
   return thumb;
 }
 
-// Every distinct tag currently in use anywhere tags mean something —
-// per-file tags (TITLES tab), pool-entry contentTags, and preset
-// contentTags (PROGRAMMING tab) — so autocomplete (below) can suggest a tag
-// that's already established instead of only what's typed so far. Cheap
-// enough to recompute on every keystroke even for a large library (a
-// few thousand short strings deduped through a Set).
+/**
+ * Every distinct tag currently in use anywhere tags mean something —
+ * per-file tags (TITLES tab), pool-entry contentTags, and preset
+ * contentTags (PROGRAMMING tab) — so autocomplete (below) can suggest a tag
+ * that's already established instead of only what's typed so far. Cheap
+ * enough to recompute on every keystroke even for a large library (a
+ * few thousand short strings deduped through a Set).
+ * @returns {string[]} Every distinct tag, sorted.
+ */
 export function collectAllTags() {
   const tags = new Set();
   (S.config.channels || []).forEach((ch) => {
@@ -107,20 +117,23 @@ export function collectAllTags() {
   return Array.from(tags).sort();
 }
 
-// Tags that some real piece of CONTENT actually carries — per-file tags
-// (TITLES tab) plus a channel's own contentTags (ADS tab — see
-// interstitials.js's effectiveContentTags), which stand in for every file on
-// that channel. Deliberately narrower than collectAllTags above: that one
-// also includes pool-entry/preset contentTags themselves (so autocomplete
-// can suggest a tag someone already typed elsewhere), which is exactly what
-// makes a tag look "already in use" even when nothing actually airs with
-// it — an ad/preset/flow whose contentTags don't overlap THIS set can never
-// become eligible, full stop, regardless of channel/block affinity (see
-// poolFor, interstitials.js). Used to warn about that at edit time (setup-
-// interstitials.js, setup-interstitials-flowbuilder.js) and to flag it after
-// the fact (the "dead" pool-entry/preset health check, setup-channels-
-// diagnostics.js), so both stay in sync with the exact same definition of
-// "will this tag ever match."
+/**
+ * Tags that some real piece of CONTENT actually carries — per-file tags
+ * (TITLES tab) plus a channel's own contentTags (ADS tab — see
+ * interstitials.js's effectiveContentTags), which stand in for every file on
+ * that channel. Deliberately narrower than collectAllTags above: that one
+ * also includes pool-entry/preset contentTags themselves (so autocomplete
+ * can suggest a tag someone already typed elsewhere), which is exactly what
+ * makes a tag look "already in use" even when nothing actually airs with
+ * it — an ad/preset/flow whose contentTags don't overlap THIS set can never
+ * become eligible, full stop, regardless of channel/block affinity (see
+ * poolFor, interstitials.js). Used to warn about that at edit time (setup-
+ * interstitials.js, setup-interstitials-flowbuilder.js) and to flag it after
+ * the fact (the "dead" pool-entry/preset health check, setup-channels-
+ * diagnostics.js), so both stay in sync with the exact same definition of
+ * "will this tag ever match."
+ * @returns {Set<string>} Tags on channel and block files plus channel content tags.
+ */
 export function collectRealContentTags() {
   const tags = new Set();
   (S.config.channels || []).forEach((ch) => {
@@ -131,21 +144,31 @@ export function collectRealContentTags() {
   return tags;
 }
 
-// A small live-updating warning for any "APPLIES TO CONTENT TAGGED"-style
-// field (the pool entry editor, ad presets, flow contentTags, flow mid-show
-// cadence — setup-interstitials.js/setup-interstitials-flowbuilder.js) that
-// flags a tag no real content carries yet, at the moment it's typed, instead
-// of only showing up later as a silently-dead ad/preset/flow (the health
-// check catches the same condition after the fact — see collectRealContentTags
-// above and setup-channels-diagnostics.js). getTags() should return the
-// currently-entered tag array; call refresh() after every edit to that value
-// (both on this field's own change and, since a warning here has to reflect
-// content elsewhere in the config too, from anywhere content/channel tags
-// might change — callers that skip that are just accepting a slightly stale
-// warning until the next full re-render, not a wrong one).
+/**
+ * Builds the default warning text for tags no content carries.
+ * @param {string[]} dead The unmatched tags.
+ * @returns {string} The warning text.
+ */
 const defaultDeadTagMessage = (dead) =>
   `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — THIS WILL NEVER MATCH UNTIL SOME CONTENT IS. CHANNEL/BLOCK TARGETING ALONE DOESN'T SATISFY A CONTENT TAG.`;
 
+/**
+ * A small live-updating warning for any "APPLIES TO CONTENT TAGGED"-style
+ * field (the pool entry editor, ad presets, flow contentTags, flow mid-show
+ * cadence — setup-interstitials.js/setup-interstitials-flowbuilder.js) that
+ * flags a tag no real content carries yet, at the moment it's typed, instead
+ * of only showing up later as a silently-dead ad/preset/flow (the health
+ * check catches the same condition after the fact — see collectRealContentTags
+ * above and setup-channels-diagnostics.js). getTags() should return the
+ * currently-entered tag array; call refresh() after every edit to that value
+ * (both on this field's own change and, since a warning here has to reflect
+ * content elsewhere in the config too, from anywhere content/channel tags
+ * might change — callers that skip that are just accepting a slightly stale
+ * warning until the next full re-render, not a wrong one).
+ * @param {() => string[]} getTags Returns the tags currently entered.
+ * @param {(dead: string[]) => string} [formatMessage=defaultDeadTagMessage] Builds the warning text.
+ * @returns {object} `{ el, refresh }`: the warning element and a function that re-checks it.
+ */
 export function buildDeadTagWarning(getTags, formatMessage = defaultDeadTagMessage) {
   const el = document.createElement('div');
   el.className = 'dead-tag-warning hidden';
@@ -162,16 +185,20 @@ export function buildDeadTagWarning(getTags, formatMessage = defaultDeadTagMessa
   return { el, refresh };
 }
 
-// Turns a plain comma-separated tags <input> into one with a suggestion
-// dropdown for the tag currently being typed (the text after the last
-// comma) — a plain HTML5 <datalist> doesn't work for this shape of field,
-// since browsers match a datalist option against the *entire* input value,
-// not the last comma-separated segment. Wraps the input in a small
-// position:relative span (so the dropdown can anchor under just the input,
-// not the whole row) and inserts that wrapper in the input's place in the
-// DOM — callers should append/insert the returned wrapper, not the
-// original input, and keep using the original input element for its value/
-// events exactly as before.
+/**
+ * Turns a plain comma-separated tags <input> into one with a suggestion
+ * dropdown for the tag currently being typed (the text after the last
+ * comma) — a plain HTML5 <datalist> doesn't work for this shape of field,
+ * since browsers match a datalist option against the *entire* input value,
+ * not the last comma-separated segment. Wraps the input in a small
+ * position:relative span (so the dropdown can anchor under just the input,
+ * not the whole row) and inserts that wrapper in the input's place in the
+ * DOM — callers should append/insert the returned wrapper, not the
+ * original input, and keep using the original input element for its value/
+ * events exactly as before.
+ * @param {HTMLInputElement} inputEl The comma-separated tags input.
+ * @returns {HTMLElement} The wrapper that now holds the input; insert it in the input's place.
+ */
 export function attachTagAutocomplete(inputEl) {
   const wrap = document.createElement('span');
   wrap.className = 'tag-ac-wrap';
@@ -255,30 +282,41 @@ export function attachTagAutocomplete(inputEl) {
   return wrap;
 }
 
-// Shared show/hide-and-build-once-revealed pattern for a panel toggled by a
-// button (day-overrides, block ADS, channel EDIT) — avoids building content
-// eagerly for every row up front.
-// An empty collection (docs/design/03 §5.4): one plain sentence and one
-// primary action. `action` is { label, run }; leave it out when there is
-// nothing to do but wait.
-// The setup screen's positional form of the kit's EmptyState.
+/**
+ * An empty collection (docs/design/03 §5.4): one plain sentence and one
+ * primary action. `action` is { label, run }; leave it out when there is
+ * nothing to do but wait.
+ * The setup screen's positional form of the kit's EmptyState.
+ * @param {string} text The sentence to show.
+ * @param {?object} [action=null] The primary action, `{ label, run }`.
+ * @returns {HTMLElement} The empty-state element.
+ */
 export function emptyState(text, action = null) {
   return EmptyState({ message: text, action });
 }
 
+/**
+ * Shared show/hide-and-build-once-revealed pattern for a panel toggled by a
+ * button (day-overrides, block ADS, channel EDIT) — avoids building content
+ * eagerly for every row up front.
+ * @param {HTMLElement} panelEl The panel to show or hide.
+ * @param {Function} buildFn Fills the panel; called each time it is shown.
+ */
 export function toggleLazyPanel(panelEl, buildFn) {
   const willShow = panelEl.classList.contains('hidden');
   panelEl.classList.toggle('hidden');
   if (willShow) buildFn();
 }
 
-// Parses a string as a positive integer, falling back when it isn't one —
-// used by every box-wide interval field (commercials/standby/stationId/
-// ticker/trivia/screensaver) plus the per-block ads interval.
-// Records top-level fields of a channel or a schedule block as they now stand
-// (after an in-place edit) as one command: channel.setFields for a channel,
-// item.set on its channel's blocks for a block. Both are found in S.config by
-// identity, the way the setup panels hold them. See state.js commitInPlace.
+/**
+ * Records top-level fields of a channel or a schedule block as they now stand
+ * (after an in-place edit) as one command: channel.setFields for a channel,
+ * item.set on its channel's blocks for a block. Both are found in S.config by
+ * identity, the way the setup panels hold them. See state.js commitInPlace.
+ * @param {object} owner The channel or schedule block, as held in `S.config`.
+ * @param {string[]} fields The top-level field names to record.
+ * @returns {object} A `channel.setFields` or `item.set` command.
+ */
 export function ownerFieldsCommand(owner, fields) {
   const values = Object.fromEntries(fields.map((field) => [field, owner[field]]));
   const channels = (S.config && S.config.channels) || [];
@@ -287,16 +325,27 @@ export function ownerFieldsCommand(owner, fields) {
   return { type: 'item.set', collection: 'blocks', channel: ch ? ch.number : null, id: owner.id, fields: values };
 }
 
+/**
+ * Commits top-level fields of a channel or schedule block, already changed in place, as one undo step through `commitInPlace`.
+ * @param {object} owner The channel or schedule block, as held in `S.config`.
+ * @param {string[]} fields The changed field names.
+ * @param {object} [opts={}] `commitInPlace` options such as `label` and `coalesce`.
+ * @returns {*} What `commitInPlace` returns.
+ */
 export function commitOwnerFields(owner, fields, opts = {}) {
   return commitInPlace(ownerFieldsCommand(owner, fields), opts);
 }
 
-// Renumbering or swapping channels must carry every number-keyed reference with
-// it, or ads/flows/presets/PIN locks silently end up pointing at whichever channel
-// now holds the old number. `map` is a Map (or plain object) of oldNumber ->
-// newNumber; a swap is just both directions in one map. Arrays are rewritten in
-// place so object identity survives. Pool channelAffinity may be 'any' (left alone).
-// Favorites live in the personal-profile store, not config, and are not touched here.
+/**
+ * Renumbering or swapping channels must carry every number-keyed reference with
+ * it, or ads/flows/presets/PIN locks silently end up pointing at whichever channel
+ * now holds the old number. `map` is a Map (or plain object) of oldNumber ->
+ * newNumber; a swap is just both directions in one map. Arrays are rewritten in
+ * place so object identity survives. Pool channelAffinity may be 'any' (left alone).
+ * Favorites live in the personal-profile store, not config, and are not touched here.
+ * @param {?object} config The config to rewrite in place.
+ * @param {Map<number, number>|object} map Old channel number to new.
+ */
 export function remapChannelRefs(config, map) {
   if (!config) return;
   const lookup = map instanceof Map ? map : new Map(Object.entries(map).map(([k, v]) => [Number(k), v]));
@@ -318,23 +367,37 @@ export function remapChannelRefs(config, map) {
   });
 }
 
+/**
+ * Parses a string as a positive integer, falling back when it isn't one —
+ * used by every box-wide interval field (commercials/standby/stationId/
+ * ticker/trivia/screensaver) plus the per-block ads interval.
+ * @param {string} str The text to parse.
+ * @param {*} fallback Returned when the text is not a positive integer.
+ * @returns {*} The parsed number, or `fallback`.
+ */
 export function parsePositiveInt(str, fallback) {
   const n = parseInt(str, 10);
   return (Number.isFinite(n) && n > 0) ? n : fallback;
 }
 
-// Visual companion to an "AT SET POINTS (%)" breakpoints text field (the
-// per-channel ADS panel, setup-panels.js, and the PROGRAMMING tab's
-// cadence presets, setup-interstitials.js both have their own) — a
-// horizontal track representing a show from 0-100%, with a draggable pin
-// per breakpoint. Click empty track to add a point, drag a pin to
-// reposition it, click a pin (no drag) to remove it. Kept in sync with
-// `syncTextInput` (the plain comma-list field) in both directions rather
-// than replacing it — some users will always prefer typing exact numbers,
-// and the text field is also what screen readers/keyboard-only editing
-// fall back to. `getPoints`/`setPoints` read/write wherever the caller's
-// own breakpoints array actually lives (cc.breakpoints vs preset.breakpoints)
-// so this stays agnostic to which owner object it's editing.
+/**
+ * Visual companion to an "AT SET POINTS (%)" breakpoints text field (the
+ * per-channel ADS panel, setup-panels.js, and the PROGRAMMING tab's
+ * cadence presets, setup-interstitials.js both have their own) — a
+ * horizontal track representing a show from 0-100%, with a draggable pin
+ * per breakpoint. Click empty track to add a point, drag a pin to
+ * reposition it, click a pin (no drag) to remove it. Kept in sync with
+ * `syncTextInput` (the plain comma-list field) in both directions rather
+ * than replacing it — some users will always prefer typing exact numbers,
+ * and the text field is also what screen readers/keyboard-only editing
+ * fall back to. `getPoints`/`setPoints` read/write wherever the caller's
+ * own breakpoints array actually lives (cc.breakpoints vs preset.breakpoints)
+ * so this stays agnostic to which owner object it's editing.
+ * @param {() => ?number[]} getPoints Returns the current breakpoints (percentages).
+ * @param {(points: ?number[]) => void} setPoints Saves sorted breakpoints, or null for none.
+ * @param {Function} syncTextInput Updates the matching text field after a change.
+ * @returns {HTMLElement} The track element.
+ */
 export function buildBreakpointTrack(getPoints, setPoints, syncTextInput) {
   const track = document.createElement('div');
   track.className = 'breakpoint-track';
@@ -394,15 +457,22 @@ export function buildBreakpointTrack(getPoints, setPoints, syncTextInput) {
 // The live layout editor (O key / LIVE EDITOR buttons) lives in its own module.
 export { openLiveLogoBugEditor };
 
-// The old detached miniature preview was removed: placement is edited only
-// against the running channel, so the grid, display mode, logo and touch
-// targets all use the same geometry the viewer will actually see.
-// ch (optional): the channel this profile array belongs to (buildLogoBugPanel,
-// setup-panels.js, for a per-channel override) — when passed, the live
-// editor tunes to ch.number specifically instead of whatever's already live,
-// so you're always editing WYSIWYG against the actual channel being
-// configured. Omitted by the box-wide default editor (setup-settings.js),
-// which has no single channel of its own to prefer.
+/**
+ * The old detached miniature preview was removed: placement is edited only
+ * against the running channel, so the grid, display mode, logo and touch
+ * targets all use the same geometry the viewer will actually see.
+ * ch (optional): the channel this profile array belongs to (buildLogoBugPanel,
+ * setup-panels.js, for a per-channel override) — when passed, the live
+ * editor tunes to ch.number specifically instead of whatever's already live,
+ * so you're always editing WYSIWYG against the actual channel being
+ * configured. Omitted by the box-wide default editor (setup-settings.js),
+ * which has no single channel of its own to prefer.
+ * @param {() => Array<object>} getProfiles Returns the logo bug profiles being edited.
+ * @param {(profiles: Array<object>) => void} setProfiles Saves the edited profiles.
+ * @param {Function} onLiveChange Called on each live change so the bug can be re-placed.
+ * @param {object} [ch] The channel config the profiles belong to.
+ * @returns {HTMLElement} The editor element.
+ */
 export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange, ch) {
   const wrap = document.createElement('div');
   const explanation = document.createElement('p');
@@ -427,17 +497,23 @@ export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange
   return wrap;
 }
 
-// Repeatable rule-row list for dynamicOverlays (channels.js) — box-wide
-// (S.config.display.dynamicOverlays, setup-settings.js) and per-channel
-// (ch.dynamicOverlays, setup-panels.js) both call this with their own
-// get/set pair, same reuse pattern as buildLogoBugProfileEditor above. Each
-// rule fires a user-picked image/video in one screen corner (or a custom
-// dragged spot) when its trigger condition happens (channel tune-in,
-// program start, or a specific break type), optionally scoped to content
-// carrying a particular tag — see dynamic-overlays.js for the actual
-// runtime side. ch (optional): the channel these rules belong to, so
-// POSITION opens the live editor tuned to it, same reasoning as
-// buildLogoBugProfileEditor's own ch param.
+/**
+ * Repeatable rule-row list for dynamicOverlays (channels.js) — box-wide
+ * (S.config.display.dynamicOverlays, setup-settings.js) and per-channel
+ * (ch.dynamicOverlays, setup-panels.js) both call this with their own
+ * get/set pair, same reuse pattern as buildLogoBugProfileEditor above. Each
+ * rule fires a user-picked image/video in one screen corner (or a custom
+ * dragged spot) when its trigger condition happens (channel tune-in,
+ * program start, or a specific break type), optionally scoped to content
+ * carrying a particular tag — see dynamic-overlays.js for the actual
+ * runtime side. ch (optional): the channel these rules belong to, so
+ * POSITION opens the live editor tuned to it, same reasoning as
+ * buildLogoBugProfileEditor's own ch param.
+ * @param {() => Array<object>} getRules Returns the overlay rules being edited.
+ * @param {(rules: Array<object>) => void} setRules Saves the edited rules.
+ * @param {object} [ch] The channel config the rules belong to.
+ * @returns {HTMLElement} The editor element.
+ */
 export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
   const wrap = document.createElement('div');
   wrap.className = 'dynamic-overlays-editor';
@@ -627,10 +703,15 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
   return wrap;
 }
 
-// Editor for ch.iconOverrides — same getRules/setRules + rebuild-on-change
-// shape as buildDynamicOverlaysEditor above. Month/day fields are plain
-// 1-12/1-31 number inputs rather than a date picker since these are
-// recurring-every-year calendar ranges, not specific dates.
+/**
+ * Editor for ch.iconOverrides — same getRules/setRules + rebuild-on-change
+ * shape as buildDynamicOverlaysEditor above. Month/day fields are plain
+ * 1-12/1-31 number inputs rather than a date picker since these are
+ * recurring-every-year calendar ranges, not specific dates.
+ * @param {() => Array<object>} getOverrides Returns the icon overrides being edited.
+ * @param {(overrides: Array<object>) => void} setOverrides Saves the edited overrides.
+ * @returns {HTMLElement} The editor element.
+ */
 export function buildIconOverridesEditor(getOverrides, setOverrides) {
   const wrap = document.createElement('div');
   wrap.className = 'dynamic-overlays-editor';
@@ -735,12 +816,17 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
   return wrap;
 }
 
-// Editor for S.config.preemptionWindows — absolute real-clock ranges
-// (start/end, not a recurring cadence) that resolveBreakAt (interstitials.js)
-// checks ahead of every other break type. Same getRules/setRules +
-// rebuild-the-whole-list-on-any-change shape as buildDynamicOverlaysEditor
-// above, since the underlying data is the same "array of small config
-// objects with a remove button" shape.
+/**
+ * Editor for S.config.preemptionWindows — absolute real-clock ranges
+ * (start/end, not a recurring cadence) that resolveBreakAt (interstitials.js)
+ * checks ahead of every other break type. Same getRules/setRules +
+ * rebuild-the-whole-list-on-any-change shape as buildDynamicOverlaysEditor
+ * above, since the underlying data is the same "array of small config
+ * objects with a remove button" shape.
+ * @param {() => Array<object>} getWindows Returns the preemption windows being edited.
+ * @param {(windows: Array<object>) => void} setWindows Saves the edited windows.
+ * @returns {HTMLElement} The editor element.
+ */
 export function buildPreemptionWindowsEditor(getWindows, setWindows) {
   const wrap = document.createElement('div');
   wrap.className = 'dynamic-overlays-editor';
@@ -924,19 +1010,25 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
   return wrap;
 }
 
-// Builds a live numeric readout that tracks a range slider's value, kept in
-// sync on 'input' — a bare <input type="range"> gives no visual feedback on
-// the number it's currently set to, which turns fine-tuning (CRT intensity,
-// volume, logo size, per-channel volume) into blind guesswork by track
-// position alone. Auto-inserts itself right after the slider ONLY when the
-// slider already has a DOM parent (true for every static HTML slider, wired
-// at module load) — a freshly `document.createElement`'d slider that hasn't
-// been appended anywhere yet has no parent to insert next to, so that case
-// (the per-channel volume slider, built fresh per row) gets back `el`
-// unattached and must place it explicitly once the slider itself is in the
-// DOM. `refresh` lets a caller resync the readout after setting
-// slider.value programmatically (e.g. a RESET button), since that doesn't
-// fire a real 'input' event.
+/**
+ * Builds a live numeric readout that tracks a range slider's value, kept in
+ * sync on 'input' — a bare <input type="range"> gives no visual feedback on
+ * the number it's currently set to, which turns fine-tuning (CRT intensity,
+ * volume, logo size, per-channel volume) into blind guesswork by track
+ * position alone. Auto-inserts itself right after the slider ONLY when the
+ * slider already has a DOM parent (true for every static HTML slider, wired
+ * at module load) — a freshly `document.createElement`'d slider that hasn't
+ * been appended anywhere yet has no parent to insert next to, so that case
+ * (the per-channel volume slider, built fresh per row) gets back `el`
+ * unattached and must place it explicitly once the slider itself is in the
+ * DOM. `refresh` lets a caller resync the readout after setting
+ * slider.value programmatically (e.g. a RESET button), since that doesn't
+ * fire a real 'input' event.
+ * @param {HTMLInputElement} slider The range input.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.suffix] Text after the number, e.g. `%`.
+ * @returns {object} `{ el, refresh }`: the readout element and a function that resyncs it.
+ */
 export function attachSliderReadout(slider, opts) {
   opts = opts || {};
   const suffix = opts.suffix || '';
@@ -961,16 +1053,26 @@ export function attachSliderReadout(slider, opts) {
   return { el: readout, refresh: update };
 }
 
-// IPC wrappers for the setup screen. A bare `await window.api.x()` that rejects
-// becomes an unhandled promise rejection and the click silently does nothing;
-// tests/setup-api-calls.test.js fails on new bare awaits outside these.
-//   tryApi(fn)          -> { ok, value, error } and never throws or shows UI
-//                          (for loops that want to continue and report once)
-//   safeApi(label, fn)  -> the value, or undefined after an error dialog
+/**
+ * IPC wrappers for the setup screen. A bare `await window.api.x()` that rejects
+ * becomes an unhandled promise rejection and the click silently does nothing;
+ * tests/setup-api-calls.test.js fails on new bare awaits outside these.
+ *   tryApi(fn)          -> { ok, value, error } and never throws or shows UI
+ *                          (for loops that want to continue and report once)
+ *   safeApi(label, fn)  -> the value, or undefined after an error dialog
+ * @param {() => Promise<*>} fn The API call.
+ * @returns {Promise<object>} `{ ok, value, error }`.
+ */
 export async function tryApi(fn) {
   try { return { ok: true, value: await fn(), error: null }; }
   catch (error) { return { ok: false, value: undefined, error }; }
 }
+/**
+ * Runs an API call and shows an error dialog if it fails.
+ * @param {string} label What was being done, for the dialog, e.g. "Opening the file picker".
+ * @param {() => Promise<*>} fn The API call.
+ * @returns {Promise<*>} The call's value, or undefined after an error.
+ */
 export async function safeApi(label, fn) {
   const r = await tryApi(fn);
   if (r.ok) return r.value;
@@ -986,6 +1088,11 @@ export async function safeApi(label, fn) {
 // here: each call cancels the previous one. ttlMs omitted/0 leaves the text up
 // (progress); a number auto-hides after that long.
 let scanStatusTimer = null;
+/**
+ * Shows a message on the shared status line, cancelling any pending hide.
+ * @param {string} text The message.
+ * @param {number} [ttlMs=0] Hide after this many milliseconds; 0 leaves it up.
+ */
 export function showScanStatus(text, ttlMs = 0) {
   if (!scanProgressEl) return;
   clearTimeout(scanStatusTimer);
@@ -994,13 +1101,19 @@ export function showScanStatus(text, ttlMs = 0) {
   scanProgressEl.textContent = text;
   if (ttlMs > 0) scanStatusTimer = setTimeout(hideScanStatus, ttlMs);
 }
+/**
+ * Hides the shared status line now and cancels any pending hide.
+ */
 export function hideScanStatus() {
   if (!scanProgressEl) return;
   clearTimeout(scanStatusTimer);
   scanStatusTimer = null;
   scanProgressEl.classList.add('hidden');
 }
-// Hide the current message after ttlMs (replaces a bare setTimeout(hide)).
+/**
+ * Hide the current message after ttlMs (replaces a bare setTimeout(hide)).
+ * @param {number} ttlMs Milliseconds until the line hides.
+ */
 export function hideScanStatusAfter(ttlMs) {
   clearTimeout(scanStatusTimer);
   scanStatusTimer = setTimeout(hideScanStatus, ttlMs);
@@ -1021,16 +1134,29 @@ const PROBE_CONCURRENCY = 4;
 let probesRunning = 0;
 const probeWaiters = [];
 
+/**
+ * Waits for one of the `PROBE_CONCURRENCY` probe slots.
+ * @returns {Promise<void>} Resolves once a slot is held.
+ */
 function acquireProbeSlot() {
   if (probesRunning < PROBE_CONCURRENCY) { probesRunning++; return Promise.resolve(); }
   return new Promise((resolve) => probeWaiters.push(resolve));
 }
+/**
+ * Frees a probe slot, handing it straight to the next waiter when there is one.
+ */
 function releaseProbeSlot() {
   const next = probeWaiters.shift();
   if (next) next(); // slot handed straight over; probesRunning unchanged
   else probesRunning--;
 }
 
+/**
+ * Loads a URL into a detached video element and reads its duration, releasing the element afterwards.
+ * @param {string} url The media URL.
+ * @param {number} timeoutMs Give up after this long.
+ * @returns {Promise<?number>} The duration in seconds, or null when unreadable or timed out.
+ */
 function probeOnce(url, timeoutMs) {
   return new Promise((resolve) => {
     const v = document.createElement('video');
@@ -1051,6 +1177,13 @@ function probeOnce(url, timeoutMs) {
   });
 }
 
+/**
+ * Probes a local file's duration (see the comment above `PROBE_CONCURRENCY`), retrying once with a longer timeout.
+ * @param {string} filePath The local file path.
+ * @param {object} [opts] Options.
+ * @param {?number} [opts.fallback=null] Returned when the file cannot be read.
+ * @returns {Promise<?number>} The duration in seconds, or `fallback`.
+ */
 export async function probeDuration(filePath, { fallback = null } = {}) {
   await acquireProbeSlot();
   try {
@@ -1065,12 +1198,18 @@ export async function probeDuration(filePath, { fallback = null } = {}) {
   }
 }
 
-// Source-aware sibling of probeDuration above — 'local' defers to the exact
-// existing <video>-element probe (byte-identical to every call site before
-// this existed), anything else asks that provider's own probe() service via
-// the main-process dispatch layer (media:probeDuration, main.js/
-// main-media-dispatch.js), since a plugin-sourced ref has no playback
-// dispatch path a <video> element could load in the first place.
+/**
+ * Source-aware sibling of probeDuration above — 'local' defers to the exact
+ * existing <video>-element probe (byte-identical to every call site before
+ * this existed), anything else asks that provider's own probe() service via
+ * the main-process dispatch layer (media:probeDuration, main.js/
+ * main-media-dispatch.js), since a plugin-sourced ref has no playback
+ * dispatch path a <video> element could load in the first place.
+ * @param {string} source The media source id; `local` or empty probes on disk.
+ * @param {string} ref The file path or provider ref.
+ * @param {object} [opts] `probeDuration` options, local only.
+ * @returns {Promise<?number>} The duration in seconds, or the fallback when unreadable.
+ */
 export async function probeDurationForEntry(source, ref, opts) {
   if (!source || source === 'local') return probeDuration(ref, opts);
   return window.api.probeDuration(source, ref);

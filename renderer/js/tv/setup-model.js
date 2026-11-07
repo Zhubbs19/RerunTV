@@ -2,14 +2,29 @@
 // ◀▶, cycling a choice, editing text on the on-screen keyboard, and the
 // first-run wizard's steps. No DOM, so node:test covers them.
 
-// ◀▶ on a numeric setting: one step, clamped.
+/**
+ * ◀▶ on a numeric setting: one step, clamped.
+ * @param {*} value The current value; a non-numeric value starts from `min`.
+ * @param {number} direction +1 or -1.
+ * @param {object} [opts] Range options.
+ * @param {number} [opts.min=0] Lowest allowed value.
+ * @param {number} [opts.max=100] Highest allowed value.
+ * @param {number} [opts.step=5] Step size; the result snaps to a multiple of it.
+ * @returns {number} The stepped, clamped value.
+ */
 export function stepNumber(value, direction, { min = 0, max = 100, step = 5 } = {}) {
   const current = Number.isFinite(Number(value)) ? Number(value) : min;
   const next = Math.round((current + direction * step) / step) * step;
   return Math.max(min, Math.min(max, next));
 }
 
-// ◀▶ / OK on a choice: the next (or previous) option, wrapping.
+/**
+ * ◀▶ / OK on a choice: the next (or previous) option, wrapping.
+ * @param {Array<*>} options The available options in order.
+ * @param {*} current The current option.
+ * @param {number} [direction=1] +1 for next, -1 for previous.
+ * @returns {*} The neighbouring option, or `current` when there are no options.
+ */
 export function cycleChoice(options, current, direction = 1) {
   if (!options || !options.length) return current;
   const idx = options.indexOf(current);
@@ -26,7 +41,14 @@ export const OSK_ROWS = [
   ['SPACE', 'DELETE', 'CLEAR', 'DONE'],
 ];
 
-// One key applied to the text. Returns { value, done }.
+/**
+ * One key applied to the text. Returns { value, done }.
+ * @param {?string} value The text so far.
+ * @param {string} key An OSK_ROWS key: a character, SPACE, DELETE, CLEAR or DONE.
+ * @param {object} [opts] Limits.
+ * @param {number} [opts.maxLength=60] Characters past this are ignored.
+ * @returns {object} `{ value, done }`: the new text and whether DONE was pressed.
+ */
 export function applyOskKey(value, key, { maxLength = 60 } = {}) {
   const text = String(value || '');
   if (key === 'DONE') return { value: text, done: true };
@@ -41,6 +63,11 @@ export function applyOskKey(value, key, { maxLength = 60 } = {}) {
 // ---------- First-run wizard (§6.5) ----------
 export const WIZARD_STEPS = ['welcome', 'channels', 'comfort', 'updates', 'remote', 'done'];
 
+/**
+ * The wizard step after `step`.
+ * @param {string} step A WIZARD_STEPS id.
+ * @returns {string} The next step id, or `'done'` for the last or an unknown step.
+ */
 export function nextWizardStep(step) {
   const i = WIZARD_STEPS.indexOf(step);
   return i === -1 || i === WIZARD_STEPS.length - 1 ? 'done' : WIZARD_STEPS[i + 1];
@@ -54,7 +81,15 @@ export const REMOTE_CHECK = [
   { prompt: 'Now press and HOLD OK', key: 'ok', longPress: true },
 ];
 
-// info: { remoteKey, longPress }. Returns the next check index.
+/**
+ * Advances the remote check when the pressed button matches the current prompt.
+ * info: { remoteKey, longPress }. Returns the next check index.
+ * @param {number} index The current REMOTE_CHECK index.
+ * @param {?object} info The button that arrived.
+ * @param {string} info.remoteKey The normalized remote key name.
+ * @param {boolean} info.longPress Whether it was a long press.
+ * @returns {number} `index + 1` on a match, otherwise `index`.
+ */
 export function advanceRemoteCheck(index, info) {
   const want = REMOTE_CHECK[index];
   if (!want || !info) return index;

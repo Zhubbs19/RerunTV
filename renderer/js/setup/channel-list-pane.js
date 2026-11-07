@@ -26,6 +26,12 @@ import { renderChannelList } from './channels.js';
 // dropped video files (setup-dragdrop.js); Ctrl/Shift+click selects several
 // (see Multi-select below).
 
+/**
+ * Draws the lineup list: one row per channel plus a PLUGIN CHANNELS row when plugin channels exist.
+ * Rows handle selection, multi-select, keyboard navigation and drag-to-reorder.
+ * @param {Array<object>} list The channel configs to show, already sorted and filtered.
+ * @param {Array<object>} pluginEntries Plugin channel entries from `pluginChannelEntries()`.
+ */
 export function renderChannelListPane(list, pluginEntries) {
   if (!channelListPaneEl) return;
   list.forEach((ch) => {
@@ -196,17 +202,21 @@ channelListPaneEl?.addEventListener('keydown', (e) => {
 // plugin channel today, so this only needs to remember open/closed.
 const openPluginChannelPanels = new Set();
 
-// A registerChannelType channel (Digital Music, Party, Guide, Public Access,
-// etc. — plugins.js) has no entry in S.config.channels at all (see that
-// file's registerChannelType doc comment and virtual.js) — its content comes
-// entirely from the plugin's own render(), not from folders/files/a
-// schedule. So unlike a real channel row above, this section only exposes
-// what actually applies to a plugin channel: renaming/renumbering it (backed
-// by getPluginChannelOverride/updatePluginChannelOverride, plugins.js) and
-// the same CHANNEL DISPLAY resolution/aspect override its PLUGINS-tab
-// settings row already offers (renderChannelDisplaySettings, imported from
-// setup-plugin-settings.js) — no FOLDERS/SCHEDULE/TITLES/ADS tabs, since
-// none of those concepts exist for a plugin-supplied channel.
+/**
+ * Lists the plugin-supplied channels for the setup list, minus any shadowed by a real channel at the same number.
+ * A registerChannelType channel (Digital Music, Party, Guide, Public Access,
+ * etc. — plugins.js) has no entry in S.config.channels at all (see that
+ * file's registerChannelType doc comment and virtual.js) — its content comes
+ * entirely from the plugin's own render(), not from folders/files/a
+ * schedule. So unlike a real channel row above, this section only exposes
+ * what actually applies to a plugin channel: renaming/renumbering it (backed
+ * by getPluginChannelOverride/updatePluginChannelOverride, plugins.js) and
+ * the same CHANNEL DISPLAY resolution/aspect override its PLUGINS-tab
+ * settings row already offers (renderChannelDisplaySettings, imported from
+ * setup-plugin-settings.js) — no FOLDERS/SCHEDULE/TITLES/ADS tabs, since
+ * none of those concepts exist for a plugin-supplied channel.
+ * @returns {Array<object>} `{ id, def, override }` entries sorted by number, narrowed by the list filter.
+ */
 export function pluginChannelEntries() {
   const ids = pluginChannelTypeIds();
   if (!ids.length) return [];
@@ -230,6 +240,10 @@ export function pluginChannelEntries() {
   return list.sort((a, b) => a.override.number - b.override.number);
 }
 
+/**
+ * Draws the PLUGIN CHANNELS section into the detail pane: a rename/renumber row and a CHANNEL DISPLAY panel per plugin channel.
+ * @param {Array<object>} list Plugin channel entries from `pluginChannelEntries()`.
+ */
 export function renderPluginChannelSection(list) {
   if (!list.length) return;
   const ids = pluginChannelTypeIds();

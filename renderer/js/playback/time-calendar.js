@@ -32,20 +32,36 @@ import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 const MONTH_NAMES = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
 
 let surface = null;
-// The day list's whole-row fit on the cable-guide layout (page.js wholeRows);
-// the list is rebuilt on every step, so the previous fit is stopped first.
+/**
+ * Stops the day list's whole-row fit on the cable-guide layout (page.js wholeRows);
+ * the list is rebuilt on every step, so the previous fit is stopped first.
+ * Replaced with each new fit's stop().
+ */
 let stopDayRows = () => {};
 
+/**
+ * Reports whether the calendar is open.
+ * @returns {boolean} True while the calendar is showing.
+ */
 export function isTimeCalendarOpen() {
   return !!surface && surface.isOpen();
 }
 
+/**
+ * Closes the calendar if it is open.
+ */
 export function closeTimeCalendar() {
   stopDayRows();
   if (surface) surface.close();
   surface = null;
 }
 
+/**
+ * Works out what a channel would be airing at a moment, for the calendar's footer.
+ * @param {object} ch The channel config.
+ * @param {number} ms The moment in epoch milliseconds.
+ * @returns {object} `{ title, block }`; title is a dash when nothing resolves.
+ */
 function airingAt(ch, ms) {
   try {
     const source = resolveActiveSource(ch, ms);
@@ -57,10 +73,15 @@ function airingAt(ch, ms) {
   }
 }
 
-// One day of a channel's schedule as rows: programs, with runs of shorts
-// merged the way the guide merges them, so a day of videos stays readable.
 const DAY_MS = 24 * 3600000;
 const SHORT_MS = 5 * 60000;
+/**
+ * One day of a channel's schedule as rows: programs, with runs of shorts
+ * merged the way the guide merges them, so a day of videos stays readable.
+ * @param {object} ch The channel config.
+ * @param {{year: number, month: number, day: number}} date The day (month from 0).
+ * @returns {Array<object>} The rows (`start`, `end`, `title`, `block`, `special`).
+ */
 function dayRows(ch, date) {
   const start = new Date(date.year, date.month, date.day).getTime();
   const end = new Date(date.year, date.month, date.day + 1).getTime();
@@ -78,26 +99,53 @@ function dayRows(ch, date) {
   });
 }
 
+/**
+ * A schedule block's name for a row, or "Special programming" when it has none.
+ * @param {?object} block The schedule block.
+ * @returns {string} The name.
+ */
 function blockName(block) {
   return (block && block.name && block.name.trim()) || 'Special programming';
 }
 
+/**
+ * A 12-hour clock label for a time of day: the hour label on the hour, else "9:30 PM".
+ * @param {number} hour The hour, 0-23.
+ * @param {number} minute The minute.
+ * @returns {string} The label.
+ */
 function clockLabel(hour, minute) {
   if (!minute) return hourLabel(hour);
   const h12 = hour % 12 || 12;
   return `${h12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
 }
 
+/**
+ * Formats a calendar date as "MON DEC 25, 2000" style text (names from `WEEKDAYS` / `MONTHS`).
+ * @param {object} date `{ year, month, day }` with a 0-based month.
+ * @returns {string} The label.
+ */
 function dayLabel(date) {
   const wd = WEEKDAYS[new Date(date.year, date.month, date.day).getDay()].slice(0, 3);
   return `${wd} ${MONTHS[date.month]} ${date.day}, ${date.year}`;
 }
 
-// openTimeCalendar({ channel, startMs, label, onGo, needsTimeMachine })
-//   channel           the channel whose blocks and schedule to show (default: the tuned one)
-//   startMs           the moment to start on (default: the viewed time)
-//   onGo(ms, label)   what GO does (default: jump the time machine there)
-//   needsTimeMachine  false for setup's PREVIEW, which does not need the time machine switched on
+/**
+ * Opens the time-machine calendar, or closes it if it is already open.
+ *
+ * openTimeCalendar({ channel, startMs, label, onGo, needsTimeMachine })
+ *   channel           the channel whose blocks and schedule to show (default: the tuned one)
+ *   startMs           the moment to start on (default: the viewed time)
+ *   onGo(ms, label)   what GO does (default: jump the time machine there)
+ *   needsTimeMachine  false for setup's PREVIEW, which does not need the time machine switched on
+ * @param {object} [options={}] Calendar options.
+ * @param {object} [options.channel] Channel config to show (default: the tuned one).
+ * @param {number} [options.startMs] Starting moment in epoch milliseconds.
+ * @param {(ms: number, label: string) => void} [options.onGo] Action for GO.
+ * @param {boolean} [options.needsTimeMachine=true] Whether the time machine must be available.
+ * @param {string} [options.title] Heading text.
+ * @param {string} [options.goText] Label for the GO button.
+ */
 export function openTimeCalendar(options = {}) {
   if (isTimeCalendarOpen()) { closeTimeCalendar(); return; }
   const ch = options.channel || getChannel(S.currentNumber);

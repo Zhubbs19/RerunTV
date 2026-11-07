@@ -29,10 +29,17 @@
 // blast radius).
 let speakerFilter = null;
 
+/**
+ * Applies the configured speaker lowpass cutoff to the shared filter, creating it if needed.
+ */
 export function applySpeakerCutoff() {
   getSpeakerFilter();
 }
 
+/**
+ * Returns the shared speaker lowpass filter, creating it on first use and updating its cutoff.
+ * @returns {BiquadFilterNode} The filter every generator in this plugin connects to.
+ */
 function getSpeakerFilter() {
   const ctx = window.getAudioCtx();
   if (!speakerFilter) {
@@ -46,6 +53,13 @@ function getSpeakerFilter() {
   return speakerFilter;
 }
 
+/**
+ * Plays a short band-passed white-noise burst through the speaker filter.
+ * @param {object} opts Burst options.
+ * @param {number} opts.duration Length in milliseconds.
+ * @param {number} opts.filterFreq Band-pass centre frequency in Hz.
+ * @param {number} opts.gain Output gain.
+ */
 function playNoiseBurst(opts) {
   const ctx = window.getAudioCtx();
   const bufferSize = ctx.sampleRate * (opts.duration / 1000);
@@ -63,12 +77,18 @@ function playNoiseBurst(opts) {
   src.start();
 }
 
+// Nodes and timer for the running theme texture, and the theme id they belong to.
 let themeHissGain = null;
 let themeCrackleTimer = null;
 let themeToneOsc = null;
 let themeToneGain = null;
 let activeTextureTheme = null;
 
+/**
+ * Starts the looping filtered-noise hiss for a theme, if it is not already running.
+ * Its gain starts at 0; the caller fades it in.
+ * @param {object} profile The theme's noise texture profile (`filterType`, `filterFreq`).
+ */
 function ensureThemeHiss(profile) {
   if (themeHissGain) return;
   const ctx = window.getAudioCtx();
@@ -88,6 +108,11 @@ function ensureThemeHiss(profile) {
   src.start();
 }
 
+/**
+ * Starts the steady sine tone for a theme, if it is not already running.
+ * Its gain starts at 0; the caller fades it in.
+ * @param {object} profile The theme's tone texture profile (`freq`).
+ */
 function ensureThemeTone(profile) {
   if (themeToneOsc) return;
   const ctx = window.getAudioCtx();
@@ -100,12 +125,20 @@ function ensureThemeTone(profile) {
   themeToneOsc.start();
 }
 
+/**
+ * Plays one crackle pop with random length, gain and frequency inside the profile's ranges.
+ * @param {object} profile The crackle profile (`gain` and `filterFreq` as `[min, max]`).
+ */
 function playThemeCrackle(profile) {
   const [gMin, gMax] = profile.gain;
   const [fMin, fMax] = profile.filterFreq;
   playNoiseBurst({ duration: 10 + Math.random() * 15, gain: gMin + Math.random() * (gMax - gMin), filterFreq: fMin + Math.random() * (fMax - fMin) });
 }
 
+/**
+ * Schedules crackle pops at random intervals until the timer is cleared.
+ * @param {object} profile The crackle profile (`minMs`, `maxMs` and the ranges `playThemeCrackle` reads).
+ */
 function scheduleThemeCrackle(profile) {
   clearTimeout(themeCrackleTimer);
   themeCrackleTimer = setTimeout(() => {
@@ -114,17 +147,19 @@ function scheduleThemeCrackle(profile) {
   }, profile.minMs + Math.random() * (profile.maxMs - profile.minMs));
 }
 
-// Subscribed below to every core event that could change whether this
-// texture should be playing: a theme change/load ('theme-audio-refresh',
-// also fired by the movie-mode checkbox handler — MOVIE MODE strips every
-// other theme-immersion element, the ambient hiss/hum/tone shouldn't linger
-// under it either), powering off/on (so the texture stops when the screen's
-// off, same as every other ambient audio in the app), and entering setup
-// (so it stops while you're in the setup screen, same as the video itself
-// already pauses there). Cheap to call redundantly in any direction — it
-// just re-derives "should this be playing right now" fresh from S each
-// time, callers don't need to reason about whether it was already in the
-// state they're asking for.
+/**
+ * Subscribed below to every core event that could change whether this
+ * texture should be playing: a theme change/load ('theme-audio-refresh',
+ * also fired by the movie-mode checkbox handler — MOVIE MODE strips every
+ * other theme-immersion element, the ambient hiss/hum/tone shouldn't linger
+ * under it either), powering off/on (so the texture stops when the screen's
+ * off, same as every other ambient audio in the app), and entering setup
+ * (so it stops while you're in the setup screen, same as the video itself
+ * already pauses there). Cheap to call redundantly in any direction — it
+ * just re-derives "should this be playing right now" fresh from S each
+ * time, callers don't need to reason about whether it was already in the
+ * state they're asking for.
+ */
 export function applyThemeAudio() {
   const S = window.S;
   const channel = (S.config.channels || []).find((entry) => entry.number === S.currentNumber);

@@ -1,3 +1,4 @@
+// PLUGINS-tab settings for the SMPTE test pattern plugin: the on/off toggle.
 window.RCBPlugins.registerPluginSettings('smpte-test-pattern', {
   sections: [{
     id: 'general',

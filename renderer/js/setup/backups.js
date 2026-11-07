@@ -4,15 +4,28 @@ import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { emptyState } from './util.js';
 import { MenuButton } from '../ui/menu.js';
 
+// True right after SNAPSHOT NOW, so the next list render selects and reveals the new snapshot.
 let justSnapshotted = false;
+// Called with the result of `window.api.restoreBackup()` after a restore (set by initBackups).
 let restoreHandler = null;
 
+/**
+ * Formats a snapshot's modification time as a local `YYYY-MM-DD HH:MM:SS` string.
+ * @param {number} mtimeMs Modification time in epoch milliseconds.
+ * @returns {string} The formatted timestamp.
+ */
 function formatBackupTimestamp(mtimeMs) {
   const d = new Date(mtimeMs);
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+/**
+ * Describes how long ago a snapshot was taken ("JUST NOW", "5 MIN AGO", "2 DAYS AGO").
+ * Uses real wall-clock time, since backup ages are not schedule state.
+ * @param {number} mtimeMs Modification time in epoch milliseconds.
+ * @returns {string} The upper-case relative age.
+ */
 function formatRelativeTime(mtimeMs) {
   const seconds = Math.max(0, Math.round((Date.now() - mtimeMs) / 1000));
   if (seconds < 60) return 'JUST NOW';
@@ -24,6 +37,7 @@ function formatRelativeTime(mtimeMs) {
   return `${days} DAY${days === 1 ? '' : 'S'} AGO`;
 }
 
+// Display names for a backup's `reason` field; unknown reasons show as AUTO-SAVE.
 const BACKUP_REASON_LABELS = {
   automatic: 'AUTO-SAVE',
   manual: 'MANUAL',
@@ -35,6 +49,13 @@ const BACKUP_REASON_LABELS = {
   'before-relink': 'BEFORE RELINK',
 };
 
+/**
+ * One "LABEL: current NOW → snapshot IN SNAPSHOT (change)" line for a count that a restore would change.
+ * @param {string} label The metric's upper-case name.
+ * @param {number} current The count in the live config.
+ * @param {number} snapshot The count in the snapshot.
+ * @returns {string} The formatted comparison line.
+ */
 function metricLine(label, current, snapshot) {
   const delta = snapshot - current;
   const change = delta === 0 ? 'NO CHANGE' : `${delta > 0 ? '+' : ''}${delta}`;
@@ -46,6 +67,11 @@ function metricLine(label, current, snapshot) {
 let selectedBackupFile = null;
 let previewToken = 0;
 
+/**
+ * Turns a backup preview (counts plus a config diff) into the lines shown in the detail pane.
+ * @param {object} preview The result of `window.api.previewBackup()`: `current`/`snapshot` counts and a `diff`.
+ * @returns {string[]} One display line per difference, or a single "no differences" line.
+ */
 function previewLines(preview) {
   const diff = preview.diff;
   const changed = diff.addedChannels.length || diff.removedChannels.length || diff.renamedChannels.length
@@ -64,6 +90,13 @@ function previewLines(preview) {
   ];
 }
 
+/**
+ * Creates a plain button with a click handler.
+ * @param {string} label The button text.
+ * @param {Function} onClick Click handler.
+ * @param {string} [className='btn'] CSS class list.
+ * @returns {HTMLButtonElement} The new button.
+ */
 function button(label, onClick, className = 'btn') {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -73,13 +106,22 @@ function button(label, onClick, className = 'btn') {
   return btn;
 }
 
-// A snapshot's actions, shared by its detail pane and its list row's ⋯ menu.
+/**
+ * A snapshot's actions, shared by its detail pane and its list row's ⋯ menu.
+ * @param {object} backup The backup list entry (`file`, `mtimeMs`, ...).
+ * @returns {Promise<void>}
+ */
 async function restoreBackupFile(backup) {
   if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
   try { if (restoreHandler) restoreHandler(await window.api.restoreBackup(backup.file)); }
   catch (error) { alertDialog(`Restore failed: ${error.message}`, { variant: 'error' }); }
 }
 
+/**
+ * Prompts for a new label for a snapshot (blank clears it) and saves it.
+ * @param {object} backup The backup list entry.
+ * @returns {Promise<void>}
+ */
 async function labelBackupFile(backup) {
   const next = await promptDialog({ title: 'BACKUP LABEL', message: 'Label this backup — blank to clear:', defaultValue: backup.label || '' });
   if (next === null) return;
@@ -87,11 +129,21 @@ async function labelBackupFile(backup) {
   catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
 }
 
+/**
+ * Toggles whether a snapshot is pinned and refreshes the list.
+ * @param {object} backup The backup list entry.
+ * @returns {Promise<void>}
+ */
 async function pinBackupFile(backup) {
   try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
   catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
 }
 
+/**
+ * Deletes a snapshot file after confirmation and refreshes the list.
+ * @param {object} backup The backup list entry.
+ * @returns {Promise<void>}
+ */
 async function deleteBackupFile(backup) {
   if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
   try {
@@ -101,6 +153,11 @@ async function deleteBackupFile(backup) {
   } catch (error) { alertDialog(`Delete failed: ${error.message}`, { variant: 'error' }); }
 }
 
+/**
+ * Fills the detail pane with a snapshot's heading, actions and a live comparison with the current config.
+ * A token guards against an older preview request finishing after a newer selection.
+ * @param {?object} backup The selected backup list entry, or null to clear the pane.
+ */
 function renderBackupDetail(backup) {
   const detailEl = document.getElementById('backups-detail');
   if (!detailEl) return;
@@ -152,6 +209,9 @@ function renderBackupDetail(backup) {
   });
 }
 
+/**
+ * Fetches the backup list and redraws it, keeping the selected snapshot selected when it still exists.
+ */
 export function renderBackupsList() {
   window.api.listBackups().then((backups) => {
     backupsListEl.innerHTML = '';
@@ -232,6 +292,10 @@ export function renderBackupsList() {
   });
 }
 
+/**
+ * Wires the backup panel's REFRESH and SNAPSHOT NOW buttons.
+ * @param {Function} onRestore Called with the result of `window.api.restoreBackup()` after a successful restore.
+ */
 export function initBackups(onRestore) {
   restoreHandler = onRestore;
   backupsRefreshBtn.addEventListener('click', renderBackupsList);

@@ -21,25 +21,49 @@ const startSessionBtn = document.getElementById('household-start-session');
 const joinSessionBtn = document.getElementById('household-join-session');
 const leaveSessionBtn = document.getElementById('household-leave-session');
 const sessionStatusEl = document.getElementById('household-session-status');
+// True once the panel's fixed buttons have listeners (see wire()).
 let wired = false;
 
+/**
+ * Calls a method on the host's profile store.
+ * @param {string} method The store method name, e.g. 'listProfiles'.
+ * @param {object} [payload={}] The method's arguments.
+ * @returns {Promise<*>} The method's result.
+ * @throws {Error} When the store answers with an error or not at all.
+ */
 async function call(method, payload = {}) {
   const response = await window.api.personalCall(method, payload);
   if (!response || !response.ok) throw new Error((response && response.error) || 'The profile store did not answer.');
   return response.result;
 }
 
+/**
+ * Creates a button with a click handler.
+ * @param {string} label The button text.
+ * @param {Function} run Click handler.
+ * @param {string} [className='btn'] CSS class list.
+ * @returns {HTMLButtonElement} The new button.
+ */
 function button(label, run, className = 'btn') {
   const el = document.createElement('button');
   el.type = 'button'; el.className = className; el.textContent = label; el.addEventListener('click', run);
   return el;
 }
 
+/**
+ * Asks for a profile's current PIN when it has one.
+ * @param {object} profile The profile.
+ * @param {string} [title='PROFILE PIN'] Dialog title.
+ * @returns {Promise<?string>} The entered PIN, or null when the profile has no PIN or the user cancelled.
+ */
 async function currentPinFor(profile, title = 'PROFILE PIN') {
   if (!profile.hasPin) return null;
   return promptDialog({ title, message: `Enter ${profile.name}'s current PIN.`, placeholder: '4 digits', inputType: 'password' });
 }
 
+/**
+ * Draws the profile list: one row per profile with SWITCH, EDIT, RESTRICTION and PIN buttons, plus THEME for the active one.
+ */
 function renderProfiles() {
   if (!listEl) return;
   listEl.innerHTML = '';
@@ -94,6 +118,9 @@ function renderProfiles() {
   });
 }
 
+/**
+ * Draws the active profile's DVR policy buttons, its recordings (PLAY/CONTINUE, ERASE) and its recording requests.
+ */
 function renderRecordings() {
   if (!recordingsEl) return;
   recordingsEl.innerHTML = '';
@@ -152,21 +179,32 @@ function renderRecordings() {
   });
 }
 
+/**
+ * Re-reads the profile list from the host, optionally switches profile, then redraws the panel.
+ * @param {?string} [activeId] Profile id to switch to after the reload.
+ * @returns {Promise<void>}
+ */
 async function reloadProfiles(activeId) {
   S.personalProfiles = await call('listProfiles');
   if (activeId) await switchProfile(activeId);
   renderHouseholdPanel();
 }
 
-// The tab click handler in settings.js calls this so a profile created on
-// another paired screen (LAN control panel, another window) isn't missed —
-// S.personalProfiles is otherwise only refreshed by this module's own
-// ADD PROFILE flow and the initial boot fetch.
+/**
+ * The tab click handler in settings.js calls this so a profile created on
+ * another paired screen (LAN control panel, another window) isn't missed —
+ * S.personalProfiles is otherwise only refreshed by this module's own
+ * ADD PROFILE flow and the initial boot fetch.
+ * @returns {Promise<void>}
+ */
 export async function refreshHouseholdPanel() {
   try { S.personalProfiles = await call('listProfiles'); } catch (e) { /* offline: render what we have */ }
   renderHouseholdPanel();
 }
 
+/**
+ * Adds the panel's fixed button listeners, once.
+ */
 function wire() {
   if (wired) return; wired = true;
   addBtn?.addEventListener('click', async () => {
@@ -208,6 +246,9 @@ function wire() {
   onPersonalStateChange(() => renderHouseholdPanel());
 }
 
+/**
+ * Redraws the HOUSEHOLD panel: profiles, recordings and the shared-session status.
+ */
 export function renderHouseholdPanel() {
   wire(); renderProfiles(); renderRecordings();
   const activeSession = S.sharedSession;

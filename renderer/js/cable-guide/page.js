@@ -16,29 +16,52 @@ import { hidePictureBox, showPictureBox } from './picture-box.js';
 const ARROWS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 
 let current = null;
+/**
+ * Returns the message count for the header envelope; replaced by messages.js.
+ * @returns {number} The message count.
+ */
 let messageCounter = () => 0;
 
-// messages.js supplies the envelope's count, without a module cycle.
+/**
+ * messages.js supplies the envelope's count, without a module cycle.
+ * @param {Function} fn Returns the current message count.
+ */
 export function setMessageCounter(fn) {
   messageCounter = fn;
 }
 
+/**
+ * Reads the message count for a header's envelope.
+ * @returns {number} The count, or 0 if the counter throws.
+ */
 export function currentMessageCount() {
   try { return messageCounter(); } catch { return 0; }
 }
 
+/**
+ * Names the open cable-guide page.
+ * @returns {?string} The open page's name, or null when none is open.
+ */
 export function cgPageOpen() {
   return current ? current.name : null;
 }
 
+/**
+ * Closes the open cable-guide page, if any.
+ */
 export function closeCgPage() {
   if (current) current.close();
 }
 
-// A scrolling list of equal rows shows whole rows only, as the boxes did: its
-// height snaps down to the last row that fits instead of cutting one in
-// half. Re-fits when the space around it changes or its rows are redrawn;
-// active() can switch it off (the Mini Guide sizes itself). Returns stop().
+/**
+ * Makes a scrolling list of equal rows show whole rows only, as the boxes did: its
+ * height snaps down to the last row that fits instead of cutting one in
+ * half. Re-fits when the space around it changes or its rows are redrawn;
+ * active() can switch it off (the Mini Guide sizes itself).
+ * @param {?HTMLElement} list The scrolling list.
+ * @param {Function} [active] Returns false while the fit should stay off.
+ * @returns {Function} stop(), which ends the fitting.
+ */
 export function wholeRows(list, active = () => true) {
   if (!list || typeof ResizeObserver === 'undefined') return () => {};
   let frame = 0;
@@ -75,8 +98,16 @@ export function wholeRows(list, active = () => true) {
   return stop;
 }
 
-// build(body, page) fills the body; onKey(e, page) may claim a key first by
-// returning true. Returns the page: { el, body, header, close, focusFirst }.
+/**
+ * build(body, page) fills the body; onKey(e, page) may claim a key first by
+ * returning true. Returns the page: { el, body, header, close, focusFirst }.
+ * @param {object} opts The page definition.
+ * @param {string} opts.name The page name, used in its class and as its overlay surface name.
+ * @param {Function} opts.build Fills the page: `build(body, page)`.
+ * @param {?Function} [opts.onKey=null] Gets first look at each key: `onKey(e, page)`, true to claim it.
+ * @param {?Function} [opts.onClose=null] Called after the page closes.
+ * @returns {object} The page.
+ */
 export function openCgPage({ name, build, onKey = null, onClose = null }) {
   closeCgPage();
   const crt = tvScreen.querySelector('.crt') || tvScreen;

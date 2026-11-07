@@ -20,18 +20,36 @@ import { noteEraOverride } from '../display/eras.js';
 
 const registry = new Map();
 
+/**
+ * Adds a command type to the registry so `applyCommand` can run it.
+ * @param {string} type The command type, e.g. `channel.set`.
+ * @param {object} definition The command definition: `apply(config, cmd)` (required, returns the
+ *   inverse commands) plus optional `validate`, `describe`, `touches` and `toHost`.
+ * @throws {Error} When `type` is empty or `definition.apply` is missing.
+ */
 export function registerCommand(type, definition) {
   if (!type || typeof type !== 'string') throw new Error('registerCommand: type must be a non-empty string');
   if (typeof definition.apply !== 'function') throw new Error(`registerCommand("${type}"): apply(config, cmd) is required`);
   registry.set(type, definition);
 }
 
+/**
+ * Whether a command type has been registered.
+ * @param {string} type The command type.
+ * @returns {boolean} True when the registry has it.
+ */
 export function isRegisteredCommand(type) {
   return registry.has(type);
 }
 
-// Validates and applies one command to `config` in place. Returns the list of
-// commands that undo it, in the order they should be applied.
+/**
+ * Validates and applies one command to `config` in place. Returns the list of
+ * commands that undo it, in the order they should be applied.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {Array<object>} The commands that undo this one.
+ * @throws {Error} When the type is unknown, validation fails, or `apply` returns no inverse.
+ */
 export function applyCommand(config, cmd) {
   const def = cmd && registry.get(cmd.type);
   if (!def) throw new Error(`Unknown command "${cmd && cmd.type}"`);
@@ -41,19 +59,30 @@ export function applyCommand(config, cmd) {
   return inverse;
 }
 
+/**
+ * A short human label for a command, for undo history; "Edit" when it has none.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {string} The label.
+ */
 export function describeCommand(config, cmd) {
   const def = cmd && registry.get(cmd.type);
   return (def && def.describe && def.describe(config, cmd)) || 'Edit';
 }
 
-// What this client should send the host in place of `cmd`, once it has been
-// applied locally. Almost every command travels as itself. A plugin's own
-// command does not: the host has no plugin renderers and so no registry entry
-// for it, and it would arrive as "Unknown command". Such a command declares
-// `toHost`, which states the resulting settings as a plain `plugin.setSettings`
-// the host already understands (docs/design/05 §3). Undo history keeps the
-// precise plugin command either way, so the step still reads as what the plugin
-// called it.
+/**
+ * What this client should send the host in place of `cmd`, once it has been
+ * applied locally. Almost every command travels as itself. A plugin's own
+ * command does not: the host has no plugin renderers and so no registry entry
+ * for it, and it would arrive as "Unknown command". Such a command declares
+ * `toHost`, which states the resulting settings as a plain `plugin.setSettings`
+ * the host already understands (docs/design/05 §3). Undo history keeps the
+ * precise plugin command either way, so the step still reads as what the plugin
+ * called it.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {Array<object>} The commands to send to the host.
+ */
 export function hostCommandsFor(config, cmd) {
   const def = cmd && registry.get(cmd.type);
   if (!def || typeof def.toHost !== 'function') return [cmd];
@@ -62,19 +91,23 @@ export function hostCommandsFor(config, cmd) {
 }
 
 // ---------- Touch sets (docs/design/05 §2.3) ----------
-// What part of config a command changes, as slash-separated tokens. The host
-// uses them to decide whether two clients' edits can both land: two commands
-// conflict when one's token is the other's, or an ancestor of it. Deliberately
-// coarse where an edit changes addressing rather than a value — renumbering or
-// removing a channel touches `channels`, because a command another client
-// built against the old numbering may no longer mean what it said. A
-// structural config.patch touches '*', which conflicts with everything: those
-// are whole-config transforms (a curation run, a tag rename, an import) that
-// genuinely cannot be merged with a concurrent edit.
-//
-// A command type with no touches() is treated as '*' rather than as touching
-// nothing, so a new or plugin-supplied command is safe before it is thought
-// about, not silently mergeable with everything.
+/**
+ * What part of config a command changes, as slash-separated tokens. The host
+ * uses them to decide whether two clients' edits can both land: two commands
+ * conflict when one's token is the other's, or an ancestor of it. Deliberately
+ * coarse where an edit changes addressing rather than a value — renumbering or
+ * removing a channel touches `channels`, because a command another client
+ * built against the old numbering may no longer mean what it said. A
+ * structural config.patch touches '*', which conflicts with everything: those
+ * are whole-config transforms (a curation run, a tag rename, an import) that
+ * genuinely cannot be merged with a concurrent edit.
+ *
+ * A command type with no touches() is treated as '*' rather than as touching
+ * nothing, so a new or plugin-supplied command is safe before it is thought
+ * about, not silently mergeable with everything.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {string[]} The touch tokens; `['*']` when the command does not declare them.
+ */
 export function commandTouches(cmd) {
   const def = cmd && registry.get(cmd.type);
   if (!def || typeof def.touches !== 'function') return ['*'];
@@ -86,19 +119,34 @@ export function commandTouches(cmd) {
   }
 }
 
-// One token covers another when they are equal or the first is an ancestor of
-// the second at a separator boundary — `channels` covers `channels/7/name`,
-// but `channels/7` does not cover `channels/70`.
+/**
+ * One token covers another when they are equal or the first is an ancestor of
+ * the second at a separator boundary — `channels` covers `channels/7/name`,
+ * but `channels/7` does not cover `channels/70`.
+ * @param {string} outer The candidate ancestor token.
+ * @param {string} inner The token it may cover.
+ * @returns {boolean} True when `outer` covers `inner` (`*` covers everything).
+ */
 function tokenCovers(outer, inner) {
   if (outer === '*' || inner === '*') return true;
   return outer === inner || inner.startsWith(`${outer}/`);
 }
 
+/**
+ * Whether two touch sets conflict, i.e. some token in one covers a token in the other.
+ * @param {string[]} a The first command's touch tokens.
+ * @param {string[]} b The second command's touch tokens.
+ * @returns {boolean} True when the two edits cannot both land.
+ */
 export function touchesConflict(a, b) {
   return a.some((one) => b.some((other) => tokenCovers(one, other) || tokenCovers(other, one)));
 }
 
-// Every touch token of a batch, deduped — what the host records per revision.
+/**
+ * Every touch token of a batch, deduped — what the host records per revision.
+ * @param {Array<object>} commands The commands in the batch.
+ * @returns {string[]} The deduped touch tokens.
+ */
 export function batchTouches(commands) {
   const seen = new Set();
   commands.forEach((cmd) => commandTouches(cmd).forEach((token) => seen.add(token)));
@@ -107,14 +155,30 @@ export function batchTouches(commands) {
 
 // ---------- JSON helpers ----------
 
+/**
+ * Whether a value is a non-null object (arrays included).
+ * @param {*} value The value to test.
+ * @returns {boolean} True for objects and arrays.
+ */
 function isObject(value) {
   return value !== null && typeof value === 'object';
 }
 
+/**
+ * Deep-copies a JSON-safe value through `JSON.stringify`; `undefined` stays `undefined`.
+ * @param {*} value The value to copy.
+ * @returns {*} The copy.
+ */
 export function cloneJson(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * Structural equality for JSON-shaped values (NaN equals NaN).
+ * @param {*} a The first value.
+ * @param {*} b The second value.
+ * @returns {boolean} True when both hold the same data.
+ */
 export function deepEqual(a, b) {
   if (a === b) return true;
   if (!isObject(a) || !isObject(b)) return Number.isNaN(a) && Number.isNaN(b);
@@ -147,6 +211,13 @@ export function deepEqual(a, b) {
 // JSON semantics throughout: undefined-valued keys count as absent, as they do
 // once config is saved.
 
+/**
+ * Diffs two JSON trees into forward ops and undo ops in a single walk.
+ * @param {*} before The value before the edit.
+ * @param {*} after The value after the edit.
+ * @returns {{ops: Array<object>, undo: Array<object>}} The ops that turn `before` into `after`, and
+ *   the ops that turn it back.
+ */
 export function diffJson(before, after) {
   const ops = [];
   const undo = [];
@@ -158,12 +229,27 @@ export function diffJson(before, after) {
 // pool entries by id, files by path — so "the same item, edited" is matched by
 // that, not only by being identical.
 const IDENTITY_KEYS = ['id', 'number', 'path'];
+/**
+ * Whether two array elements are the same item: identical, or sharing an identity key (`id`,
+ * `number`, `path`).
+ * @param {*} a An element of the old array.
+ * @param {*} b An element of the new array.
+ * @returns {boolean} True when they are the same item.
+ */
 function sameItem(a, b) {
   if (deepEqual(a, b)) return true;
   if (!isObject(a) || !isObject(b) || Array.isArray(a) || Array.isArray(b)) return false;
   return IDENTITY_KEYS.some((key) => a[key] !== undefined && a[key] === b[key]);
 }
 
+/**
+ * Recursive step of `diffJson`: appends forward ops to `ops` and prepends their inverses to `undo`.
+ * @param {*} a The old value at `path`.
+ * @param {*} b The new value at `path`.
+ * @param {Array<string|number>} path Keys and indices from the root.
+ * @param {Array<object>} ops Forward ops, appended to.
+ * @param {Array<object>} undo Undo ops, prepended to.
+ */
 function walk(a, b, path, ops, undo) {
   if (deepEqual(a, b)) return;
   if (isObject(a) && isObject(b) && Array.isArray(a) === Array.isArray(b)) {
@@ -212,9 +298,15 @@ function walk(a, b, path, ops, undo) {
   undo.unshift({ p: path, v: cloneJson(a) });
 }
 
-// Applies ops to `root` in place. Inserted values are always copied, so a
-// history entry's stored values can never become live config objects that a
-// later in-place edit would silently change.
+/**
+ * Applies ops to `root` in place. Inserted values are always copied, so a
+ * history entry's stored values can never become live config objects that a
+ * later in-place edit would silently change.
+ * @param {object} root The object the op paths start from (usually config).
+ * @param {Array<object>} ops The ops from `diffJson`.
+ * @throws {Error} When an op addresses a missing container, splices a non-array, deletes inside an
+ *   array, or replaces the root with a non-object.
+ */
 export function applyPatch(root, ops) {
   for (const op of ops) {
     if (!op.p.length) {
@@ -245,16 +337,33 @@ export function applyPatch(root, ops) {
 
 // ---------- Built-in commands ----------
 
+/**
+ * Finds a channel by number.
+ * @param {object} config The config object the command acts on.
+ * @param {number} number The channel number.
+ * @returns {object|undefined} The channel, if any.
+ */
 function findChannel(config, number) {
   return (config.channels || []).find((ch) => ch.number === number);
 }
 
+/**
+ * Throws unless the channel exists.
+ * @param {object} config The config object the command acts on.
+ * @param {number} number The channel number.
+ * @throws {Error} When no channel has that number.
+ */
 function requireChannel(config, number) {
   if (!findChannel(config, number)) throw new Error(`Channel ${number} doesn't exist`);
 }
 
-// A readable name for "what did this diff touch", for undo labels on edits
-// that haven't been converted to named commands yet.
+/**
+ * A readable name for "what did this diff touch", for undo labels on edits
+ * that haven't been converted to named commands yet.
+ * @param {object} config The config object the command acts on.
+ * @param {Array<object>} ops The patch ops.
+ * @returns {string} The undo label.
+ */
 function describePatch(config, ops) {
   const channelIndices = new Set();
   const topKeys = new Set();
@@ -319,11 +428,21 @@ export function isSettingsSection(key) {
   return SETTINGS_SECTIONS.has(key);
 }
 
-// "hintBarShowDuration" -> "hint bar show duration", for undo labels.
+/**
+ * "hintBarShowDuration" -> "hint bar show duration", for undo labels.
+ * @param {string} key A camelCase key.
+ * @returns {string} The key as lower-case words.
+ */
 function humanizeKey(key) {
   return String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
 }
 
+/**
+ * Reads the value at a key path, telling a missing key apart from an undefined value.
+ * @param {object} root The object to start from.
+ * @param {Array<string|number>} path The keys to follow.
+ * @returns {{exists: boolean, value: *}} Whether the path exists and, if so, its value.
+ */
 function readPath(root, path) {
   let node = root;
   for (const key of path) {
@@ -503,12 +622,22 @@ registerCommand('channel.remove', {
 // onto the renderer's copy (docs/design/05 §2.2). Each one sets a value rather
 // than appending, so applying it twice is harmless — rebasing depends on that.
 
+/**
+ * Returns `config.plugins`, creating it (with a `disabled` list) when missing.
+ * @param {object} config The config object the command acts on.
+ * @returns {object} The plugins section.
+ */
 function pluginsSection(config) {
   if (!isObject(config.plugins)) config.plugins = { disabled: [] };
   if (!Array.isArray(config.plugins.disabled)) config.plugins.disabled = [];
   return config.plugins;
 }
 
+/**
+ * Throws unless the command names a plugin id.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @throws {Error} When `cmd.id` is missing or not a string.
+ */
 function requirePluginId(cmd) {
   if (!cmd.id || typeof cmd.id !== 'string') throw new Error(`${cmd.type} needs a plugin id`);
 }
@@ -609,10 +738,23 @@ registerCommand('plugin.forget', {
 // into the namespace here.
 const PLUGIN_COMMAND_PREFIX = 'plugin:';
 
+/**
+ * The full registry type for a plugin's command, `plugin:<id>.<name>`.
+ * @param {string} pluginId The plugin id.
+ * @param {string} name The plugin's own command name.
+ * @returns {string} The namespaced type.
+ */
 export function pluginCommandType(pluginId, name) {
   return `${PLUGIN_COMMAND_PREFIX}${pluginId}.${name}`;
 }
 
+/**
+ * Returns a plugin's settings object under `config.pluginSettings`, creating either level when
+ * missing.
+ * @param {object} config The config object the command acts on.
+ * @param {string} pluginId The plugin id.
+ * @returns {object} That plugin's settings object.
+ */
 function pluginSettingsFor(config, pluginId) {
   if (!isObject(config.pluginSettings) || Array.isArray(config.pluginSettings)) config.pluginSettings = {};
   const root = config.pluginSettings;
@@ -622,8 +764,15 @@ function pluginSettingsFor(config, pluginId) {
   return root[pluginId];
 }
 
-// Registers `plugin:<id>.<name>`. `definition` is the plugin's, written against
-// its settings object. Returns the full type string.
+/**
+ * Registers `plugin:<id>.<name>`. `definition` is the plugin's, written against
+ * its settings object. Returns the full type string.
+ * @param {string} pluginId The plugin id.
+ * @param {string} name The command name (letters, digits, dot, dash, underscore).
+ * @param {object} definition The plugin's definition; `apply(settings, cmd)` is required.
+ * @returns {string} The full type string.
+ * @throws {Error} When the id, name or definition is invalid, or the type is already registered.
+ */
 export function registerPluginCommand(pluginId, name, definition) {
   if (!pluginId || typeof pluginId !== 'string') throw new Error('registerPluginCommand: a plugin id is required');
   if (!name || typeof name !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(name)) {
@@ -677,8 +826,11 @@ export function registerPluginCommand(pluginId, name, definition) {
   return type;
 }
 
-// Every plugin command a given plugin registered — used when a plugin is
-// disabled or reloaded, so a stale definition cannot keep answering for a type.
+/**
+ * Every plugin command a given plugin registered — used when a plugin is
+ * disabled or reloaded, so a stale definition cannot keep answering for a type.
+ * @param {string} pluginId The plugin id.
+ */
 export function unregisterPluginCommands(pluginId) {
   const prefix = `${PLUGIN_COMMAND_PREFIX}${pluginId}.`;
   [...registry.keys()].filter((type) => type.startsWith(prefix)).forEach((type) => registry.delete(type));
@@ -695,6 +847,12 @@ const FILE_FIELDS = {
   hasCC: 'CC', hasSAP: 'SAP', hasStereo: 'stereo',
 };
 
+/**
+ * Finds the channel or schedule block whose pool a file command addresses.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd A file command ({ channel, block?, file }).
+ * @returns {?object} The channel or block, or null.
+ */
 function findFileOwner(config, cmd) {
   const ch = findChannel(config, cmd.channel);
   if (!ch) return null;
@@ -702,12 +860,22 @@ function findFileOwner(config, cmd) {
   return (ch.blocks || []).find((b) => b.id === cmd.block) || null;
 }
 
-// A file's touch token. The path is the last segment, so two edits to
-// different files in the same channel don't read as the same touch.
+/**
+ * A file's touch token. The path is the last segment, so two edits to
+ * different files in the same channel don't read as the same touch.
+ * @param {object} cmd A file command ({ channel, block?, file }).
+ * @returns {string} The touch token.
+ */
 function fileToken(cmd) {
   return `channels/${cmd.channel}/files/${cmd.block == null ? '-' : cmd.block}/${cmd.file}`;
 }
 
+/**
+ * Finds the file entry a file command addresses.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd A file command ({ channel, block?, file }).
+ * @returns {?object|undefined} The file entry, or null/undefined when not found.
+ */
 function findFile(config, cmd) {
   const owner = findFileOwner(config, cmd);
   return owner && Array.isArray(owner.files) ? owner.files.find((f) => f.path === cmd.file) : null;
@@ -751,14 +919,24 @@ const COLLECTIONS = {
   blocks: { label: 'block', plural: 'blocks', channelScoped: true, path: ['blocks'] },
 };
 
+/**
+ * Looks up the `COLLECTIONS` entry a collection command names.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {object} The collection definition.
+ * @throws {Error} When the collection is not one commands can edit.
+ */
 function collectionDef(cmd) {
   const def = COLLECTIONS[cmd.collection];
   if (!def) throw new Error(`${cmd.type}: "${cmd.collection}" isn't a list commands can edit`);
   return def;
 }
 
-// The touch token for the list a collection command edits. A channel-scoped
-// collection (a channel's blocks) hangs off that channel.
+/**
+ * The touch token for the list a collection command edits. A channel-scoped
+ * collection (a channel's blocks) hangs off that channel.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {string} The touch token, or `*` for an unknown collection.
+ */
 function listToken(cmd) {
   const def = COLLECTIONS[cmd.collection];
   if (!def) return '*';
@@ -767,6 +945,15 @@ function listToken(cmd) {
     : def.path.join('/');
 }
 
+/**
+ * Resolves the array a collection lives in, optionally creating missing levels along its path.
+ * @param {object} config The config object the command acts on.
+ * @param {object} def The collection definition.
+ * @param {boolean} create Whether to create missing containers.
+ * @param {object} [cmd] The command, for a channel-scoped collection's channel.
+ * @returns {?Array<object>} The array, or null when it is missing and `create` is false.
+ * @throws {Error} When `create` is true and the owning channel does not exist.
+ */
 function collectionArray(config, def, create, cmd) {
   let node = config;
   if (def.channelScoped) {
@@ -788,15 +975,28 @@ function collectionArray(config, def, create, cmd) {
   return node;
 }
 
-// Carries a channel-scoped command's channel over to its inverse. Key order
-// matches how callers build commands, so an inverse that changes nothing
-// compares equal to the command (state.js commitInPlace relies on it).
+/**
+ * Carries a channel-scoped command's channel over to its inverse. Key order
+ * matches how callers build commands, so an inverse that changes nothing
+ * compares equal to the command (state.js commitInPlace relies on it).
+ * @param {object} inverse The inverse command.
+ * @param {object} cmd The original command.
+ * @returns {object} The inverse with `channel` added when the command had one.
+ */
 function withScope(inverse, cmd) {
   if (cmd.channel == null) return inverse;
   const { type, collection, ...rest } = inverse;
   return { type, collection, channel: cmd.channel, ...rest };
 }
 
+/**
+ * Finds the list item an item command addresses by id.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd The command object ({ type, ...payload }).
+ * @returns {{def: object, list: Array<object>, index: number}} The collection definition, its array
+ *   and the item's index.
+ * @throws {Error} When the collection is unknown or no item has that id.
+ */
 function requireItem(config, cmd) {
   const def = collectionDef(cmd);
   const list = collectionArray(config, def, false, cmd);
@@ -875,12 +1075,26 @@ registerCommand('item.remove', {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+/**
+ * Finds a schedule block by channel number and block id.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd A block command ({ channel, id }).
+ * @returns {?{ch: object, index: number, block: object}} The channel, the block's index and the
+ *   block, or null.
+ */
 function findBlock(config, cmd) {
   const ch = findChannel(config, cmd.channel);
   const index = ch && Array.isArray(ch.blocks) ? ch.blocks.findIndex((b) => b && b.id === cmd.id) : -1;
   return index === -1 ? null : { ch, index, block: ch.blocks[index] };
 }
 
+/**
+ * Like `findBlock`, but throws when the channel or block is missing.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd A block command ({ channel, id }).
+ * @returns {{ch: object, index: number, block: object}} The channel, index and block.
+ * @throws {Error} When the channel or block does not exist.
+ */
 function requireBlock(config, cmd) {
   requireChannel(config, cmd.channel);
   const found = findBlock(config, cmd);
@@ -888,17 +1102,33 @@ function requireBlock(config, cmd) {
   return found;
 }
 
+/**
+ * A block's quoted name for undo labels, or "block" when it has none.
+ * @param {object} config The config object the command acts on.
+ * @param {object} cmd A block command ({ channel, id }).
+ * @returns {string} The label fragment.
+ */
 function blockName(config, cmd) {
   const found = findBlock(config, cmd);
   const name = found && found.block.name && found.block.name.trim();
   return name ? `"${name}"` : 'block';
 }
 
+/**
+ * Formats an hour of the day as a 12-hour label ("12 AM", "3 PM").
+ * @param {number} h The hour; wrapped into 0-23.
+ * @returns {string} The label.
+ */
 function hourLabel(h) {
   const hour = ((h % 24) + 24) % 24;
   return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? 'AM' : 'PM'}`;
 }
 
+/**
+ * Whether a value is an integer hour from 0 to 23.
+ * @param {*} value The value to test.
+ * @returns {boolean} True for a valid hour.
+ */
 function isHour(value) {
   return Number.isInteger(value) && value >= 0 && value <= 23;
 }
@@ -1101,10 +1331,16 @@ registerCommand('channel.setBroadcastHours', {
   },
 });
 
-// Top-level field changes between a copy of an item taken before an in-place
-// edit and the item now: { fields, previous }, or null when nothing changed.
-// Lets UI code that edits an item directly still record the edit as item.set
-// (state.js commitItemEdit) without the command replacing live objects.
+/**
+ * Top-level field changes between a copy of an item taken before an in-place
+ * edit and the item now: { fields, previous }, or null when nothing changed.
+ * Lets UI code that edits an item directly still record the edit as item.set
+ * (state.js commitItemEdit) without the command replacing live objects.
+ * @param {?object} before A copy of the item from before the edit.
+ * @param {?object} after The item now.
+ * @returns {?{fields: object, previous: object}} The changed fields and their previous values, or
+ *   null.
+ */
 export function itemFieldChanges(before, after) {
   const fields = {};
   const previous = {};
@@ -1121,6 +1357,11 @@ export function itemFieldChanges(before, after) {
   return Object.keys(fields).length ? { fields, previous } : null;
 }
 
+/**
+ * The plural label of a collection, for undo labels.
+ * @param {string} name The collection name (`pool`, `presets`, `flows`, `blocks`).
+ * @returns {string} The plural label, or "items" for an unknown one.
+ */
 export function collectionPlural(name) {
   return COLLECTIONS[name] ? COLLECTIONS[name].plural : 'items';
 }

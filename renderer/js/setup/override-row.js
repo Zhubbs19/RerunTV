@@ -25,6 +25,13 @@ export function displayValue(entry, value) {
   return `${shown}${entry.range && entry.range.unit ? ` ${entry.range.unit}` : ''}`;
 }
 
+/**
+ * Writes an override at a key path inside a channel or block, creating objects along the way;
+ * undefined deletes it.
+ * @param {object} owner The channel or block config object.
+ * @param {string[]} key The path inside `owner`.
+ * @param {*} value The value to store, or undefined to remove it.
+ */
 function writeOverride(owner, key, value) {
   let node = owner;
   for (let i = 0; i < key.length - 1; i += 1) {

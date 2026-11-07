@@ -28,6 +28,11 @@ export const GENRE_THEMES = [
   { id: 'holiday', label: 'HOLIDAY', bg: '#06170a', bg2: '#0e3616', accent: '#ff5252' },
 ];
 
+/**
+ * The genre theme a station uses, defaulting to the first one.
+ * @param {object} station The station config.
+ * @returns {object} A `GENRE_THEMES` entry.
+ */
 export function themeFor(station) {
   return GENRE_THEMES.find((t) => t.id === (station && station.themeId)) || GENRE_THEMES[0];
 }
@@ -53,6 +58,11 @@ export const ERAS = [
 ];
 export const DEFAULT_ERA = 'twothousands';
 
+/**
+ * The presentation era the settings pick, defaulting to `DEFAULT_ERA`.
+ * @param {object} settings This plugin's settings.
+ * @returns {object} An `ERAS` entry.
+ */
 export function eraFor(settings) {
   const id = (settings && settings.era) || DEFAULT_ERA;
   return ERAS.find((e) => e.id === id) || ERAS.find((e) => e.id === DEFAULT_ERA);
@@ -70,6 +80,11 @@ export const DAYPARTS = [
   { id: 'night', label: 'OVERNIGHT', startHour: 21, tint: 'rgba(0, 40, 120, 0.20)' },
 ];
 
+/**
+ * The daypart a timestamp falls in, by local hour.
+ * @param {number} nowMs The view time in ms.
+ * @returns {object} A `DAYPARTS` entry.
+ */
 export function daypartFor(nowMs) {
   const hour = new Date(nowMs).getHours();
   // Walk backwards so the first match is the latest start hour at or below
@@ -94,6 +109,11 @@ export function daypartFor(nowMs) {
 const YEAR_RE = /[([]\s*((?:19|20)\d{2})\s*[)\]]\s*$/;
 const LEADING_TRACK_NO_RE = /^\d{1,3}\s*[-._)\]]?\s+/;
 
+/**
+ * Artist, title, album and year worked out from a track's path and file name.
+ * @param {string} filePath The track's file path.
+ * @returns {object} `{ artist, title, album, year }`; artist is upper-cased, unknown album and year are null.
+ */
 export function parseTrackMeta(filePath) {
   const norm = String(filePath || '').replace(/\\/g, '/');
   const segments = norm.split('/').filter(Boolean);
@@ -155,8 +175,12 @@ export function parseTrackMeta(filePath) {
   };
 }
 
-// A saved track record may carry hand-set fields, then whatever its own tags
-// said (read on rescan — see tags.js), then what the filename says.
+/**
+ * A saved track record may carry hand-set fields, then whatever its own tags
+ * said (read on rescan — see tags.js), then what the filename says.
+ * @param {object} track A saved track record.
+ * @returns {object} `{ artist, title, album, year }` plus `albumArtist`.
+ */
 export function trackMetaOf(track) {
   const parsed = parseTrackMeta(track.path);
   const tags = track.tags || {};
@@ -174,8 +198,12 @@ export function trackMetaOf(track) {
 // Everything here is pure over the stations' saved track lists, so it can be
 // tested without a DOM and never touches the live rotation's math.
 
-// Lower-case, accents off, punctuation to spaces: "Beyoncé" finds "beyonce",
-// "AC/DC" finds "ac dc".
+/**
+ * Lower-case, accents off, punctuation to spaces: "Beyoncé" finds "beyonce",
+ * "AC/DC" finds "ac dc".
+ * @param {string} text The text to normalize.
+ * @returns {string} The search key.
+ */
 export function normalizeForSearch(text) {
   return String(text || '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -184,8 +212,12 @@ export function normalizeForSearch(text) {
     .trim();
 }
 
-// "1997", "1990s", "90s", "'90s", "1995-1999", "1995 to 1999" -> an inclusive
-// year range. Anything else is not a year query and returns null.
+/**
+ * "1997", "1990s", "90s", "'90s", "1995-1999", "1995 to 1999" -> an inclusive
+ * year range. Anything else is not a year query and returns null.
+ * @param {string} query The search text.
+ * @returns {?object} `{ from, to }`, or null.
+ */
 export function parseYearQuery(query) {
   const q = String(query || '').trim().toLowerCase().replace(/[‘’]/g, "'");
   let m = q.match(/^((?:19|20)\d{2})$/);
@@ -206,8 +238,12 @@ export function parseYearQuery(query) {
   return null;
 }
 
-// One entry per distinct file across every station (a song in two stations'
-// folders is still one song), with its metadata resolved once.
+/**
+ * One entry per distinct file across every station (a song in two stations'
+ * folders is still one song), with its metadata resolved once.
+ * @param {Array<object>} stations The station configs.
+ * @returns {Array<object>} `{ track, meta, stationId, artistKey, albumKey, haystack }` per distinct file.
+ */
 export function buildLibraryIndex(stations) {
   const seen = new Set();
   const index = [];
@@ -229,18 +265,36 @@ export function buildLibraryIndex(stations) {
   return index;
 }
 
+/**
+ * True when the normalized text contains every query word.
+ * @param {string} haystack Normalized text to search.
+ * @param {string[]} words Normalized query words.
+ * @returns {boolean} Whether all words are present.
+ */
 function matchesWords(haystack, words) {
   return words.every((w) => haystack.includes(w));
 }
 
-// Album order is file order, which is track-number order for any sensibly
-// named rip; everything else sorts artist -> album -> file.
+/**
+ * Album order is file order, which is track-number order for any sensibly
+ * named rip; everything else sorts artist -> album -> file.
+ * @param {object} a A library index entry.
+ * @param {object} b A library index entry.
+ * @returns {number} A sort comparison result.
+ */
 function byArtistAlbumPath(a, b) {
   return a.artistKey.localeCompare(b.artistKey)
     || a.albumKey.localeCompare(b.albumKey)
     || a.track.path.localeCompare(b.track.path);
 }
 
+/**
+ * Groups index entries by key and turns each group, sorted artist to album to file, into one row.
+ * @param {Array<object>} entries Library index entries.
+ * @param {Function} keyOf Returns an entry's group key; null skips the entry.
+ * @param {Function} rowOf Builds a row from `(key, members)`.
+ * @returns {Array<object>} One row per group.
+ */
 function groupRows(entries, keyOf, rowOf) {
   const groups = new Map();
   entries.forEach((entry) => {
@@ -252,6 +306,12 @@ function groupRows(entries, keyOf, rowOf) {
   return [...groups.entries()].map(([key, members]) => rowOf(key, members.sort(byArtistAlbumPath)));
 }
 
+/**
+ * A count and an upper-case word, pluralized with S.
+ * @param {number} n The count.
+ * @param {string} word The singular word.
+ * @returns {string} For example `3 SONGS`.
+ */
 function plural(n, word) {
   return `${n} ${word}${n === 1 ? '' : 'S'}`;
 }
@@ -270,9 +330,15 @@ export const CABINET_VIEWS = [
   { id: 'recent', label: '🆕 RECENT' },
 ];
 
-// view: 'all' (albums, with each artist's loose songs as one "singles" item),
-// 'albums' (albums only), 'singles' (every song with no album tag, one item
-// each) or 'artists' (one item per artist holding all of their songs).
+/**
+ * view: 'all' (albums, with each artist's loose songs as one "singles" item),
+ * 'albums' (albums only), 'singles' (every song with no album tag, one item
+ * each) or 'artists' (one item per artist holding all of their songs).
+ * @param {Array<object>} index The library index from `buildLibraryIndex`.
+ * @param {string} query The filter text, or a year query.
+ * @param {string} view A `CABINET_VIEWS` id.
+ * @returns {Array<object>} The cabinet items `{ key, artist, album, title, kind, year, tracks, albumCount, letter, addedAt }`.
+ */
 export function buildCabinet(index, query, view) {
   const words = normalizeForSearch(query).split(' ').filter(Boolean);
   const years = parseYearQuery(query);
@@ -332,7 +398,11 @@ export function buildCabinet(index, query, view) {
   return items;
 }
 
-// A stable colour for a spine or sleeve, from its artist and album.
+/**
+ * A stable colour for a spine or sleeve, from its artist and album.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @returns {number} A hue from 0 to 359.
+ */
 export function cabinetHue(item) {
   let h = 5381;
   const s = `${item.artist}|${item.album}`;
@@ -349,10 +419,16 @@ export const SEARCH_TABS = [
   { id: 'years', label: 'YEARS' },
 ];
 
-// Rows for one search tab: { label, sub, tracks } where `tracks` is the play
-// queue picking that row starts. A song row's queue is every song result from
-// that one on, so picking a song from an artist search keeps playing that
-// artist.
+/**
+ * Rows for one search tab: { label, sub, tracks } where `tracks` is the play
+ * queue picking that row starts. A song row's queue is every song result from
+ * that one on, so picking a song from an artist search keeps playing that
+ * artist.
+ * @param {Array<object>} index The library index from `buildLibraryIndex`.
+ * @param {string} query The search text.
+ * @param {string} tab A `SEARCH_TABS` id other than stations and cabinet.
+ * @returns {Array<object>} The rows for that tab.
+ */
 export function searchLibrary(index, query, tab) {
   const words = normalizeForSearch(query).split(' ').filter(Boolean);
   const years = parseYearQuery(query);
@@ -413,16 +489,25 @@ export function searchLibrary(index, query, tab) {
   return [];
 }
 
-// Where a paused live rotation carries on from: the rest of the loop, starting
-// with the song that was playing, in rotation order.
+/**
+ * Where a paused live rotation carries on from: the rest of the loop, starting
+ * with the song that was playing, in rotation order.
+ * @param {object} station The station config.
+ * @param {object} pb The playback position from `computeStationPlayback` (or an on-demand equivalent).
+ * @returns {Array<object>} The tracks from the current one round to the one before it.
+ */
 export function rotationQueueFrom(station, pb) {
   const tracks = (station && station.tracks || []).filter((t) => t.durationSec > 0);
   if (!tracks.length || !pb) return [];
   return tracks.slice(pb.index).concat(tracks.slice(0, pb.index));
 }
 
-// Kept as the old two-field shape because settings.js and every saved track
-// record still speak it; parseTrackMeta above is the full version.
+/**
+ * Kept as the old two-field shape because settings.js and every saved track
+ * record still speak it; parseTrackMeta above is the full version.
+ * @param {string} filePath The track's file path.
+ * @returns {object} `{ artist, title }`.
+ */
 export function parseArtistTitle(filePath) {
   const meta = parseTrackMeta(filePath);
   return { artist: meta.artist, title: meta.title };
@@ -444,9 +529,13 @@ export function parseArtistTitle(filePath) {
 const ART_BASENAMES = ['cover', 'folder', 'front', 'albumart'];
 const ART_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 
-// Split in two because they cache differently: a file named after the track
-// belongs to that track alone, while a generic cover belongs to the whole
-// folder and every other track in it resolves to the same answer.
+/**
+ * Split in two because they cache differently: a file named after the track
+ * belongs to that track alone, while a generic cover belongs to the whole
+ * folder and every other track in it resolves to the same answer.
+ * @param {string} trackPath The track's file path.
+ * @returns {object} `{ dir, trackArt, folderArt }`, the last two lists of candidate image paths.
+ */
 export function albumArtCandidates(trackPath) {
   const norm = String(trackPath || '').replace(/\\/g, '/');
   const slash = norm.lastIndexOf('/');
@@ -468,6 +557,11 @@ export function albumArtCandidates(trackPath) {
 const trackArtCache = new Map();
 const folderArtCache = new Map();
 
+/**
+ * Resolves true when an image URL loads with a real size.
+ * @param {string} url The image URL.
+ * @returns {Promise<boolean>} Whether it loaded; never rejects.
+ */
 function probeImage(url) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -477,6 +571,11 @@ function probeImage(url) {
   });
 }
 
+/**
+ * The file URL of the first path that loads as an image, tried in order.
+ * @param {string[]} paths Candidate image paths.
+ * @returns {Promise<?string>} The URL, or null.
+ */
 async function firstLoadable(paths) {
   for (const candidate of paths) {
     // eslint-disable-next-line no-await-in-loop
@@ -487,11 +586,15 @@ async function firstLoadable(paths) {
   return null;
 }
 
-// Which of a folder's image files is the album cover. The usual names first
-// (cover, folder, front), then the ones Windows Media Player and iTunes leave
-// behind (AlbumArt_{GUID}_Large.jpg, AlbumArtSmall.jpg, "Artist - Album.jpg"),
-// then any other picture, biggest-sounding name first. Booklet scans and
-// thumbnails rank last. Pure, so it is tested.
+/**
+ * Which of a folder's image files is the album cover. The usual names first
+ * (cover, folder, front), then the ones Windows Media Player and iTunes leave
+ * behind (AlbumArt_{GUID}_Large.jpg, AlbumArtSmall.jpg, "Artist - Album.jpg"),
+ * then any other picture, biggest-sounding name first. Booklet scans and
+ * thumbnails rank last. Pure, so it is tested.
+ * @param {string[]} files Image file paths.
+ * @returns {?string} The best candidate, or null for an empty list.
+ */
 export function rankAlbumArtFiles(files) {
   const score = (file) => {
     const name = String(file).replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '').toLowerCase();
@@ -505,9 +608,13 @@ export function rankAlbumArtFiles(files) {
   return [...files].sort((a, b) => score(a) - score(b) || String(a).localeCompare(String(b)))[0] || null;
 }
 
-// The images sitting in a track's own folder, found by listing it (the fixed
-// names above can't guess a GUID). The plug-in's folder scan walks subfolders
-// too; only files directly beside the track count.
+/**
+ * The images sitting in a track's own folder, found by listing it (the fixed
+ * names above can't guess a GUID). The plug-in's folder scan walks subfolders
+ * too; only files directly beside the track count.
+ * @param {string} dir The track's folder.
+ * @returns {Promise<?string>} A file URL for the best image there, or null.
+ */
 async function listFolderArt(dir) {
   if (!window.api || !window.api.digitalMusicScanFolder) return null;
   const result = await window.api.digitalMusicScanFolder({ folderPath: dir, kind: 'image' }).catch(() => null);
@@ -519,8 +626,15 @@ async function listFolderArt(dir) {
   return url && await probeImage(url) ? url : null;
 }
 
-// opts.embedded === false: a shelf thumbnail, which should not read whole
-// audio files just to look for a cover inside one; only the item in hand does.
+/**
+ * opts.embedded === false: a shelf thumbnail, which should not read whole
+ * audio files just to look for a cover inside one; only the item in hand does.
+ * Answers are cached per track and per folder, including "none found".
+ * @param {string} trackPath The track's file path.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.embedded=true] False to skip reading art from the audio file itself.
+ * @returns {Promise<?string>} An image URL or data URL, or null.
+ */
 export async function resolveAlbumArt(trackPath, opts) {
   const embedded = !(opts && opts.embedded === false);
   const cacheKey = embedded ? trackPath : `${trackPath}|sidecar`;
@@ -559,17 +673,23 @@ export async function resolveAlbumArt(trackPath, opts) {
 }
 
 // ---------- The rotating info strip ----------
-// The piece of that on-screen grammar this plugin was missing: a
-// strip that cycles every ~30s rather than one static readout. Built fresh
-// each tick from whatever is actually available and indexed off the
-// timestamp, so it is a pure function of (inputs, now) like the playback
-// math — a time-machine scrub lands on the slide it would have shown live.
-//
-// Deliberately no shipped stock of "Did You Know?" facts: inventing music
-// trivia would put fabricated claims on screen as though they were true. The
-// default rotation is built from things this app can actually verify about
-// the user's own library; real factoids are whatever the user types into
-// settings.
+/**
+ * The piece of that on-screen grammar this plugin was missing: a
+ * strip that cycles every ~30s rather than one static readout. Built fresh
+ * each tick from whatever is actually available and indexed off the
+ * timestamp, so it is a pure function of (inputs, now) like the playback
+ * math — a time-machine scrub lands on the slide it would have shown live.
+ *
+ * Deliberately no shipped stock of "Did You Know?" facts: inventing music
+ * trivia would put fabricated claims on screen as though they were true. The
+ * default rotation is built from things this app can actually verify about
+ * the user's own library; real factoids are whatever the user types into
+ * settings.
+ * @param {object} station The station config.
+ * @param {object} settings This plugin's settings (uses `factoids`).
+ * @param {object} pb The playback position from `computeStationPlayback` (or an on-demand equivalent).
+ * @returns {Array<object>} `{ kind, label, text }` slides, possibly empty.
+ */
 export function buildInfoSlides(station, settings, pb) {
   const slides = [];
   ((settings && settings.factoids) || []).forEach((text) => {
@@ -591,16 +711,28 @@ export function buildInfoSlides(station, settings, pb) {
   return slides;
 }
 
+/**
+ * The info slide showing at `nowMs`, rotating every `rotateMs`.
+ * @param {Array<object>} slides The slides from `buildInfoSlides`.
+ * @param {number} nowMs The view time in ms.
+ * @param {number} rotateMs How long each slide holds; 30 s when not positive.
+ * @returns {?object} The slide, or null when there are none.
+ */
 export function resolveInfoSlide(slides, nowMs, rotateMs) {
   if (!slides.length) return null;
   const period = rotateMs > 0 ? rotateMs : 30000;
   return slides[Math.floor(nowMs / period) % slides.length];
 }
 
-// Pure function of (station, now) — the one thing this whole plugin's
-// correctness rests on. `station.tracks` must already have durationSec
-// probed (see probeAllDurations below); untimed tracks are skipped so a
-// station mid-scan doesn't corrupt the loop math for the ones already known.
+/**
+ * Pure function of (station, now) — the one thing this whole plugin's
+ * correctness rests on. `station.tracks` must already have durationSec
+ * probed (see probeAllDurations below); untimed tracks are skipped so a
+ * station mid-scan doesn't corrupt the loop math for the ones already known.
+ * @param {object} station The station config.
+ * @param {number} nowMs The view time in ms.
+ * @returns {?object} `{ track, offsetSec, nextTrack, index, totalTracks }`, or null when no track has a duration.
+ */
 export function computeStationPlayback(station, nowMs) {
   const tracks = (station && station.tracks || []).filter((t) => t.durationSec > 0);
   if (!tracks.length) return null;
@@ -625,10 +757,14 @@ export function computeStationPlayback(station, nowMs) {
   };
 }
 
-// Off-screen <audio> metadata probe — no ffmpeg/ID3 dependency needed, the
-// browser already knows how to read a container's duration. Called from the
-// settings panel's RESCAN flow (settings.js) as well as lazily here for any
-// track that's missing a duration (e.g. a folder edited outside the app).
+/**
+ * Off-screen <audio> metadata probe — no ffmpeg/ID3 dependency needed, the
+ * browser already knows how to read a container's duration. Called from the
+ * settings panel's RESCAN flow (settings.js) as well as lazily here for any
+ * track that's missing a duration (e.g. a folder edited outside the app).
+ * @param {string} filePath The audio file path.
+ * @returns {Promise<number>} The duration in seconds, or 0 when unknown.
+ */
 export function probeDuration(filePath) {
   return window.api.toFileUrl(filePath).then((url) => new Promise((resolve) => {
     const a = new Audio();
@@ -640,6 +776,12 @@ export function probeDuration(filePath) {
   }));
 }
 
+/**
+ * Probes the duration of every track that has none, one at a time, writing `durationSec` onto each.
+ * @param {Array<object>} tracks Track records, updated in place.
+ * @param {Function} [onProgress] Called as `(done, total)` after each track.
+ * @returns {Promise<Array<object>>} The same tracks.
+ */
 export async function probeAllDurations(tracks, onProgress) {
   for (let i = 0; i < tracks.length; i++) {
     if (!tracks[i].durationSec) tracks[i].durationSec = await probeDuration(tracks[i].path);
@@ -648,6 +790,11 @@ export async function probeAllDurations(tracks, onProgress) {
   return tracks;
 }
 
+/**
+ * Formats seconds as `m:ss`.
+ * @param {number} sec The time in seconds.
+ * @returns {string} The clock text.
+ */
 function formatClock(sec) {
   if (!Number.isFinite(sec) || sec < 0) sec = 0;
   const m = Math.floor(sec / 60);
@@ -655,13 +802,27 @@ function formatClock(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * This plugin's current settings.
+ * @returns {object} The settings object.
+ */
 function getSettings() {
   return window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
 }
+/**
+ * Saves a partial settings change for this plugin.
+ * @param {object} patch The fields to change.
+ * @returns {*} What the core settings API returns.
+ */
 function updateSettings(patch) {
   return window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', patch);
 }
 
+/**
+ * The selected station, or the first one when none is selected.
+ * @param {object} [settings] This plugin's settings; read fresh when absent.
+ * @returns {?object} The station config, or null when there are none.
+ */
 function selectedStation(settings) {
   settings = settings || getSettings();
   const stations = settings.stations || [];
@@ -706,21 +867,33 @@ let flashTimer = null;
 // media session, which would otherwise pause and immediately resume.
 let lastPauseChangeAt = 0;
 
+/**
+ * True when the box is in TV (remote) mode.
+ * @returns {boolean} Whether `html[data-mode]` is `tv`.
+ */
 function isTvMode() {
   return document.documentElement.dataset.mode === 'tv';
 }
 
+/**
+ * Shows `text` in place of the now-playing label for a moment.
+ * @param {string} text The message.
+ */
 function flash(text) {
   flashText = text;
   if (flashTimer) clearTimeout(flashTimer);
   flashTimer = setTimeout(() => { flashText = null; flashTimer = null; }, 1400);
 }
 
-// The one place playback actually switches to a different station — anchors
-// a never-tuned station to "now" (so its loop math has a starting point),
-// applies its theme/background, and forces the next tick() to (re)load its
-// current track. Called from a confirmed browser pick, the ▲/▼ quick-cycle,
-// and settings.js right after a brand-new station is created.
+/**
+ * The one place playback actually switches to a different station — anchors
+ * a never-tuned station to "now" (so its loop math has a starting point),
+ * applies its theme/background, and forces the next tick() to (re)load its
+ * current track. Called from a confirmed browser pick, the ▲/▼ quick-cycle,
+ * and settings.js right after a brand-new station is created.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {string} id The station id.
+ */
 function switchToStation(ctx, id) {
   od = null;
   updateSettings({ selectedStationId: id });
@@ -737,6 +910,10 @@ function switchToStation(ctx, id) {
   tick(ctx);
 }
 
+/**
+ * Applies a station's genre colors to the channel.
+ * @param {object} station The station config.
+ */
 function applyStationTheme(station) {
   const theme = themeFor(station);
   if (!els) return;
@@ -745,6 +922,10 @@ function applyStationTheme(station) {
   els.root.style.setProperty('--mc-accent', theme.accent);
 }
 
+/**
+ * Shows the station's gradient, slideshow or looping video background.
+ * @param {object} station The station config.
+ */
 function applyStationBackground(station) {
   if (!els) return;
   const bgMode = (station.background && station.background.mode) || 'gradient';
@@ -771,6 +952,12 @@ function applyStationBackground(station) {
 // interval comes from the era: the real freeze-frame slides held for about
 // thirty seconds, not the twelve this used to use.
 let lastSlideshowIndex = -1;
+/**
+ * Shows the slideshow image for `nowMs`, crossfading when it changes.
+ * @param {object} station The station config.
+ * @param {number} nowMs The view time in ms.
+ * @param {object} era The presentation era from `eraFor`.
+ */
 function updateSlideshow(station, nowMs, era) {
   if (!els || (station.background && station.background.mode) !== 'slideshow') return;
   const images = (station.background && station.background.images) || [];
@@ -794,6 +981,10 @@ function updateSlideshow(station, nowMs, era) {
 // the case where the song moved on (or the channel was left) while the
 // probe was still running.
 let artTrackPath = null;
+/**
+ * Looks up and shows the album art for the track, once per track change.
+ * @param {string} trackPath The track now playing.
+ */
 function updateAlbumArt(trackPath) {
   if (!els || trackPath === artTrackPath) return;
   artTrackPath = trackPath;
@@ -809,6 +1000,11 @@ function updateAlbumArt(trackPath) {
 // Tells the OS what song this is, so its media overlay reads right while
 // this channel is tuned. Core sets the channel's own metadata on every tune.
 let mediaSessionTrackPath = null;
+/**
+ * Sets the OS media-session metadata for the song, once per track.
+ * @param {object} track The track now playing.
+ * @param {object} meta Its `{ artist, title, album, year }`.
+ */
 function updateMediaSessionTrack(track, meta) {
   const ms = navigator.mediaSession;
   if (!ms || typeof window.MediaMetadata !== 'function' || mediaSessionTrackPath === track.path) return;
@@ -818,6 +1014,11 @@ function updateMediaSessionTrack(track, meta) {
   } catch (e) { /* decoration only */ }
 }
 
+/**
+ * Updates the artist, title, album line, label and, when shown, the transport readout.
+ * @param {object} pb The playback position from `computeStationPlayback` (or an on-demand equivalent).
+ * @param {object} era The presentation era from `eraFor`.
+ */
 function updateNowPlayingUi(pb, era) {
   if (!els) return;
   const meta = trackMetaOf(pb.track);
@@ -862,6 +1063,9 @@ function updateNowPlayingUi(pb, era) {
   }
 }
 
+/**
+ * Sets the key hint line for live or on-demand playback and the input mode.
+ */
 function updateHint() {
   if (!els) return;
   const tv = isTvMode();
@@ -883,10 +1087,22 @@ function updateHint() {
 // is how the real thing behaved — the now-playing readout is persistent and
 // the secondary information beneath it is what rotates.
 let lastInfoSlideText = null;
+/**
+ * Shows the info slide due at `nowMs` in the bottom strip.
+ * @param {object} station The station config.
+ * @param {object} settings This plugin's settings.
+ * @param {object} pb The playback position from `computeStationPlayback` (or an on-demand equivalent).
+ * @param {object} era The presentation era from `eraFor`.
+ * @param {number} nowMs The view time in ms.
+ */
 function updateInfoStrip(station, settings, pb, era, nowMs) {
   showInfoSlide(resolveInfoSlide(buildInfoSlides(station, settings, pb), nowMs, era.slideMs));
 }
 
+/**
+ * Shows one info slide in the bottom strip, or hides the strip for none.
+ * @param {?object} slide `{ label, text }`, or null.
+ */
 function showInfoSlide(slide) {
   if (!els) return;
   if (!slide) {
@@ -905,6 +1121,12 @@ function showInfoSlide(slide) {
   els.infoStripEl.classList.add('mc-info-enter');
 }
 
+/**
+ * Applies the era and the daypart tint for `nowMs` to the channel.
+ * @param {object} settings This plugin's settings.
+ * @param {number} nowMs The view time in ms.
+ * @returns {object} The era in effect.
+ */
 function applyEraAndDaypart(settings, nowMs) {
   if (!els) return eraFor(settings);
   const era = eraFor(settings);
@@ -916,6 +1138,13 @@ function applyEraAndDaypart(settings, nowMs) {
   return era;
 }
 
+/**
+ * Loads the live track into the player and seeks to its scheduled offset.
+ * Skipped if the channel or the track changed while the file URL was resolving.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {object} station The station config.
+ * @param {object} pb The playback position from `computeStationPlayback` (or an on-demand equivalent).
+ */
 function loadTrack(ctx, station, pb) {
   currentLoadedTrackPath = pb.track.path;
   window.api.toFileUrl(pb.track.path).then((url) => {
@@ -932,6 +1161,11 @@ function loadTrack(ctx, station, pb) {
   });
 }
 
+/**
+ * The once-a-second update: works out what the station is playing at `ctx.viewNow()`, loads or resyncs it, and refreshes the screen.
+ * Hands over to `tickOnDemand` during an on-demand session, which the time machine ends.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function tick(ctx) {
   if (!els || window.S.currentNumber !== CHANNEL_NUMBER) return;
   const settings = getSettings();
@@ -988,6 +1222,11 @@ function tick(ctx) {
   updateSlideshow(station, nowMs, era);
 }
 
+/**
+ * Refreshes the screen from the player's own clock during an on-demand session.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {object} era The presentation era from `eraFor`.
+ */
 function tickOnDemand(ctx, era) {
   const track = od.queue[od.index];
   const p = ctx.player;
@@ -1004,6 +1243,11 @@ function tickOnDemand(ctx, era) {
   showInfoSlide({ kind: 'ondemand', label: 'ON DEMAND', text: `${od.label} — SONG ${od.index + 1} OF ${od.queue.length}` });
 }
 
+/**
+ * Loads the on-demand session's current song, starting at `startSec`.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} startSec Where to start, in seconds.
+ */
 function loadOnDemandTrack(ctx, startSec) {
   const session = od;
   const track = session.queue[session.index];
@@ -1023,7 +1267,15 @@ function loadOnDemandTrack(ctx, startSec) {
   });
 }
 
-// Starts a session on `queue` (a search pick). Returns false for an empty one.
+/**
+ * Starts a session on `queue` (a search pick). Returns false for an empty one.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {Array<object>} queue The tracks to play.
+ * @param {string} label What the session is called on screen.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.shuffle] Shuffle the queue; the setting decides when absent.
+ * @returns {boolean} Whether a session started.
+ */
 function startOnDemand(ctx, queue, label, opts) {
   if (!queue || !queue.length) return false;
   if ((opts && opts.shuffle != null) ? opts.shuffle : getSettings().shuffleOnDemand) {
@@ -1043,9 +1295,14 @@ function startOnDemand(ctx, queue, label, opts) {
   return true;
 }
 
-// Steps off the live rotation at exactly the song and second it was on, so
-// pausing or seeking a broadcast carries on from where you were rather than
-// restarting anything. The queue is the rest of the loop in rotation order.
+/**
+ * Steps off the live rotation at exactly the song and second it was on, so
+ * pausing or seeking a broadcast carries on from where you were rather than
+ * restarting anything. The queue is the rest of the loop in rotation order.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {boolean} paused Start the session paused.
+ * @returns {boolean} False when the station has nothing playing.
+ */
 function enterOnDemandFromLive(ctx, paused) {
   const station = selectedStation();
   const pb = station && computeStationPlayback(station, ctx.viewNow());
@@ -1057,6 +1314,12 @@ function enterOnDemandFromLive(ctx, paused) {
   return true;
 }
 
+/**
+ * Pauses or resumes; pausing the live rotation steps into on demand at the current song.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {boolean} paused Whether to pause.
+ * @returns {boolean} Whether anything changed.
+ */
 function setPaused(ctx, paused) {
   if (!od) {
     if (!paused || !enterOnDemandFromLive(ctx, true)) return false;
@@ -1070,18 +1333,29 @@ function setPaused(ctx, paused) {
   return true;
 }
 
-// For the paths a single hardware key can arrive on twice (a keydown and the
-// OS media session): the second one inside the window is the same press.
+/**
+ * For the paths a single hardware key can arrive on twice (a keydown and the
+ * OS media session): the second one inside the window is the same press.
+ * @returns {boolean} Whether a pause change happened in the last 400 ms.
+ */
 function pressedRecently() {
   return performance.now() - lastPauseChangeAt < 400;
 }
 
+/**
+ * Toggles pause, ignoring the duplicate of a press that just arrived.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @returns {boolean} True when handled.
+ */
 function togglePause(ctx) {
   if (pressedRecently()) return true;
   return setPaused(ctx, !(od && od.paused));
 }
 
-// SETTINGS › Digital Music › Playback controls: the length of one ◀▶ step.
+/**
+ * SETTINGS › Digital Music › Playback controls: the length of one ◀▶ step.
+ * @returns {number} The step in seconds, from 2 to 60.
+ */
 function seekStepSec() {
   const n = Number(getSettings().seekStepSec);
   return Number.isFinite(n) ? Math.min(60, Math.max(2, n)) : 10;
@@ -1093,6 +1367,11 @@ const SEEK_REPEAT_WINDOW_MS = 700;
 let lastSeekAt = 0;
 let lastSeekDir = 0;
 let seekStreak = 0;
+/**
+ * The step multiplier for a seek: 1, 1, 3, then 6 as the same direction repeats within `SEEK_REPEAT_WINDOW_MS`.
+ * @param {number} dir The seek direction or delta; only its sign matters.
+ * @returns {number} The multiplier.
+ */
 function seekAccel(dir) {
   const now = performance.now();
   seekStreak = (now - lastSeekAt < SEEK_REPEAT_WINDOW_MS && Math.sign(dir) === Math.sign(lastSeekDir)) ? seekStreak + 1 : 0;
@@ -1101,10 +1380,16 @@ function seekAccel(dir) {
   return seekStreak < 2 ? 1 : seekStreak < 5 ? 3 : 6;
 }
 
-// A seek the element ignored (a file whose container has no usable index, a
-// source that can't be ranged) leaves the song where it was. If the position
-// is not where it was asked to be shortly after, reload the song starting at
-// the target instead, which every file can do.
+/**
+ * A seek the element ignored (a file whose container has no usable index, a
+ * source that can't be ranged) leaves the song where it was. If the position
+ * is not where it was asked to be shortly after, reload the song starting at
+ * the target instead, which every file can do.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {object} session The on-demand session that asked.
+ * @param {object} track The track being seeked.
+ * @param {number} target The requested position in seconds.
+ */
 function verifySeek(ctx, session, track, target) {
   setTimeout(() => {
     if (od !== session || session.queue[session.index] !== track || window.S.currentNumber !== CHANNEL_NUMBER) return;
@@ -1114,12 +1399,19 @@ function verifySeek(ctx, session, track, target) {
   }, 700);
 }
 
+/**
+ * True when the left and right arrows seek; false when the setting makes them change station.
+ * @returns {boolean} Whether the arrows seek.
+ */
 function arrowsSeek() {
   return getSettings().arrowKeys !== 'station';
 }
 
 const REPEAT_ORDER = ['off', 'song', 'queue'];
 const REPEAT_LABELS = { off: 'OFF', song: 'THIS SONG', queue: 'ALL SONGS' };
+/**
+ * Steps the repeat mode off, this song, all songs, and saves it.
+ */
 function cycleRepeat() {
   const cur = REPEAT_ORDER.indexOf(getSettings().repeatMode || 'off');
   const next = REPEAT_ORDER[(Math.max(0, cur) + 1) % REPEAT_ORDER.length];
@@ -1127,6 +1419,12 @@ function cycleRepeat() {
   flash(`🔁 REPEAT: ${REPEAT_LABELS[next]}`);
 }
 
+/**
+ * Seeks by `deltaSec` (scaled by `seekAccel`), stepping into on demand first when live.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} deltaSec Seconds to move; negative goes back.
+ * @returns {boolean} False when nothing is playing.
+ */
 function seekBy(ctx, deltaSec) {
   if (!od && !enterOnDemandFromLive(ctx, false)) return false;
   const p = ctx.player;
@@ -1151,7 +1449,10 @@ function seekBy(ctx, deltaSec) {
   return true;
 }
 
-// A song finished on demand: repeat it, loop the queue, or go to the next.
+/**
+ * A song finished on demand: repeat it, loop the queue, or go to the next.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function onTrackEnded(ctx) {
   const mode = getSettings().repeatMode;
   if (mode === 'song') {
@@ -1170,6 +1471,14 @@ function onTrackEnded(ctx) {
   skipTrack(ctx, 1, true);
 }
 
+/**
+ * Goes to the next or previous song in the on-demand queue, stepping in from live first.
+ * Previous restarts the song unless it is under 3 s in; running off the end follows the selection-end setting (or returns to live for a live-derived queue).
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} dir 1 for next, -1 for previous.
+ * @param {boolean} [auto] True when the song ended by itself; no flash and playback resumes.
+ * @returns {boolean} False when nothing is playing.
+ */
 function skipTrack(ctx, dir, auto) {
   if (!od && !enterOnDemandFromLive(ctx, false)) return false;
   // Previous means "start of this song" unless you are already near it, the
@@ -1204,6 +1513,11 @@ function skipTrack(ctx, dir, auto) {
   return true;
 }
 
+/**
+ * Ends the on-demand session and returns to the live rotation.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {string} [message] Flashed on screen.
+ */
 function leaveOnDemand(ctx, message) {
   if (!od) return;
   od = null;
@@ -1212,10 +1526,13 @@ function leaveOnDemand(ctx, message) {
   tick(ctx);
 }
 
-// The OS media keys and media overlay. Explicit play/pause handlers stop
-// Chromium's default of toggling the element itself, which would pause the
-// broadcast with nothing on screen saying so. Core keeps next/previous track
-// as channel up/down (broadcast-fx.js's initMediaSession).
+/**
+ * The OS media keys and media overlay. Explicit play/pause handlers stop
+ * Chromium's default of toggling the element itself, which would pause the
+ * broadcast with nothing on screen saying so. Core keeps next/previous track
+ * as channel up/down (broadcast-fx.js's initMediaSession).
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function bindMediaSession(ctx) {
   const ms = navigator.mediaSession;
   if (!ms || typeof ms.setActionHandler !== 'function') return;
@@ -1226,6 +1543,9 @@ function bindMediaSession(ctx) {
   bind('seekforward', () => seekBy(ctx, seekStepSec()));
 }
 
+/**
+ * Removes the media-session handlers `bindMediaSession` set.
+ */
 function unbindMediaSession() {
   const ms = navigator.mediaSession;
   if (!ms || typeof ms.setActionHandler !== 'function') return;
@@ -1237,7 +1557,11 @@ function unbindMediaSession() {
 // A long result list is capped on screen; the count still says how many.
 const MAX_ROWS = 300;
 
-// Rows for the current tab. Each is { label, sub, right, swatch, active, run }.
+/**
+ * Rows for the current tab. Each is { label, sub, right, swatch, active, run }.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @returns {Array<object>} The rows to show.
+ */
 function buildBrowserRows(ctx) {
   const settings = getSettings();
   const stations = settings.stations || [];
@@ -1278,6 +1602,10 @@ function buildBrowserRows(ctx) {
   }));
 }
 
+/**
+ * The message for an empty result list, pointing at a rescan when tags or dates are missing.
+ * @returns {string} The message.
+ */
 function emptyMessage() {
   if (browserTab === 'cabinet' && cabinetView() === 'recent') return 'NOTHING DATED YET — RESCAN YOUR STATIONS IN SETTINGS TO RECORD WHEN SONGS WERE ADDED';
   const anyTags = (libraryIndex || []).some((e) => e.track.tagsRead);
@@ -1288,6 +1616,10 @@ function emptyMessage() {
   return browserQuery.trim() ? `NOTHING MATCHES “${browserQuery.trim().toUpperCase()}”` : 'NO SONGS YET — ADD A STATION FOLDER IN SETTINGS';
 }
 
+/**
+ * Redraws the browser overlay for the current tab, cursor and query.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function renderBrowser(ctx) {
   if (!els) return;
   browserRows = buildBrowserRows(ctx);
@@ -1352,6 +1684,10 @@ function renderBrowser(ctx) {
   if (cabinetOn) els.browserHintEl.textContent = cabinetHint();
 }
 
+/**
+ * Opens the browser on the STATIONS tab with the cursor on the current station.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function openBrowser(ctx) {
   if (!els || !(getSettings().stations || []).length) return;
   browserOpen = true;
@@ -1362,6 +1698,9 @@ function openBrowser(ctx) {
   els.browserEl.classList.remove('hidden');
   renderBrowser(ctx);
 }
+/**
+ * Hides the browser overlay.
+ */
 function closeBrowser() {
   browserOpen = false;
   browserRows = [];
@@ -1370,11 +1709,21 @@ function closeBrowser() {
   if (document.activeElement === els.browserInputEl) els.browserInputEl.blur();
 }
 
+/**
+ * Moves to the next or previous browser tab, wrapping.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} dir 1 or -1.
+ */
 function switchBrowserTab(ctx, dir) {
   const i = SEARCH_TABS.findIndex((t) => t.id === browserTab);
   setBrowserTab(ctx, SEARCH_TABS[(i + dir + SEARCH_TABS.length) % SEARCH_TABS.length].id);
 }
 
+/**
+ * Switches the browser to tab `id`.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {string} id A `SEARCH_TABS` id.
+ */
 function setBrowserTab(ctx, id) {
   browserTab = id;
   if (cab) cab.focus = 'shelf';
@@ -1393,13 +1742,30 @@ function setBrowserTab(ctx, id) {
 let cab = null;
 const MAX_CABINET_ITEMS = 2000;
 
+/**
+ * The cabinet look from settings.
+ * @returns {string} `cd` or `vinyl`.
+ */
 function cabinetStyle() {
   return getSettings().cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
 }
 
-// Starred cabinet items, kept in the plugin's own settings.
+/**
+ * Starred cabinet items, kept in the plugin's own settings.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @returns {string} The favorites key.
+ */
 function cabinetFavoriteKey(item) { return `${item.kind}:${item.key}`; }
+/**
+ * The saved favorite keys.
+ * @returns {Set<string>} The keys.
+ */
 function favoriteKeys() { return new Set(getSettings().favorites || []); }
+/**
+ * Stars or unstars a cabinet item and saves the list.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @returns {boolean} True when it is now a favorite.
+ */
 function toggleCabinetFavorite(item) {
   const keys = favoriteKeys();
   const key = cabinetFavoriteKey(item);
@@ -1409,24 +1775,41 @@ function toggleCabinetFavorite(item) {
   return on;
 }
 
+/**
+ * The saved cabinet view, or `all` when it is not a known view.
+ * @returns {string} A `CABINET_VIEWS` id.
+ */
 function cabinetView() {
   const v = getSettings().cabinetView;
   return CABINET_VIEWS.some((x) => x.id === v) ? v : 'all';
 }
 
-// What to call an item: an album's title, a song's title, or the artist's
-// own name with how much of theirs is on the channel.
+/**
+ * What to call an item: an album's title, a song's title, or the artist's
+ * own name with how much of theirs is on the channel.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @returns {string} The title.
+ */
 function cabinetItemTitle(item) {
   if (item.kind === 'artist') return item.artist;
   if (item.kind === 'single') return item.title || 'UNTITLED';
   return item.album || 'SINGLES & OTHER SONGS';
 }
+/**
+ * The second line for a cabinet item: counts for an artist, otherwise artist, year and song count.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @returns {string} The line.
+ */
 function cabinetItemSub(item) {
   if (item.kind === 'artist') return [item.albumCount ? plural(item.albumCount, 'ALBUM') : null, plural(item.tracks.length, 'SONG')].filter(Boolean).join(' · ');
   if (item.kind === 'single') return [item.artist, item.year].filter(Boolean).join(' · ');
   return [item.artist, item.year, plural(item.tracks.length, 'SONG')].filter(Boolean).join(' · ');
 }
 
+/**
+ * The key hint for the cabinet's current focus.
+ * @returns {string} The hint.
+ */
 function cabinetHint() {
   if (!cab) return '';
   if (cab.focus === 'case') return '▲▼ SELECT · OK PLAY · ◀▶ OTHER ALBUM · ESC BACK TO THE SHELF';
@@ -1436,6 +1819,10 @@ function cabinetHint() {
     : 'TYPE TO FILTER · ◀▶ BROWSE · ▲▼ SHELF · ENTER OPEN · ESC CLOSE';
 }
 
+/**
+ * Draws the cabinet tab, rebuilding the shelves only when the query, style, view or library changed.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function renderCabinet(ctx) {
   if (!libraryIndex) libraryIndex = buildLibraryIndex(getSettings().stations || []);
   const style = cabinetStyle();
@@ -1482,6 +1869,11 @@ const CAB_ART_CONCURRENCY = 3;
 const cabEmbeddedQueue = [];
 let cabEmbeddedActive = false;
 
+/**
+ * Puts a found cover on a shelf item that is still on screen.
+ * @param {object} job `{ el, item, img }` for the shelf item.
+ * @param {?string} url The cover URL, or null.
+ */
 function showShelfArt(job, url) {
   if (url && job.el.isConnected) {
     job.img.src = url;
@@ -1490,6 +1882,9 @@ function showShelfArt(job, url) {
   }
 }
 
+/**
+ * Works through the embedded-art queue one item at a time.
+ */
 function pumpEmbeddedCabinetArt() {
   if (cabEmbeddedActive) return;
   const job = cabEmbeddedQueue.shift();
@@ -1500,6 +1895,9 @@ function pumpEmbeddedCabinetArt() {
     .finally(() => { cabEmbeddedActive = false; pumpEmbeddedCabinetArt(); });
 }
 
+/**
+ * Works through the shelf-art queue, `CAB_ART_CONCURRENCY` at a time, handing misses to the embedded-art queue.
+ */
 function pumpCabinetArt() {
   while (cabArtActive < CAB_ART_CONCURRENCY && cabArtQueue.length) {
     const job = cabArtQueue.shift();
@@ -1512,6 +1910,13 @@ function pumpCabinetArt() {
   }
 }
 
+/**
+ * Queues a shelf item's cover lookup for when it scrolls into view.
+ * @param {HTMLElement} host The scrolling shelves element.
+ * @param {HTMLElement} el The shelf item element.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @param {HTMLImageElement} img The item's cover image element.
+ */
 function observeCabinetArt(host, el, item, img) {
   if (typeof IntersectionObserver !== 'function') return;
   if (!cabArtObserver) {
@@ -1528,6 +1933,11 @@ function observeCabinetArt(host, el, item, img) {
   cabArtObserver.observe(el);
 }
 
+/**
+ * Builds the shelf items, letter dividers and letter index for `cab.items`.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {string} style `cd` or `vinyl`.
+ */
 function buildCabinetShelves(ctx, style) {
   const host = els.cabShelvesEl;
   if (cabArtObserver) { cabArtObserver.disconnect(); cabArtObserver = null; }
@@ -1579,6 +1989,10 @@ function buildCabinetShelves(ctx, style) {
 }
 
 let cabArtTimer = null;
+/**
+ * Marks the selected shelf item and fills the "in hand" strip, loading its cover after a short pause.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function updateCabinetSelection(ctx) {
   if (!cab) return;
   cab.els.forEach((el, i) => el.classList.toggle('mc-cab-selected', i === cab.cursor && cab.focus !== 'tabs'));
@@ -1600,9 +2014,13 @@ function updateCabinetSelection(ctx) {
   cabArtTimer = setTimeout(() => setCabinetCover(els.cabHoldArtEl, item), 180);
 }
 
-// Cover for an item: the album's own art when it has any, loaded only for
-// what is actually in hand (reading embedded art means reading the audio
-// file), otherwise the typographic placeholder.
+/**
+ * Cover for an item: the album's own art when it has any, loaded only for
+ * what is actually in hand (reading embedded art means reading the audio
+ * file), otherwise the typographic placeholder.
+ * @param {HTMLImageElement} imgEl The image element to fill.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ */
 function setCabinetCover(imgEl, item) {
   const path = item.tracks[0].path;
   imgEl.dataset.path = path;
@@ -1615,6 +2033,10 @@ function setCabinetCover(imgEl, item) {
   }).catch(() => {});
 }
 
+/**
+ * Draws the open album case: cover, play, shuffle, queue and favorite rows, then the songs.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function renderCase(ctx) {
   const pull = els.cabPullEl;
   if (!cab || cab.focus !== 'case' || !cab.items[cab.cursor]) { pull.classList.add('hidden'); return; }
@@ -1664,8 +2086,13 @@ function renderCase(ctx) {
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
 }
 
-// Adds an item's songs to the on-demand queue in play: right after the song on
-// now (PLAY NEXT) or at the end. Leaves the cabinet so the readout shows it.
+/**
+ * Adds an item's songs to the on-demand queue in play: right after the song on
+ * now (PLAY NEXT) or at the end. Leaves the cabinet so the readout shows it.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @param {boolean} next True to play next, false to add at the end.
+ */
 function queueFromCabinet(ctx, item, next) {
   if (!od) return;
   const at = next ? od.index + 1 : od.queue.length;
@@ -1675,13 +2102,24 @@ function queueFromCabinet(ctx, item, next) {
   tick(ctx);
 }
 
+/**
+ * Closes the browser and starts an on-demand session for a cabinet pick.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {Array<object>} queue The tracks to play.
+ * @param {object} item A cabinet item from `buildCabinet`.
+ * @param {boolean} shuffle Whether to shuffle.
+ */
 function playFromCabinet(ctx, queue, item, shuffle) {
   closeBrowser();
   const label = item.kind === 'artist' ? item.artist : `${cabinetItemTitle(item)} — ${item.artist}`;
   startOnDemand(ctx, queue, label.toUpperCase(), { shuffle });
 }
 
-// The item on the next shelf up or down, nearest in position along it.
+/**
+ * The item on the next shelf up or down, nearest in position along it.
+ * @param {number} dir 1 for down, -1 for up.
+ * @returns {?number} The item index, or null when there is no shelf that way.
+ */
 function cabinetShelfStep(dir) {
   const cur = cab.els[cab.cursor];
   if (!cur) return cab.cursor;
@@ -1704,9 +2142,18 @@ function cabinetShelfStep(dir) {
   return best;
 }
 
-// Keys for the CABINET tab. `typing` is the search box having focus on a
-// desktop keyboard, where ◀▶ only browse once the caret is at an edge.
-// Returns true when the key was handled.
+/**
+ * Keys for the CABINET tab. `typing` is the search box having focus on a
+ * desktop keyboard, where ◀▶ only browse once the caret is at an edge.
+ * Returns true when the key was handled.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {string} key The `KeyboardEvent.key` value.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.typing=false] The search box has focus.
+ * @param {boolean} [opts.atStart=true] The caret is at the start of the box.
+ * @param {boolean} [opts.atEnd=true] The caret is at the end of the box.
+ * @returns {boolean} Whether the key was handled.
+ */
 function cabinetKey(ctx, key, { typing = false, atStart = true, atEnd = true } = {}) {
   if (!cab) { renderBrowser(ctx); if (!cab) return false; }
   if (cab.focus === 'case') {
@@ -1755,6 +2202,10 @@ function cabinetKey(ctx, key, { typing = false, atStart = true, atEnd = true } =
   return true;
 }
 
+/**
+ * Runs the selected browser row, or opens the on-screen keyboard on the search row.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function activateBrowserRow(ctx) {
   if (browserCursor === -1) { openSearchKeyboard(ctx); return; }
   const row = browserRows[browserCursor];
@@ -1763,6 +2214,10 @@ function activateBrowserRow(ctx) {
   row.run();
 }
 
+/**
+ * Opens the TV on-screen keyboard for the search query.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ */
 function openSearchKeyboard(ctx) {
   if (!ctx.input || typeof ctx.input.openKeyboard !== 'function') return;
   ctx.input.openKeyboard({ title: 'SEARCH MUSIC', value: browserQuery, maxLength: 40 }).then((text) => {
@@ -1773,6 +2228,11 @@ function openSearchKeyboard(ctx) {
   });
 }
 
+/**
+ * Moves the browser cursor by `delta` rows, clamped.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} delta Rows to move.
+ */
 function browserMove(ctx, delta) {
   if (!browserRows.length && browserCursor !== -1) return;
   const minCursor = browserTab !== 'stations' && isTvMode() ? -1 : 0;
@@ -1781,8 +2241,12 @@ function browserMove(ctx, delta) {
   renderBrowser(ctx);
 }
 
-// Keys typed into the search box. app.js ignores keys while a text field has
-// focus, so the list's own navigation is handled here instead.
+/**
+ * Keys typed into the search box. app.js ignores keys while a text field has
+ * focus, so the list's own navigation is handled here instead.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {KeyboardEvent} e The keydown event.
+ */
 function onSearchInputKey(ctx, e) {
   const input = els && els.browserInputEl;
   if (!input) return;
@@ -1810,6 +2274,11 @@ function onSearchInputKey(ctx, e) {
   if (handled) { e.preventDefault(); e.stopPropagation(); }
 }
 
+/**
+ * Switches to the next or previous station, wrapping.
+ * @param {object} ctx The renderer plugin context (`player`, `viewNow`, `input`, ...).
+ * @param {number} dir 1 or -1.
+ */
 function cycleStation(ctx, dir) {
   const settings = getSettings();
   const stations = settings.stations || [];

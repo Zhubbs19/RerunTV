@@ -20,6 +20,10 @@ import { openCgPage } from './page.js';
 const HOURS_SHOWN = 24;
 const MAX_ROWS = 48;
 
+/**
+ * Lists the channels the page can step through: visible and not hidden for the household profile.
+ * @returns {Array<object>} Channel configs in channel-number order.
+ */
 function browsable() {
   return sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number));
 }
@@ -32,6 +36,11 @@ const ACTION_HELP = {
   none: 'Already aired.',
 };
 
+/**
+ * Opens Listings by Channel on one channel's day.
+ * @param {number} [startNumber=S.currentNumber] The channel to start on.
+ * @returns {object} The open page, as returned by `openCgPage`.
+ */
 export function openByChannelPage(startNumber = S.currentNumber) {
   let channels = browsable();
   let index = Math.max(0, channels.findIndex((c) => c.number === startNumber));

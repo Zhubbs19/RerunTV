@@ -22,10 +22,13 @@ const FETCH_TIMEOUT_MS = 8000;
 // bounds the database's size.
 const MAX_CACHE_ENTRIES = 500;
 
-// Looked up on every call rather than at require() time: main.js's one-time
-// portable-userData migration (config.js's migrateUserDataIfNeeded()) can
-// still repoint app.getPath('userData') after this module is first required.
-// cacheTable() hands back the same table for the same folder after the first call.
+/**
+ * Looked up on every call rather than at require() time: main.js's one-time
+ * portable-userData migration (config.js's migrateUserDataIfNeeded()) can
+ * still repoint app.getPath('userData') after this module is first required.
+ * cacheTable() hands back the same table for the same folder after the first call.
+ * @returns {object} The `api` cache table.
+ */
 function apiCache() {
   const userDataDir = app.getPath('userData');
   return cacheTable(userDataDir, 'api', {
@@ -40,7 +43,11 @@ function apiCache() {
   });
 }
 
-// A failed cache read or write must never break the fetch it was saving.
+/**
+ * A failed cache read or write must never break the fetch it was saving.
+ * @param {string} key The cache key.
+ * @returns {?object} `{ at, data }`, or null.
+ */
 function readEntry(key) {
   try {
     const row = apiCache().get(key);
@@ -50,6 +57,11 @@ function readEntry(key) {
   }
 }
 
+/**
+ * Stores a fetched value in the cache, ignoring failures.
+ * @param {string} key The cache key.
+ * @param {*} data The JSON value.
+ */
 function writeEntry(key, data) {
   try { apiCache().set(key, data); } catch (e) { /* only costs a refetch later */ }
 }
@@ -68,6 +80,11 @@ function writeEntry(key, data) {
 // a materially harder attack than "just point at 169.254.169.254" and out of
 // scope for this pass.
 const BLOCKED_HOSTNAMES = new Set(['localhost', '0.0.0.0', '[::]', '::', '::1']);
+/**
+ * Checks a dotted IPv4 literal against loopback, private, link-local and carrier-grade NAT ranges.
+ * @param {string} host The host.
+ * @returns {boolean} True for a blocked address.
+ */
 function isPrivateIPv4(host) {
   const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
   if (!m) return false;
@@ -80,6 +97,11 @@ function isPrivateIPv4(host) {
   if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
   return false;
 }
+/**
+ * Checks whether a URL points at a local, private or internal address (literal IPs only).
+ * @param {string} rawUrl The URL.
+ * @returns {boolean} True when it must not be fetched; an unparseable URL counts as blocked.
+ */
 function isBlockedFetchTarget(rawUrl) {
   let parsed;
   try { parsed = new URL(rawUrl); } catch (e) { return true; } // unparseable — refuse rather than guess
@@ -103,10 +125,18 @@ function isBlockedFetchTarget(rawUrl) {
   return false;
 }
 
-// Fetches `url` as JSON, using a cached response up to `ttlMs` old on
-// success. On network failure (offline, DNS, timeout, non-2xx) falls back to
-// whatever's cached regardless of age — stale metadata/alert data beats none
-// — and only throws if there's truly nothing cached yet.
+/**
+ * Fetches `url` as JSON, using a cached response up to `ttlMs` old on
+ * success. On network failure (offline, DNS, timeout, non-2xx) falls back to
+ * whatever's cached regardless of age — stale metadata/alert data beats none
+ * — and only throws if there's truly nothing cached yet.
+ * @param {string} key The cache key.
+ * @param {string} url The URL to fetch.
+ * @param {object} [opts] `fetch` options such as headers.
+ * @param {number} ttlMs How old a cached response may be before it is refetched.
+ * @returns {Promise<*>} The parsed JSON.
+ * @throws {Error} When the target is private, or the fetch fails and nothing is cached.
+ */
 async function fetchJsonCached(key, url, opts, ttlMs) {
   if (isBlockedFetchTarget(url)) throw new Error(`fetchJsonCached: refusing to fetch a private/internal address (${url})`);
   const entry = readEntry(key);

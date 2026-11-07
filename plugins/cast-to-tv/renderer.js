@@ -4,6 +4,11 @@
 // for the PLUGINS-tab controls (device IP, connect, cast now, auto-sync).
 const { player, S } = window.RCBPlugins.ctx;
 
+/**
+ * The local file path inside an `app://media/` URL, or null for anything else.
+ * @param {string} currentSrc The player's current source URL.
+ * @returns {?string} The decoded file path.
+ */
 function decodeLocalPath(currentSrc) {
   if (!currentSrc || !currentSrc.startsWith('app://media/')) return null; // mediaSource-plugin refs and bumpers aren't supported yet
   try {
@@ -14,6 +19,9 @@ function decodeLocalPath(currentSrc) {
   }
 }
 
+/**
+ * Sends the playing local file, position and channel name to main.js while the box is on.
+ */
 function reportNowPlaying() {
   if (!S.isPoweredOn) return;
   const src = player.currentSrc || player.src;
@@ -60,6 +68,11 @@ const MIRROR_PROFILES = {
   '4k60': { width: 3840, height: 2160, frameRate: 60, bitrate: 42_000_000, audioBitrate: 192_000, timeslice: 250, codec: 'vp9' },
 };
 
+/**
+ * The first WebM MIME type this recorder supports, preferring `preferredCodec`.
+ * @param {string} preferredCodec `vp8` or `vp9`.
+ * @returns {string} A supported MIME type, or an empty string for the recorder default.
+ */
 function chooseMirrorMimeType(preferredCodec) {
   const codecs = preferredCodec === 'vp9' ? ['vp9', 'vp8'] : ['vp8', 'vp9'];
   const candidates = [
@@ -70,6 +83,11 @@ function chooseMirrorMimeType(preferredCodec) {
   return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
+/**
+ * Picks the capture source that is this app's own window, matched by title.
+ * @param {Array<object>} sources The sources from `castListMirrorSources`.
+ * @returns {object|undefined} The matching source.
+ */
 function findRerunTvSource(sources) {
   const title = String(document.title || 'RerunTV').trim().toLowerCase();
   return sources.find((source) => String(source.name).trim().toLowerCase() === title)
@@ -77,6 +95,12 @@ function findRerunTvSource(sources) {
     || sources.find((source) => /rerun\s*tv/i.test(String(source.name)));
 }
 
+/**
+ * Stops the mirror recorder and capture streams and releases their audio routes.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.notifyMain=true] Also tell main.js to stop the mirror stream.
+ * @returns {Promise<object|undefined>} The cast status from main.js when notified.
+ */
 async function stopMirror({ notifyMain = true } = {}) {
   if (stoppingMirror) return;
   stoppingMirror = true;
@@ -114,6 +138,14 @@ async function stopMirror({ notifyMain = true } = {}) {
   return status;
 }
 
+/**
+ * Captures the app window or a display, scales it to the profile size and streams it as WebM chunks to main.js.
+ * Resolves once the first chunk (the WebM header) has reached main.js, so a receiver that joins next sees a decodable stream.
+ * @param {string} [profileId='1080p60'] A `MIRROR_PROFILES` key.
+ * @param {string} [sourcePreference='app'] `app` for this window, or a desktop source id.
+ * @returns {Promise<object>} `{ mimeType, profileId, sourceName, width, height, frameRate, hasAudio, audioMode }`.
+ * @throws {Error} When the source is missing, audio capture is unavailable or the encoder does not start (as a rejection).
+ */
 async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
   await stopMirror({ notifyMain: false });
   const profile = MIRROR_PROFILES[profileId] || MIRROR_PROFILES['1080p60'];
@@ -272,5 +304,9 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
 window.RCBPlugins.castToTv = {
   startMirror,
   stopMirror,
+  /**
+   * Whether the screen mirror is recording and being sent to the TV right now.
+   * @returns {boolean} True while mirroring.
+   */
   isMirroring: () => !!mirrorRecorder && mirrorRecorder.state === 'recording',
 };

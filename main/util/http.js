@@ -18,6 +18,12 @@ const { isPathContained } = require('./path-safety');
 // body and exhaust host memory before JSON.parse ever runs.
 const MAX_JSON_BODY_BYTES = 1024 * 1024;
 
+/**
+ * Reads and parses a JSON request body, refusing more than `MAX_JSON_BODY_BYTES`.
+ * @param {http.IncomingMessage} req The incoming request.
+ * @returns {Promise<object>} The parsed body, or `{}` when empty.
+ * @throws {Error} When the body is too large or is not valid JSON (as a rejection).
+ */
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = []; // decoded once at the end so multi-byte characters survive chunk splits
@@ -49,14 +55,20 @@ function readJsonBody(req) {
   });
 }
 
-// Serves one static file out of `baseDir` for a plugin's own small
-// browser-facing UI (party-channel's party/ page, universal-remote's own
-// remote/ page) — the GET-and-fall-through-to-index.html tail every such
-// plugin server ends with, previously hand-copied per plugin (path-
-// containment check included). Handles the whole rest of the response
-// (method check, 403/404) so a call site is just
-// `serveStaticFile(MY_DIR, url.pathname, req, res); return;` once every
-// other route above it has already been checked and didn't match.
+/**
+ * Serves one static file out of `baseDir` for a plugin's own small
+ * browser-facing UI (party-channel's party/ page, universal-remote's own
+ * remote/ page) — the GET-and-fall-through-to-index.html tail every such
+ * plugin server ends with, previously hand-copied per plugin (path-
+ * containment check included). Handles the whole rest of the response
+ * (method check, 403/404) so a call site is just
+ * `serveStaticFile(MY_DIR, url.pathname, req, res); return;` once every
+ * other route above it has already been checked and didn't match.
+ * @param {string} baseDir The directory to serve from.
+ * @param {string} pathname The request path.
+ * @param {http.IncomingMessage} req The incoming request.
+ * @param {http.ServerResponse} res The response to write.
+ */
 function serveStaticFile(baseDir, pathname, req, res) {
   if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
   const rel = pathname === '/' ? '/index.html' : pathname;

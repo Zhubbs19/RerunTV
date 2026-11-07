@@ -1,3 +1,5 @@
+// Parental PIN lock: which channels are locked (by channel or by the rating
+// of what is airing), the PIN keypad modal, and the tune gate that shows it.
 import { playPinUnlockSound } from '../core/audio.js';
 import { formatChannelNumber, getChannel } from '../core/channels.js';
 import { pinDotsEl, pinLockModalEl, pinNoticeEl } from '../core/dom.js';
@@ -18,6 +20,11 @@ if (pinLockModalEl) {
   });
 }
 
+/**
+ * Whether tuning to a channel needs the PIN right now.
+ * @param {number} number The channel number.
+ * @returns {boolean} True when the lock is on, the channel is not unlocked this session, and the channel or its current rating is locked.
+ */
 export function isPinLocked(number) {
   if (!S.config.pinLock || !S.config.pinLock.enabled) return false;
   const lockedChs = S.config.pinLock.channels || [];
@@ -47,6 +54,10 @@ export function isPinLocked(number) {
   return false;
 }
 
+/**
+ * Shows the PIN keypad for a locked channel.
+ * @param {number} number The channel number being tuned.
+ */
 export function showPinLockScreen(number) {
   S.pinLockActive = true;
   S.pinTargetCh = number;
@@ -57,6 +68,9 @@ export function showPinLockScreen(number) {
   if (pinLockModalEl && isTvMode()) focusDefault(pinLockModalEl);
 }
 
+/**
+ * Hides the PIN keypad and clears its state.
+ */
 export function hidePinLockScreen() {
   S.pinLockActive = false;
   S.pinTargetCh = null;
@@ -64,12 +78,19 @@ export function hidePinLockScreen() {
   if (pinLockModalEl) pinLockModalEl.classList.add('hidden');
 }
 
+/**
+ * Redraws the PIN dots for the digits entered so far.
+ */
 export function updatePinDisplay() {
   if (!pinDotsEl) return;
   const dots = '•'.repeat(S.pinBuffer.length) + '_'.repeat(4 - S.pinBuffer.length);
   pinDotsEl.textContent = dots;
 }
 
+/**
+ * Adds one digit to the PIN; the fourth digit submits it.
+ * @param {string} d The digit.
+ */
 export function pushPinDigit(d) {
   if (S.pinBuffer.length >= 4) return;
   S.pinBuffer += d;
@@ -79,6 +100,9 @@ export function pushPinDigit(d) {
   }
 }
 
+/**
+ * Removes the last PIN digit entered.
+ */
 export function popPinDigit() {
   if (S.pinBuffer.length > 0) {
     S.pinBuffer = S.pinBuffer.slice(0, -1);
@@ -89,6 +113,9 @@ export function popPinDigit() {
 window.pushPinDigit = pushPinDigit;
 window.popPinDigit = popPinDigit;
 
+/**
+ * Checks the entered PIN, unlocking and tuning the channel when it matches.
+ */
 export function checkPinSubmit() {
   const correct = (S.config.pinLock && S.config.pinLock.code) || '1234';
   if (S.pinBuffer === correct) {
@@ -115,6 +142,9 @@ export function checkPinSubmit() {
   }
 }
 
+/**
+ * Clears the PIN digits entered so far.
+ */
 export function clearPinBuffer() {
   S.pinBuffer = '';
   updatePinDisplay();

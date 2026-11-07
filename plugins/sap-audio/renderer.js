@@ -14,6 +14,10 @@ toastEl.className = 'sap-toast hidden';
 document.querySelector('.crt').appendChild(toastEl);
 let toastTimer = null;
 
+/**
+ * Shows a short toast over the picture for two seconds.
+ * @param {string} text The toast text.
+ */
 function showToast(text) {
   toastEl.textContent = text;
   toastEl.classList.remove('hidden');
@@ -21,12 +25,15 @@ function showToast(text) {
   toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 2000);
 }
 
-// player.audioTracks (Chromium's native AudioTrackList) only reliably
-// reflects a file's real track count once enough of it has loaded to
-// demux - not guaranteed the instant 'loadedmetadata' fires, so this also
-// listens for 'addtrack' to catch tracks Chromium discovers a beat later.
-// Independent of core's own S.metaHandler slot (playback.js) - a plain
-// addEventListener here never conflicts with it.
+/**
+ * player.audioTracks (Chromium's native AudioTrackList) only reliably
+ * reflects a file's real track count once enough of it has loaded to
+ * demux - not guaranteed the instant 'loadedmetadata' fires, so this also
+ * listens for 'addtrack' to catch tracks Chromium discovers a beat later.
+ * Independent of core's own S.metaHandler slot (playback.js) - a plain
+ * addEventListener here never conflicts with it.
+ * @returns {number} Index of the enabled audio track, or -1 when none is known.
+ */
 function currentTrackIndex() {
   const tracks = player.audioTracks;
   if (!tracks) return -1;
@@ -34,6 +41,9 @@ function currentTrackIndex() {
   return -1;
 }
 
+/**
+ * Switches the player to the next audio track and shows which one is on.
+ */
 function cycleAudioTrack() {
   const tracks = player.audioTracks;
   // Unlike captions (hidden entirely when a file has none), the hint-bar
@@ -48,13 +58,15 @@ function cycleAudioTrack() {
   showToast(`AUDIO ${to + 1} / ${tracks.length}`);
 }
 
-// Re-evaluated on every real content start (registerCoreHook, plugins.js) -
-// hides the toast/resets nothing else, since the hint-bar item's own
-// visibility already only ever depends on the registered interrupt existing
-// (applyHintBarState, power.js), not any per-file state this plugin tracks.
-// The track to start on (SETTINGS › Plug-ins › SAP / Alternate Audio). Only
-// the number is known, never the language, so this is "track 2" and not
-// "Spanish". A file with fewer tracks than that plays on its first.
+/**
+ * Re-evaluated on every real content start (registerCoreHook, plugins.js) -
+ * hides the toast/resets nothing else, since the hint-bar item's own
+ * visibility already only ever depends on the registered interrupt existing
+ * (applyHintBarState, power.js), not any per-file state this plugin tracks.
+ * The track to start on (SETTINGS › Plug-ins › SAP / Alternate Audio). Only
+ * the number is known, never the language, so this is "track 2" and not
+ * "Spanish". A file with fewer tracks than that plays on its first.
+ */
 function applyDefaultTrack() {
   const cfg = S.config.sapAudio || {};
   const want = (Number(cfg.defaultTrack) || 1) - 1;

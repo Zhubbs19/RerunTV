@@ -10,17 +10,23 @@ const CONNECTION_STALE_MS = 30 * 1000;
 const MAX_TRACKED_DEVICES = 500;
 const connectedDevices = new Map(); // key: `${server}:${ip}` -> {server, ip, lastSeenMs, userAgent}
 
-// Split out from trackConnection() so an isolated plugin's own process (which
-// has a real `req` but no shared connectedDevices Map of its own) can relay
-// just the two plain fields that matter, over RPC, instead of the req object
-// itself — see main-plugin-isolation.js's 'trackConnection' handler.
-//
-// scope ('view'/'control'/'') is optional and only meaningful for the LAN
-// viewer server (docs/design/06 §7 presence) — every other caller either has
-// no scopes at all (party, the phone remote) or omits it, and a device's
-// entry keeps whatever scope its most recent request carried, so a control
-// session's still-open GETs (media, config) don't demote it back to blank
-// between its writes.
+/**
+ * Split out from trackConnection() so an isolated plugin's own process (which
+ * has a real `req` but no shared connectedDevices Map of its own) can relay
+ * just the two plain fields that matter, over RPC, instead of the req object
+ * itself — see main-plugin-isolation.js's 'trackConnection' handler.
+ *
+ * scope ('view'/'control'/'') is optional and only meaningful for the LAN
+ * viewer server (docs/design/06 §7 presence) — every other caller either has
+ * no scopes at all (party, the phone remote) or omits it, and a device's
+ * entry keeps whatever scope its most recent request carried, so a control
+ * session's still-open GETs (media, config) don't demote it back to blank
+ * between its writes.
+ * @param {string} serverName Which LAN server saw the request.
+ * @param {string} ip The client address.
+ * @param {string} [userAgent] The client User-Agent.
+ * @param {string} [scope] The session scope (`view`, `control` or empty).
+ */
 function recordConnection(serverName, ip, userAgent, scope) {
   const key = `${serverName}:${ip}`;
   const previous = connectedDevices.get(key);
@@ -39,11 +45,21 @@ function recordConnection(serverName, ip, userAgent, scope) {
   }
 }
 
+/**
+ * Records a request from a raw Node request object.
+ * @param {string} serverName Which LAN server saw the request.
+ * @param {http.IncomingMessage} req The incoming request.
+ * @param {string} [scope] The session scope, if any.
+ */
 function trackConnection(serverName, req, scope) {
   const ip = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
   recordConnection(serverName, ip, req.headers['user-agent'] || '', scope);
 }
 
+/**
+ * Lists recently seen devices, dropping stale entries.
+ * @returns {Array<object>} `{ server, ip, lastSeenMs, userAgent, scope }` per device, most recent first.
+ */
 function getConnectedDevices() {
   const now = Date.now();
   const out = [];
@@ -54,6 +70,10 @@ function getConnectedDevices() {
   return out.sort((a, b) => b.lastSeenMs - a.lastSeenMs);
 }
 
+/**
+ * Registers the `network:getConnections` IPC handler.
+ * @param {Electron.IpcMain} ipcMain Electron's IPC main object.
+ */
 function registerConnectionsIpc(ipcMain) {
   ipcMain.handle('network:getConnections', async () => getConnectedDevices());
 }

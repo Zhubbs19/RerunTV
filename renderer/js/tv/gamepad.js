@@ -12,14 +12,22 @@ export const GAMEPAD_BUTTONS = {
   0: 'ok', 1: 'back', 2: 'info', 3: 'guide', 4: 'chDown', 5: 'chUp', 6: 'rewind', 7: 'fastForward',
   8: 'back', 9: 'menu', 12: 'up', 13: 'down', 14: 'left', 15: 'right',
 };
+// Keys that repeat while held.
 const DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
 
 export const STICK_DEADZONE = 0.5;
 export const REPEAT_DELAY_MS = 400;
 export const REPEAT_RATE_MS = 120;
 
-// pad: { buttons: [{ pressed }], axes: [x, y, …] } (a Gamepad snapshot).
-// Returns a function (pad, now) → [{ key, button, repeat }] of presses to send.
+/**
+ * pad: { buttons: [{ pressed }], axes: [x, y, …] } (a Gamepad snapshot).
+ * Returns a function (pad, now) → [{ key, button, repeat }] of presses to send.
+ * @param {object} [opts] Options.
+ * @param {number} [opts.deadzone=STICK_DEADZONE] Stick travel that counts as a direction.
+ * @param {number} [opts.repeatDelay=REPEAT_DELAY_MS] Hold time before a direction repeats.
+ * @param {number} [opts.repeatRate=REPEAT_RATE_MS] Time between repeats.
+ * @returns {Function} The mapper `(pad, now) => events`.
+ */
 export function createGamepadMapper({ deadzone = STICK_DEADZONE, repeatDelay = REPEAT_DELAY_MS, repeatRate = REPEAT_RATE_MS } = {}) {
   const held = new Map(); // key → { since, lastSent }
   return function update(pad, now) {
@@ -57,10 +65,14 @@ const DESKTOP_KEYS = {
   info: 'i', guide: 'g', chUp: 'PageUp', chDown: 'PageDown', menu: '?',
 };
 
-// One mapper per physical pad. The mapper keeps per-key held state, so sharing one across pads
-// made a second controller's button look "already held" (swallowing its first press) and let
-// one pad's release drop the other's hold. Keyed by pad.index (falling back to id); pads that
-// have gone away are pruned so a reconnect starts clean.
+/**
+ * One mapper per physical pad. The mapper keeps per-key held state, so sharing one across pads
+ * made a second controller's button look "already held" (swallowing its first press) and let
+ * one pad's release drop the other's hold. Keyed by pad.index (falling back to id); pads that
+ * have gone away are pruned so a reconnect starts clean.
+ * @param {object} [options] `createGamepadMapper` options for each pad.
+ * @returns {object} `{ update(pad, now), prune(pads), size() }`.
+ */
 export function createPadMappers(options) {
   const mappers = new Map();
   const keyOf = (pad) => (pad.index != null ? pad.index : pad.id);
@@ -79,6 +91,11 @@ export function createPadMappers(options) {
   };
 }
 
+/**
+ * Polls connected controllers each animation frame and sends their presses: to `window.RerunTVInput` in TV mode, as keyboard events on the desktop. Polling stops when the last pad goes away.
+ * @param {object} opts Options.
+ * @param {() => boolean} opts.isTvMode Returns whether the TV mode is on.
+ */
 export function installGamepad({ isTvMode }) {
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
   const mappers = createPadMappers();

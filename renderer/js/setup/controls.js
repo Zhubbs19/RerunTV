@@ -20,13 +20,24 @@ import { renderSettingsPanels } from './settings.js';
 import { refreshDependentControls } from './dependent-controls.js';
 
 // ---------- Widescreen fill and logo bug options (Display) ----------
-// Re-frames the picture and re-places the bug so the change shows at once.
+/**
+ * Re-frames the picture and re-places the bug so the change shows at once.
+ */
 function reframePicture() {
   if (player.videoWidth) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
   updateLogoBug(getChannel(S.currentNumber));
 }
+/**
+ * Sets one `display` setting as an undoable command.
+ * @param {string} key The `S.config.display` field.
+ * @param {*} value The new value.
+ */
 const setDisplay = (key, value) => dispatch({ type: 'settings.set', path: ['display', key], value });
 const BARS_HELP = 'Finds black bars that are part of the video itself and frames the picture without them. Each file is checked once in the background.';
+/**
+ * Updates the "remove baked-in bars" help line with the crop checker's progress (or why it is unavailable).
+ * @returns {Promise<void>}
+ */
 export async function renderBakedBarsStatus() {
   const help = document.getElementById('aspect-bars-help');
   if (!help) return;
@@ -83,6 +94,9 @@ if (helpHighlightsEl) renderHighlights(helpHighlightsEl);
 // when a key arrived, so re-rendering (or leaving the tab) mid-capture leaked a
 // capture-phase keydown handler that swallowed the next keystroke anywhere.
 let cancelKeyCapture = null;
+/**
+ * Cancels the key capture in progress, if any.
+ */
 function endKeyCapture() {
   if (cancelKeyCapture) { const cancel = cancelKeyCapture; cancelKeyCapture = null; cancel(); }
 }
@@ -91,6 +105,9 @@ document.addEventListener('click', (event) => {
   if (cancelKeyCapture && event.target.closest && event.target.closest('[data-subtab], [data-tab]')) endKeyCapture();
 }, true);
 
+/**
+ * Draws the keyboard shortcut editor: one row per action with its keys and a capture button.
+ */
 function renderKeymapEditor() {
   const host = document.getElementById('keymap-editor');
   if (!host) return;
@@ -153,9 +170,13 @@ function renderKeymapEditor() {
 document.querySelector('.setup-subtab-btn[data-subtab="keys"]')?.addEventListener('click', renderKeymapEditor);
 
 // ---------- Reset a panel to its defaults ----------
-// A panel marked data-reset-keys='[["display","clock24"],…]' gets a RESET
-// button listing the settings it owns. Resetting removes those keys, so every
-// reader falls back to its own default, as one undoable step (UNDO below).
+/**
+ * A panel marked data-reset-keys='[["display","clock24"],…]' gets a RESET
+ * button listing the settings it owns. Resetting removes those keys, so every
+ * reader falls back to its own default, as one undoable step (UNDO below).
+ * @param {HTMLElement} panel A `.panel` element with a `data-reset-keys` JSON list of setting paths.
+ * @returns {Array<string[]>} The paths whose current value differs from its default (or that are set and have no default).
+ */
 function resetPanelKeys(panel) {
   let paths;
   try { paths = JSON.parse(panel.dataset.resetKeys || '[]'); } catch (e) { paths = []; }
@@ -218,6 +239,9 @@ document.querySelectorAll('.panel[data-reset-keys]').forEach((panel) => {
 // default clears the key).
 const PATH_ROWS = SETTINGS.filter((entry) => entry.bound);
 
+/**
+ * Shows each bound setting's saved value (or its default) in its row's control.
+ */
 export function renderPathRows() {
   for (const entry of PATH_ROWS) {
     const el = document.getElementById(entry.id);
@@ -274,8 +298,16 @@ export function renderRemoteButtons() {
 }
 
 // ---------- Tuning & controls (System) ----------
+
+/**
+ * Returns the `controls` settings object, or an empty object when unset.
+ * @returns {object} `S.config.controls` or `{}`.
+ */
 const controlsCfg = () => S.config.controls || {};
 
+/**
+ * Fills the Tuning & controls panel's fields from the current config, with defaults for unset values.
+ */
 export function renderControlsPanel() {
   renderRemoteButtons();
   const c = controlsCfg();
@@ -305,7 +337,21 @@ export function renderControlsPanel() {
   renderPathRows();
 }
 
+/**
+ * Sets one `controls` setting as an undoable command.
+ * @param {string} key The `S.config.controls` field.
+ * @param {*} value The new value.
+ * @param {object} [opts] Options passed to `dispatch()`, such as `coalesce`.
+ */
 const setControl = (key, value, opts) => dispatch({ type: 'settings.set', path: ['controls', key], value }, opts);
+/**
+ * Reads a numeric input, clamped to a range.
+ * @param {HTMLInputElement} el The input element.
+ * @param {number} min Lowest allowed value.
+ * @param {number} max Highest allowed value.
+ * @param {number} fallback Value used when the input is not a number.
+ * @returns {number} The clamped value.
+ */
 const clampNum = (el, min, max, fallback) => {
   const n = parseFloat(el.value);
   return Math.min(max, Math.max(min, Number.isFinite(n) ? n : fallback));

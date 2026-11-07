@@ -25,7 +25,11 @@
 
 import { REMOTE_BUTTON_ACTIONS, REMOTE_BUTTON_SLOTS, defaultButtonAction } from '../remote/input.js';
 
-// "Open the guide" for an action id, "Nothing" for none.
+/**
+ * A remote button action's label: "Open the guide" for an action id, "Nothing" for none.
+ * @param {?string} id The action id.
+ * @returns {string} The action's label.
+ */
 function buttonActionLabel(id) {
   const hit = REMOTE_BUTTON_ACTIONS.find((a) => a.id === id);
   return hit ? hit.label : 'Nothing';
@@ -2301,6 +2305,11 @@ export function readPath(obj, path) {
   return node;
 }
 
+/**
+ * Whether a stored value is missing (undefined or null).
+ * @param {*} v The value.
+ * @returns {boolean} True when unset.
+ */
 const unset = (v) => v === undefined || v === null;
 
 /** The box-wide value of a setting: what is saved, else its default. */
@@ -2311,8 +2320,13 @@ export function boxValue(entry, config = {}) {
   return unset(v) ? clone(e.default) : v;
 }
 
-// An override's stored form, when it differs from the box value's (a box
-// switch saved as true/false that a channel stores as 'on'/'off').
+/**
+ * Reads an override back as a box value, when its stored form differs from the box value's (a box
+ * switch saved as true/false that a channel stores as 'on'/'off').
+ * @param {object} entry The registry entry.
+ * @param {*} raw The value the channel or block stores.
+ * @returns {*} The matching box value, or undefined when the stored value isn't one of the entry's.
+ */
 function fromOverride(entry, raw) {
   const map = entry.override && entry.override.values;
   if (!map) return raw;
@@ -2382,6 +2396,11 @@ export function hostOnlyPaths() {
   return SETTINGS.filter((entry) => entry.remote === false && entry.path).map((entry) => entry.path);
 }
 
+/**
+ * Deep-copies a JSON-safe default value.
+ * @param {*} v The value.
+ * @returns {*} The copy.
+ */
 function clone(v) {
   return v && typeof v === 'object' ? JSON.parse(JSON.stringify(v)) : v;
 }

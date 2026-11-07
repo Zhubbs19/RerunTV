@@ -1,3 +1,6 @@
+// Theme pack for the cloud-guide look: palette, CRT bias and sounds. See
+// plugins.js's registerThemePack doc comment for the fields.
+
 const { playTone } = window.RCBPlugins.ctx;
 
 // Theme pack — palette (style.css) plus a CRT bias and a custom power-on/

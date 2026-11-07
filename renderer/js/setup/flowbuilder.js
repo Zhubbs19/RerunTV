@@ -18,6 +18,10 @@ import { cloneJson } from '../core/commands.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
 import { MenuButton } from '../ui/menu.js';
 
+/**
+ * Makes sure `S.config.interstitials.flows` exists, seeding two example flows (both off) when there is no list at all.
+ * Mutates `S.config` in place.
+ */
 export function ensureFlowsConfig() {
   if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [] };
   // Seed only when there is no flows list at all — an empty array means the user
@@ -57,8 +61,12 @@ export function ensureFlowsConfig() {
   }
 }
 
+// The id of the flow shown in the editor.
 let activeFlowId = null;
 
+/**
+ * Redraws the flow builder for the selected flow: picker, name and on/off fields, status banner, timeline canvas and cadence panel.
+ */
 export function renderFlowsList() {
   ensureFlowsConfig();
   const flows = S.config.interstitials.flows;
@@ -209,19 +217,11 @@ export function renderFlowsList() {
   renderFlowTimelineCanvas(activeFlow);
 }
 
-// MID-SHOW AD CADENCE — the cadence-preset functionality (a fixed "every N
-// minutes" timer, or breaks "at set % points" through whatever's airing)
-// folded directly into the flow itself (flow.cadence), rather than living
-// only in the separate CADENCE & PRESETS tab where a matching flow would
-// always win and the preset would silently never fire (computeActiveCommercials,
-// schedule.js, checks flows before presets). This panel's breaks fire
-// *within* the currently-airing content segment/file, layered underneath the
-// flow's own bumper/pod step sequence (which still governs episode/file
-// boundaries via the timeline canvas above) — so a flow can now do both: an
-// authored intro/outro/mid-roll-pod structure AND a plain wall-clock or
-// percentage-based ad cadence, instead of having to pick one.
-// The flow picker (docs/design/03 §5.3): one row per flow — name, step count,
-// on/off — beside the selected flow's editor. ▲▼ move the selection.
+/**
+ * The flow picker (docs/design/03 §5.3): one row per flow — name, step count,
+ * on/off — beside the selected flow's editor. ▲▼ move the selection.
+ * @param {Array<object>} flows The flow configs.
+ */
 function renderFlowPicker(flows) {
   const listEl = document.getElementById('flow-list');
   if (!listEl) return;
@@ -260,6 +260,10 @@ function renderFlowPicker(flows) {
   });
 }
 
+/**
+ * Inserts a copy of a flow (new ids for it and its steps) and selects it.
+ * @param {object} flow The flow config to copy.
+ */
 function duplicateFlow(flow) {
   const stamp = Date.now();
   const copy = {
@@ -273,6 +277,11 @@ function duplicateFlow(flow) {
   renderFlowsList();
 }
 
+/**
+ * Deletes a flow after confirmation, as one undo step.
+ * @param {object} flow The flow config to delete.
+ * @returns {Promise<void>}
+ */
 async function deleteFlow(flow) {
   ensureFlowsConfig();
   const flows = S.config.interstitials.flows;
@@ -282,6 +291,10 @@ async function deleteFlow(flow) {
   renderFlowsList();
 }
 
+/**
+ * Selects a flow, redraws the builder and focuses its picker row.
+ * @param {string} id The flow id.
+ */
 function selectFlow(id) {
   activeFlowId = id;
   renderFlowsList();
@@ -302,6 +315,12 @@ document.getElementById('flow-list')?.addEventListener('keydown', (event) => {
   selectFlow(target.dataset.flowId);
 });
 
+/**
+ * Gives a flow a default cadence when it has none, and fills in a missing `contentTags` list.
+ * Mutates the flow in place.
+ * @param {object} flow The flow config.
+ * @returns {object} The flow's `cadence` object.
+ */
 function ensureFlowCadence(flow) {
   if (!flow.cadence) {
     flow.cadence = {
@@ -316,6 +335,20 @@ function ensureFlowCadence(flow) {
   return flow.cadence;
 }
 
+/**
+ * MID-SHOW AD CADENCE — the cadence-preset functionality (a fixed "every N
+ * minutes" timer, or breaks "at set % points" through whatever's airing)
+ * folded directly into the flow itself (flow.cadence), rather than living
+ * only in the separate CADENCE & PRESETS tab where a matching flow would
+ * always win and the preset would silently never fire (computeActiveCommercials,
+ * schedule.js, checks flows before presets). This panel's breaks fire
+ * *within* the currently-airing content segment/file, layered underneath the
+ * flow's own bumper/pod step sequence (which still governs episode/file
+ * boundaries via the timeline canvas above) — so a flow can now do both: an
+ * authored intro/outro/mid-roll-pod structure AND a plain wall-clock or
+ * percentage-based ad cadence, instead of having to pick one.
+ * @param {object} flow The flow config whose cadence is edited.
+ */
 function renderFlowCadencePanel(flow) {
   const container = document.getElementById('flow-cadence-container');
   if (!container) return;
@@ -536,6 +569,11 @@ function renderFlowCadencePanel(flow) {
   container.appendChild(grid);
 }
 
+/**
+ * Maps a flow step type (including legacy names) to the pool entry type it draws from.
+ * @param {string} type A step or pool type.
+ * @returns {string} The pool type.
+ */
 export function normalizePoolType(type) {
   if (type === 'stationId') return 'channelId';
   if (type === 'bumpIn') return 'adBreakIn';   // legacy — still accepted
@@ -545,6 +583,10 @@ export function normalizePoolType(type) {
 }
 
 
+/**
+ * Updates the banner that says whether the flow is on, and which channels and shows it applies to.
+ * @param {object} flow The flow config.
+ */
 function updateFlowStatusBanner(flow) {
   const banner = document.getElementById('flow-status-banner');
   if (!banner) return;
@@ -568,16 +610,23 @@ function updateFlowStatusBanner(flow) {
   banner.textContent = `⚡ FLOW ACTIVE FOR ${chsStr} // SHOWS: ${tagsStr} — ${stepCount} STEP${stepCount === 1 ? '' : 'S'} IN SEQUENCE`;
 }
 
-// `channels` (a flow's own flow.channels array) additionally narrows to
-// entries this flow could actually use on one of its own channels — mirrors
-// poolFor's own channelAffinity check (interstitials.js) so this editor-time
-// "will this resolve to something?" preview agrees with what real playback
-// will actually do. An empty/unset channels list means the flow applies to
-// ALL channels, so there's no single affinity to check against — left
-// unrestricted in that case (same as before this param existed). Without
-// this, a pool entry locked to a channel this flow doesn't even cover could
-// still count as a "match" here while poolFor rejects it for real — exactly
-// the kind of false-positive ✓ that hid a real broken cadence setup once.
+/**
+ * Pool entries of a type whose content tags overlap `tags`.
+ * `channels` (a flow's own flow.channels array) additionally narrows to
+ * entries this flow could actually use on one of its own channels — mirrors
+ * poolFor's own channelAffinity check (interstitials.js) so this editor-time
+ * "will this resolve to something?" preview agrees with what real playback
+ * will actually do. An empty/unset channels list means the flow applies to
+ * ALL channels, so there's no single affinity to check against — left
+ * unrestricted in that case (same as before this param existed). Without
+ * this, a pool entry locked to a channel this flow doesn't even cover could
+ * still count as a "match" here while poolFor rejects it for real — exactly
+ * the kind of false-positive ✓ that hid a real broken cadence setup once.
+ * @param {string[]} tags The step's tags; an empty list matches nothing.
+ * @param {string} type The step or pool type.
+ * @param {?Array<number>} channels The flow's channel numbers, or empty for all channels.
+ * @returns {Array<object>} The matching pool entries.
+ */
 function matchingPoolEntries(tags, type, channels) {
   if (!tags || !tags.length) return [];
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
@@ -591,20 +640,32 @@ function matchingPoolEntries(tags, type, channels) {
   });
 }
 
+/**
+ * Counts the pool entries `matchingPoolEntries()` returns.
+ * @param {string[]} tags The step's tags.
+ * @param {string} type The step or pool type.
+ * @param {?Array<number>} channels The flow's channel numbers.
+ * @returns {number} The match count.
+ */
 function countMatchingPoolEntries(tags, type, channels) {
   const matches = matchingPoolEntries(tags, type, channels);
   return Array.isArray(matches) ? matches.length : 0;
 }
 
-// Shared match-count badge for any group of tag fields that resolve against
-// the pool (an adPod step's bump-in/commercial/bump-out, the mid-show
-// cadence panel's own three tag fields, or a single-type bumper step's tags)
-// — factored out of what used to be two near-identical inline
-// updateMatchBadge closures so the cadence panel (which previously had none
-// at all) gets the same live feedback for free. `fields` is an array of
-// { label, tags, type } — one row's worth of tags to check against one pool
-// type each; `flow` supplies the channel-affinity scope (see
-// matchingPoolEntries above).
+/**
+ * Shared match-count badge for any group of tag fields that resolve against
+ * the pool (an adPod step's bump-in/commercial/bump-out, the mid-show
+ * cadence panel's own three tag fields, or a single-type bumper step's tags)
+ * — factored out of what used to be two near-identical inline
+ * updateMatchBadge closures so the cadence panel (which previously had none
+ * at all) gets the same live feedback for free. `fields` is an array of
+ * { label, tags, type } — one row's worth of tags to check against one pool
+ * type each; `flow` supplies the channel-affinity scope (see
+ * matchingPoolEntries above).
+ * @param {HTMLElement} container The badge element.
+ * @param {Array<object>} fields `{ label, tags, type }` rows to count.
+ * @param {?object} flow The flow config.
+ */
 function renderPoolMatchBadge(container, fields, flow) {
   const counts = fields.map((f) => ({ ...f, count: countMatchingPoolEntries(f.tags, f.type, flow && flow.channels) }));
   const good = counts.every((f) => f.count > 0 || !f.tags || !f.tags.length);
@@ -612,6 +673,12 @@ function renderPoolMatchBadge(container, fields, flow) {
   container.textContent = `${good ? '✓' : '⚠️'} POOL MATCHES: ${counts.map((f) => `${f.label} (${f.count})`).join(' · ')}`;
 }
 
+/**
+ * Media paths a flow step could play: matching show files for a content segment, otherwise matching pool entries' files.
+ * @param {object} flow The flow config.
+ * @param {object} step The step config.
+ * @returns {string[]} File paths.
+ */
 function flowStepPreviewPaths(flow, step) {
   if (step.type === 'contentSegment') {
     const channelFilter = new Set(flow.channels || []);
@@ -641,6 +708,12 @@ function flowStepPreviewPaths(flow, step) {
     .filter(Boolean);
 }
 
+/**
+ * Shows up to four thumbnails of what a step could play, or a placeholder when nothing matches.
+ * @param {HTMLElement} container The thumbnail strip.
+ * @param {object} flow The flow config.
+ * @param {object} step The step config.
+ */
 function renderFlowStepPreviews(container, flow, step) {
   container.innerHTML = '';
   const paths = Array.from(new Set(flowStepPreviewPaths(flow, step))).slice(0, 4);
@@ -658,6 +731,10 @@ function renderFlowStepPreviews(container, flow, step) {
 }
 
 
+/**
+ * Draws the flow's step cards on the timeline canvas, with their editors and drag-to-reorder.
+ * @param {object} flow The flow config.
+ */
 function renderFlowTimelineCanvas(flow) {
   const canvas = document.getElementById('flow-timeline-canvas');
   if (!canvas) return;
@@ -974,6 +1051,11 @@ function renderFlowTimelineCanvas(flow) {
 let simTimer = null;
 let simRunToken = 0;
 
+/**
+ * Plays a flow's steps through in the simulator drawer, logging what each step would pick from the pool.
+ * A new run cancels any run already in progress.
+ * @param {object} flow The flow config.
+ */
 function runFlowSimulator(flow) {
   if (simTimer) { clearTimeout(simTimer); simTimer = null; }
   const runToken = ++simRunToken;
@@ -1141,6 +1223,9 @@ function runFlowSimulator(flow) {
   stepTick();
 }
 
+/**
+ * Wires the flow builder's fixed controls (template select, create, delete, name, on/off, add-step buttons and the simulator).
+ */
 export function initFlowBuilder() {
   const selectEl = document.getElementById('flow-template-select');
   const createBtn = document.getElementById('flow-create-btn');

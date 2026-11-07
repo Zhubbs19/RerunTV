@@ -8,18 +8,31 @@
 import { tvScreen } from '../core/dom.js';
 import { ModalSurface } from '../ui/dialog.js';
 
+// The open ModalSurface and its element, or null while closed.
 let surface = null;
 let overlay = null;
 
+/**
+ * Tests whether the handoff screen is open.
+ * @returns {boolean} True while it is shown.
+ */
 export function handoffOpen() {
   return !!overlay;
 }
 
+/**
+ * Closes the handoff screen.
+ */
 export function closeHandoff() {
   if (surface) { surface.close(); surface = null; }
   overlay = null;
 }
 
+/**
+ * Opens the handoff screen and fills in the address and QR code from the host.
+ * @param {object} [opts={}] Passed to `window.api.getHandoffInfo`.
+ * @returns {Promise<void>} Resolves once the address is shown.
+ */
 export async function openHandoff(opts = {}) {
   if (overlay) return;
   surface = ModalSurface({ className: 'handoff', label: 'Edit on your phone or computer', host: () => tvScreen.querySelector('.crt') || tvScreen, onCancel: closeHandoff });

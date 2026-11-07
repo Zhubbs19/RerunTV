@@ -31,7 +31,9 @@ const { atomicWriteFile } = require('../util/atomic-write');
 
 // v2: the end margin became a share of the file (credits); v1 results are redone.
 const CACHE_VERSION = 2;
+// Most cached files kept; the oldest are dropped past this.
 const MAX_CACHE_ENTRIES = 50000;
+// Longest one ffmpeg pass may run before it is killed.
 const RUN_TIMEOUT_MS = 20 * 60 * 1000;
 // Openings and end credits fade to black too; neither is an act break. A
 // film's credits run for minutes with black between cards, so the end
@@ -45,6 +47,11 @@ const MERGE_S = 8;
 // A blip of black with nothing else going for it is a cut, not a fade.
 const MIN_STRENGTH = 0.05;
 
+/**
+ * Black stretches from blackdetect output.
+ * @param {string} stderr ffmpeg's detector lines.
+ * @returns {Array<object>} `{ start, end }` in seconds.
+ */
 function parseBlackLines(stderr) {
   const out = [];
   const re = /black_start:\s*([\d.]+)\s+black_end:\s*([\d.]+)/g;
@@ -53,6 +60,11 @@ function parseBlackLines(stderr) {
   return out.filter((r) => Number.isFinite(r.start) && r.end > r.start);
 }
 
+/**
+ * Silent stretches from silencedetect output (start/end pairs).
+ * @param {string} stderr ffmpeg's detector lines.
+ * @returns {Array<object>} `{ start, end }` in seconds.
+ */
 function parseSilenceLines(stderr) {
   const out = [];
   let open = null;
@@ -66,6 +78,11 @@ function parseSilenceLines(stderr) {
   return out;
 }
 
+/**
+ * Input duration from ffmpeg's `Duration:` line.
+ * @param {string} stderr ffmpeg output containing the line.
+ * @returns {?number} Seconds, or null when not found.
+ */
 function parseDuration(stderr) {
   const m = /Duration:\s*(\d+):(\d\d):(\d\d(?:\.\d+)?)/.exec(stderr);
   return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
@@ -75,6 +92,11 @@ function parseDuration(stderr) {
  * Candidate act breaks from one pass's black and silent stretches:
  * [{ at, strength }] sorted by time, `at` in seconds into the file (once
  * the picture has gone black), `strength` 0-1.
+ * @param {object} pass One detection pass.
+ * @param {Array<object>} pass.black `{ start, end }` black stretches.
+ * @param {Array<object>} pass.silence `{ start, end }` silent stretches.
+ * @param {number} pass.duration File duration in seconds.
+ * @returns {Array<object>} The marks; empty for a file too short to have any.
  */
 function findBreakMarks({ black, silence, duration }) {
   if (!Number.isFinite(duration) || duration <= EDGE_START_S + EDGE_END_S) return [];
@@ -111,6 +133,11 @@ const CREDITS_END_SLACK_S = 60;
 const CREDITS_MIN_S = 20;
 const CREDITS_MIN_DENSITY = 0.6;
 
+/**
+ * Where the credits pass starts reading: the last 15 minutes of a film or 4 of a show, never more than half the file.
+ * @param {number} duration File duration in seconds.
+ * @returns {number} Start offset in seconds.
+ */
 function creditsTailStart(duration) {
   const tail = duration > CREDITS_FILM_MIN_S ? CREDITS_TAIL_FILM_S : CREDITS_TAIL_SHOW_S;
   return Math.max(0, duration - Math.min(tail, duration / 2));
@@ -124,6 +151,11 @@ function creditsTailStart(duration) {
  * dense enough to believe, ending within CREDITS_END_SLACK_S of the end. A
  * run that starts at the edge of what was read could be longer than the
  * read, so it isn't believed either.
+ * @param {object} input Credits pass inputs.
+ * @param {Array<object>} input.frames Per-frame stats.
+ * @param {number} input.duration File duration in seconds.
+ * @param {number} input.tailStart Where the pass started reading, in seconds.
+ * @returns {?object} The credits start, or null.
  */
 function findCreditsStart({ frames, duration, tailStart }) {
   if (!Array.isArray(frames) || !frames.length || !(duration > 0)) return null;
@@ -148,7 +180,13 @@ function findCreditsStart({ frames, duration, tailStart }) {
   return { at: Math.round(credits.start * 10) / 10, leadS: Math.round(duration - credits.start), density: Math.round(density * 100) / 100 };
 }
 
-// Per-frame luma stats, two a second, over the file from `startS` on.
+/**
+ * Per-frame luma stats, two a second, over the file from `startS` on.
+ * @param {string} ffmpegPath Path of the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {number} startS Offset to start reading at, in seconds.
+ * @returns {Promise<?Array<object>>} `{ t, ylow, yavg }` frames, or null on failure or timeout.
+ */
 function runCreditsPass(ffmpegPath, filePath, startS) {
   return new Promise((resolve) => {
     const args = [
@@ -191,6 +229,12 @@ function runCreditsPass(ffmpegPath, filePath, startS) {
   });
 }
 
+/**
+ * Runs the blackdetect and silencedetect pass over a whole file.
+ * @param {string} ffmpegPath Path of the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @returns {Promise<?object>} `{ duration, black, silence }`, or null on failure or timeout.
+ */
 function runDetect(ffmpegPath, filePath) {
   return new Promise((resolve) => {
     const args = [
@@ -237,6 +281,15 @@ function runDetect(ffmpegPath, filePath) {
  * Cached; one ffmpeg at a time. null when ffmpeg is missing or the file
  * can't be read. A file cached before credits were looked for only gets
  * the short credits pass.
+ * Creates the cached, one-at-a-time break detection service.
+ * @param {object} opts Options.
+ * @param {?string} opts.dir Folder for the cache file; null disables the cache.
+ * @param {Function} [opts.getFfmpegPath] Returns the ffmpeg path, or null when missing.
+ * @param {Function} [opts.run=runDetect] The black/silence pass (injected for tests).
+ * @param {Function} [opts.runCredits=runCreditsPass] The credits pass (injected for tests).
+ * @param {object} [opts.fsImpl=fs] File system module.
+ * @param {Function} [opts.now] Clock in ms, for cache entry ages.
+ * @returns {object} `{ available(), detect(filePath) }`.
  */
 function createBreakDetectService({ dir, getFfmpegPath = () => null, run = runDetect, runCredits = runCreditsPass, fsImpl = fs, now = () => Date.now() }) {
   const cachePath = dir ? path.join(dir, 'break-marks-cache.json') : null;

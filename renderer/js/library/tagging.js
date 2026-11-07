@@ -59,8 +59,12 @@ const EPISODE_PATTERNS = [
   /(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![0-9])/i,
 ];
 
-// Duration bands, in seconds. Coarse on purpose: they are one signal among
-// several, and the review step shows the reason for every suggestion.
+/**
+ * Duration bands, in seconds. Coarse on purpose: they are one signal among
+ * several, and the review step shows the reason for every suggestion.
+ * @param {number} seconds The duration.
+ * @returns {?string} `'commercial'`, `'short'`, `'episode'`, `'movie'`, or `null` when unsure.
+ */
 function kindFromDuration(seconds) {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   if (seconds <= 60) return 'commercial';
@@ -70,18 +74,32 @@ function kindFromDuration(seconds) {
   return null; // 70-75 minutes: a long episode or a short film — don't guess
 }
 
-// Path segments, for local refs and provider refs alike
-// (mediasource:<provider>:<folder>/<file>).
+/**
+ * Path segments, for local refs and provider refs alike
+ * (mediasource:<provider>:<folder>/<file>).
+ * @param {*} ref A local path or mediasource ref.
+ * @returns {string[]} The non-empty path segments.
+ */
 function segmentsOf(ref) {
   const text = String(ref || '');
   const body = text.startsWith('mediasource:') ? text.split(':').slice(2).join(':') : text;
   return body.split(/[\\/]+/).filter(Boolean);
 }
 
+/**
+ * Turns a folder name into a readable name: separators to spaces, a trailing year dropped.
+ * @param {string} segment A path segment.
+ * @returns {string} The cleaned name.
+ */
 function cleanName(segment) {
   return segment.replace(/[._]+/g, ' ').replace(/\s*\((19|20)\d\d\)\s*$/, '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Finds a plausible year (1920..2039) in text.
+ * @param {*} text The text to search.
+ * @returns {?number} The year, or `null`.
+ */
 function yearIn(text) {
   const match = String(text).match(/(?:^|[^\d])((?:19[2-9]|20[0-3])\d)(?:[^\d]|$)/);
   return match ? Number(match[1]) : null;
@@ -90,6 +108,9 @@ function yearIn(text) {
 /**
  * Everything the path alone says about one item: series, season, episode,
  * year, kind and genre/era facets, each with the reason it was inferred.
+ * @param {string} ref The item's ref.
+ * @param {number} duration The item's duration in seconds.
+ * @returns {object} The inferred fields plus `reasons`, keyed by field.
  */
 export function analyzeRef(ref, duration) {
   const segments = segmentsOf(ref);
@@ -255,6 +276,8 @@ const LOCAL_FIELDS = ['series', 'season', 'episode', 'title', 'year', 'rating', 
 /**
  * analyzeRef plus the item's `local` reading (its .nfo files and tags), with
  * the source file named as the reason for every field it supplied.
+ * @param {object} item A library item.
+ * @returns {object} The inferred fields plus `reasons`.
  */
 export function analyzeItem(item) {
   const analysis = analyzeRef(item.ref, item.duration);
@@ -280,11 +303,22 @@ export function analyzeItem(item) {
   return out;
 }
 
+/**
+ * Tells whether a person set or accepted an item's field.
+ * @param {object} item A library item.
+ * @param {string} field The field name.
+ * @returns {boolean} True when the field must not be suggested over.
+ */
 function isLocked(item, field) {
   const provenance = item.provenance && item.provenance[field];
   return provenance === 'user' || provenance === 'user-accepted';
 }
 
+/**
+ * Tells whether a field holds something: not null, an empty array or a blank string.
+ * @param {*} value The field value.
+ * @returns {boolean} True when it has a value.
+ */
 function hasValue(value) {
   if (value == null) return false;
   if (Array.isArray(value)) return value.length > 0;
@@ -310,6 +344,8 @@ const FIELDS = {
  * that field is empty and not locked. `perItem` carries per-item extras that
  * don't generalise — season, episode, a cleaned title — applied only to items
  * whose title is empty.
+ * @param {Array<object>} items Library items.
+ * @returns {Array<object>} Groups, biggest first.
  */
 export function suggestGroups(items) {
   const groups = new Map();
@@ -385,6 +421,11 @@ export function suggestGroups(items) {
  * The item updates accepting a group produces, for the items the reviewer left
  * ticked. Every written field is marked `user-accepted`, which is what stops a
  * later automatic pass from suggesting over it.
+ * @param {object} group A `suggestGroups` group.
+ * @param {object} itemsById Library items keyed by id.
+ * @param {object} [opts] Options.
+ * @param {Array<string>} [opts.exclude] Item ids the reviewer unticked.
+ * @returns {Array<object>} `{ id, fields }` updates, with `fields.provenance` set.
  */
 export function acceptGroup(group, itemsById, { exclude = [] } = {}) {
   const skip = new Set(exclude);

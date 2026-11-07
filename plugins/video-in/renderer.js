@@ -11,9 +11,13 @@
 // window's own audio much less so) — capturing picture without sound is a
 // defensible v1 scope, not an oversight.
 let auxStream = null;
+// The tuned channel's container and render ctx, null while CH 0 is not on screen.
 let currentContainer = null;
 let currentCtx = null;
 
+/**
+ * Stops any running capture, clears the player's stream and hides the picker.
+ */
 function stopCapture() {
   if (auxStream) {
     auxStream.getTracks().forEach((t) => { try { t.stop(); } catch (e) { /* already stopped */ } });
@@ -24,6 +28,12 @@ function stopCapture() {
   closePicker();
 }
 
+/**
+ * Starts capturing a window or screen into the shared player.
+ * A failed start leaves any capture that was already running in place.
+ * @param {string} sourceId The desktop capture source id.
+ * @returns {Promise<void>}
+ */
 async function startCapture(sourceId) {
   if (!currentContainer || !currentCtx) return;
   try {
@@ -54,6 +64,10 @@ async function startCapture(sourceId) {
   }
 }
 
+/**
+ * Opens the source picker and fills it with the capturable windows and screens.
+ * @returns {Promise<void>}
+ */
 async function openPicker() {
   if (!currentContainer) return;
   const container = currentContainer;
@@ -88,6 +102,9 @@ async function openPicker() {
   });
 }
 
+/**
+ * Hides the source picker.
+ */
 function closePicker() {
   if (currentContainer) currentContainer.querySelector('[data-el="picker"]').classList.add('hidden');
 }

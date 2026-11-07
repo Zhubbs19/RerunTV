@@ -46,6 +46,10 @@ const posterFrameFailures = new Set();
 let posterRequestToken = 0;
 let posterVideoEl = null;
 
+/**
+ * Creates the hidden video element used for a poster frame, once, next to the poster image.
+ * @returns {?HTMLVideoElement} The element, or null when the card has no poster slot.
+ */
 function ensurePosterVideo() {
   if (posterVideoEl || !detailsPosterEl || !detailsPosterEl.parentNode) return posterVideoEl;
   posterVideoEl = document.createElement('video');
@@ -64,6 +68,9 @@ function ensurePosterVideo() {
   return posterVideoEl;
 }
 
+/**
+ * Hides the poster frame, releases its source and cancels any frame request in flight.
+ */
 function hidePosterFrame() {
   posterRequestToken += 1;
   if (!posterVideoEl) return;
@@ -72,6 +79,10 @@ function hidePosterFrame() {
   posterVideoEl.load();
 }
 
+/**
+ * Shows a frame from a local video file as the card's poster, once it has seeked. Skips non-local, audio and previously failed files.
+ * @param {?object} file The file entry.
+ */
 function applyPosterFrame(file) {
   const path = file && file.path;
   // Only local video: a provider-backed ref would mean a network fetch just
@@ -112,9 +123,12 @@ function applyPosterFrame(file) {
   }).catch(fail);
 }
 
-// A local poster is a path on disk; the card shows it through the app's file
-// URL, resolved asynchronously, so a stale answer for the previous program
-// is dropped by the same token the frame capture uses.
+/**
+ * A local poster is a path on disk; the card shows it through the app's file
+ * URL, resolved asynchronously, so a stale answer for the previous program
+ * is dropped by the same token the frame capture uses.
+ * @param {string} posterPath The poster image's path on disk.
+ */
 function showLocalPoster(posterPath) {
   const token = ++posterRequestToken;
   window.api.toFileUrl(posterPath).then((url) => {
@@ -124,6 +138,11 @@ function showLocalPoster(posterPath) {
   }).catch(() => {});
 }
 
+/**
+ * Fills the DETAILS card for a file: title, series and episode, channel, air time, why it is airing, description, poster, tags and, when enabled, first aired and cast.
+ * @param {?object} file The file entry, or null for an empty card.
+ * @param {object} ctx Context: `channelNumber`, `channelName`, `airTime` and `why`, all optional.
+ */
 function populateDetails(file, ctx) {
   detailsTitleEl.textContent = file ? getDisplayTitle(file) : 'NO INFO AVAILABLE';
   const info = programDetails(file);
@@ -195,6 +214,11 @@ function populateDetails(file, ctx) {
   }
 }
 
+/**
+ * Opens the DETAILS card for a file, as a program info page in the cable-guide layout, and focuses it.
+ * @param {?object} file The file entry.
+ * @param {object} [ctx] Context: `channelNumber`, `channelName`, `airTime` and `why`, all optional.
+ */
 export function showDetailsOverlay(file, ctx) {
   if (detailsOverlayEl.classList.contains('hidden')) detailsPreviouslyFocused = document.activeElement;
   populateDetails(file, ctx || {});
@@ -206,6 +230,9 @@ export function showDetailsOverlay(file, ctx) {
   requestAnimationFrame(() => detailsOverlayEl.focus({ preventScroll: true }));
 }
 
+/**
+ * Closes the DETAILS card and gives focus back to where it was.
+ */
 export function hideDetailsOverlay() {
   detailsOverlayEl.classList.add('hidden');
   hideDetailsPage(detailsOverlayEl);
@@ -217,10 +244,12 @@ export function hideDetailsOverlay() {
   detailsPreviouslyFocused = null;
 }
 
-// Live-playback entry point (the I key outside the guide) — shows details
-// for whatever's actually airing on the current channel right now. A silent
-// no-op on a virtual channel or an empty one, where there's no real file to
-// describe, rather than popping up an empty/misleading card.
+/**
+ * Live-playback entry point (the I key outside the guide) — shows details
+ * for whatever's actually airing on the current channel right now. A silent
+ * no-op on a virtual channel or an empty one, where there's no real file to
+ * describe, rather than popping up an empty/misleading card.
+ */
 export function showDetailsForCurrentChannel() {
   if (!S.config.details || S.config.details.enabled === false) return;
   const ch = getChannel(S.currentNumber);

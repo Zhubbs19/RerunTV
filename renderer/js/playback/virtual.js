@@ -9,22 +9,29 @@ import {
 // needs its own type id, not just "something was showing".
 let activePluginChannelId = null;
 
-// Delegates to plugins.js's shared lookup so a user-set channel-number
-// override (Channel Setup's PLUGIN CHANNELS section) is honored everywhere
-// a plugin channel's live number is asked about, not just here.
+/**
+ * Delegates to plugins.js's shared lookup so a user-set channel-number
+ * override (Channel Setup's PLUGIN CHANNELS section) is honored everywhere
+ * a plugin channel's live number is asked about, not just here.
+ * @param {number} number The channel number.
+ * @returns {?object} `{ id, def }` for the plugin channel type, or null.
+ */
 function pluginTypeForNumber(number) {
   const entry = getPluginChannelEntryForNumber(number);
   return entry ? { id: entry.id, def: entry.definition } : null;
 }
 
-// Finds whichever registered channel type both (a) declares the optional
-// `viewerLink` capability (registerChannelType, plugins.js) and (b) is
-// actually the live, active channel at its own number right now (installed,
-// enabled, and not overridden by a real user channel at that number — same
-// isVirtualChannel semantics as everywhere else). Exported so app.js's LAN
-// viewer "watch live" link can ask "does ANY plugin currently want to offer
-// one" without knowing or caring which plugin, or which channel number, that
-// might be — see PLUGIN_DEVELOPMENT.md's registerChannelType section.
+/**
+ * Finds whichever registered channel type both (a) declares the optional
+ * `viewerLink` capability (registerChannelType, plugins.js) and (b) is
+ * actually the live, active channel at its own number right now (installed,
+ * enabled, and not overridden by a real user channel at that number — same
+ * isVirtualChannel semantics as everywhere else). Exported so app.js's LAN
+ * viewer "watch live" link can ask "does ANY plugin currently want to offer
+ * one" without knowing or caring which plugin, or which channel number, that
+ * might be — see PLUGIN_DEVELOPMENT.md's registerChannelType section.
+ * @returns {?object} The channel type definition, or null.
+ */
 export function findLiveViewerLinkChannelType() {
   for (const id of pluginChannelTypeIds()) {
     const def = getPluginChannelType(id);
@@ -33,12 +40,16 @@ export function findLiveViewerLinkChannelType() {
   return null;
 }
 
-// Called from app.js's Enter/Space keydown handler — lets a plugin channel
-// respond to the same OK-button gesture a remote sends, without app.js
-// needing to special-case every plugin's channel number by hand. Returns
-// whether a plugin actually
-// handled it, so app.js's handler can fall through to its other Enter/Space
-// behaviors (guide overlay, entry buffer, shuttle) when it didn't.
+/**
+ * Called from app.js's Enter/Space keydown handler — lets a plugin channel
+ * respond to the same OK-button gesture a remote sends, without app.js
+ * needing to special-case every plugin's channel number by hand. Returns
+ * whether a plugin actually
+ * handled it, so app.js's handler can fall through to its other Enter/Space
+ * behaviors (guide overlay, entry buffer, shuttle) when it didn't.
+ * @param {number} number The channel number.
+ * @returns {boolean} Whether a plugin handled the press.
+ */
 export function triggerVirtualChannelOk(number) {
   const plugin = pluginTypeForNumber(number);
   if (!plugin || typeof plugin.def.onOk !== 'function') return false;
@@ -50,9 +61,14 @@ export function triggerVirtualChannelOk(number) {
   return true;
 }
 
-// Same generic dispatch as triggerVirtualChannelOk, but for every keydown
-// rather than just Enter/Space — see plugins.js's registerChannelType doc
-// comment for onKey's contract.
+/**
+ * Same generic dispatch as triggerVirtualChannelOk, but for every keydown
+ * rather than just Enter/Space — see plugins.js's registerChannelType doc
+ * comment for onKey's contract.
+ * @param {number} number The channel number.
+ * @param {string} key The `KeyboardEvent.key` value.
+ * @returns {boolean} Whether the plugin handled the key.
+ */
 export function triggerVirtualChannelKey(number, key) {
   const plugin = pluginTypeForNumber(number);
   if (!plugin || typeof plugin.def.onKey !== 'function') return false;
@@ -64,15 +80,25 @@ export function triggerVirtualChannelKey(number, key) {
   }
 }
 
-// TV mode: a plugin channel that defines onAction(action, ctx) gets remote
-// actions ('move.up', 'select', 'back'…) instead of keys (docs/design/01
-// §6.6). Returns whether it handled the action; unhandled ones fall back to
-// core (so move.up/down still change channel, back still asks to leave).
+/**
+ * TV mode: a plugin channel that defines onAction(action, ctx) gets remote
+ * actions ('move.up', 'select', 'back'…) instead of keys (docs/design/01
+ * §6.6). Returns whether it handled the action; unhandled ones fall back to
+ * core (so move.up/down still change channel, back still asks to leave).
+ * @param {number} number The channel number.
+ * @returns {boolean} True when the plugin channel defines `onAction`.
+ */
 export function virtualChannelHandlesActions(number) {
   const plugin = pluginTypeForNumber(number);
   return !!(plugin && typeof plugin.def.onAction === 'function');
 }
 
+/**
+ * Passes a TV-mode remote action to the plugin channel at `number`, if it defines `onAction`.
+ * @param {number} number The channel number.
+ * @param {string} action The remote action name, such as 'move.up' or 'select'.
+ * @returns {boolean} Whether the plugin handled the action.
+ */
 export function triggerVirtualChannelAction(number, action) {
   const plugin = pluginTypeForNumber(number);
   if (!plugin || typeof plugin.def.onAction !== 'function') return false;
@@ -84,21 +110,30 @@ export function triggerVirtualChannelAction(number, action) {
   }
 }
 
-// The time machine used to be refused outright on every plugin channel,
-// because core has no schedule of its own to re-derive for one. A plugin
-// that computes what it is playing as a pure function of a timestamp (the
-// same property core's own schedule.js relies on) can support it perfectly
-// well, so it opts in with `supportsTimeMachine: true` and core stops
-// treating "not a real channel" as "cannot be time-shifted".
+/**
+ * The time machine used to be refused outright on every plugin channel,
+ * because core has no schedule of its own to re-derive for one. A plugin
+ * that computes what it is playing as a pure function of a timestamp (the
+ * same property core's own schedule.js relies on) can support it perfectly
+ * well, so it opts in with `supportsTimeMachine: true` and core stops
+ * treating "not a real channel" as "cannot be time-shifted".
+ * @param {number} number The channel number.
+ * @returns {boolean} True when the plugin set `supportsTimeMachine`.
+ */
 export function virtualChannelSupportsTimeMachine(number) {
   const plugin = pluginTypeForNumber(number);
   return !!(plugin && plugin.def.supportsTimeMachine);
 }
 
-// Optional companion to the flag above: what the VCR on-screen display
-// should name as the current programme at the scrubbed instant. Core has no
-// way to work that out for a plugin channel, so without this the OSD's
-// programme line is simply blank.
+/**
+ * Optional companion to the flag above: what the VCR on-screen display
+ * should name as the current programme at the scrubbed instant. Core has no
+ * way to work that out for a plugin channel, so without this the OSD's
+ * programme line is simply blank.
+ * @param {number} number The channel number.
+ * @param {number} nowMs The scrubbed instant, in epoch milliseconds.
+ * @returns {string} The programme text, or an empty string.
+ */
 export function virtualChannelTimeMachineText(number, nowMs) {
   const plugin = pluginTypeForNumber(number);
   if (!plugin || typeof plugin.def.timeMachineNowText !== 'function') return '';
@@ -110,6 +145,10 @@ export function virtualChannelTimeMachineText(number, nowMs) {
   }
 }
 
+/**
+ * Lists the live numbers of enabled plugin channels, minus any taken by a real user channel.
+ * @returns {number[]} Effective plugin channel numbers, first-registered winning collisions.
+ */
 export function virtualChannelNumbers() {
   const nums = [];
   const seen = new Set();
@@ -133,6 +172,11 @@ export function virtualChannelNumbers() {
   return nums.filter((n) => !realNums.has(n));
 }
 
+/**
+ * Reports whether a channel number is currently served by a plugin channel.
+ * @param {number} number The channel number.
+ * @returns {boolean} False when a real user channel has that number.
+ */
 export function isVirtualChannel(number) {
   if (S.config && S.config.channels && S.config.channels.some((c) => c.number === number)) {
     return false;
@@ -140,6 +184,11 @@ export function isVirtualChannel(number) {
   return virtualChannelNumbers().includes(number);
 }
 
+/**
+ * Returns the guide details for a plugin channel.
+ * @param {number} number The channel number.
+ * @returns {object} `{ number, name, nowText }`; a generic name when no plugin owns the number.
+ */
 export function virtualChannelInfo(number) {
   const plugin = pluginTypeForNumber(number);
   if (plugin) {
@@ -152,6 +201,9 @@ export function virtualChannelInfo(number) {
   return { number, name: `CH ${number}`, nowText: '' };
 }
 
+/**
+ * Hides the plugin channel container and calls the active plugin channel's `stop()` hook.
+ */
 export function hideVirtualChannels() {
   if (pluginChannelContainerEl) pluginChannelContainerEl.classList.add('hidden');
   if (activePluginChannelId) {
@@ -168,12 +220,16 @@ export function hideVirtualChannels() {
   }
 }
 
-// Exported so core code that needs a color for a virtual channel (the
-// channel-change static-burst tint, playback.js) can read it from whichever
-// plugin registered that channel number instead of keeping its own
-// hardcoded, easily-drifting copy — core stays plugin-agnostic, it just asks
-// "whatever's registered at this number, what's its color" rather than
-// knowing any specific plugin's identity or picking its own color for it.
+/**
+ * Exported so core code that needs a color for a virtual channel (the
+ * channel-change static-burst tint, playback.js) can read it from whichever
+ * plugin registered that channel number instead of keeping its own
+ * hardcoded, easily-drifting copy — core stays plugin-agnostic, it just asks
+ * "whatever's registered at this number, what's its color" rather than
+ * knowing any specific plugin's identity or picking its own color for it.
+ * @param {number} number The channel number.
+ * @returns {object} The plugin's `badge` `{ bg, label }`, or a default blue badge.
+ */
 export function getVirtualBadge(number) {
   const plugin = pluginTypeForNumber(number);
   if (plugin && plugin.def.badge) return plugin.def.badge;

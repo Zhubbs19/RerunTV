@@ -41,26 +41,36 @@ import { registerOverlaySurface } from '../display/overlay-signal.js';
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
+// app.js's keyboard handler, set by installTvInput; `key:` actions are sent to it.
 let keyboardHandler = null;
 
 // ---------- TV modals ----------
-// Any full-screen TV overlay (a kit Dialog or ModalSurface: learn mode,
-// handoff, the on-screen keyboard, the first-run wizard, setup's confirms)
-// joins the modal stack in ui/focus.js and gets the dialog context: D-pad
-// moves focus by position, OK presses the focused control, Back cancels. The
-// most recently opened one on screen is the one that answers. The stack lives
-// in ui/focus.js, which imports nothing, so overlays in an import cycle with
-// this module can register while it is still evaluating.
-// Thin alias of ui/focus.js's registerModal, which is what every overlay in the tree calls
-// directly (nothing imports this one). Kept as the name the docs and CLAUDE.md mention; prefer
-// registerModal in new code.
+/**
+ * Any full-screen TV overlay (a kit Dialog or ModalSurface: learn mode,
+ * handoff, the on-screen keyboard, the first-run wizard, setup's confirms)
+ * joins the modal stack in ui/focus.js and gets the dialog context: D-pad
+ * moves focus by position, OK presses the focused control, Back cancels. The
+ * most recently opened one on screen is the one that answers. The stack lives
+ * in ui/focus.js, which imports nothing, so overlays in an import cycle with
+ * this module can register while it is still evaluating.
+ * Thin alias of ui/focus.js's registerModal, which is what every overlay in the tree calls
+ * directly (nothing imports this one). Kept as the name the docs and CLAUDE.md mention; prefer
+ * registerModal in new code.
+ * @param {object} modal The overlay's hooks, `{ isOpen, element, cancel }`.
+ * @returns {Function} Removes it from the stack.
+ */
 export function registerTvModal(modal) {
   return registerModal(modal);
 }
 
+/**
+ * Gets the TV modal that answers input now.
+ * @returns {?object} The top open modal, `{ isOpen, element, cancel }`, or null.
+ */
 function openModal() {
   return topModal();
 }
+// Long-press state per key, and the timers that fire a hold at 500 ms.
 const longPress = createLongPressTracker();
 const holdTimers = new Map();
 let lastChannelKeyAt = 0;
@@ -71,6 +81,10 @@ let lastChannelKeyAt = 0;
 // remote lacks and a re-mapped button stays re-mapped.
 const profile = createRemoteProfile(safeStorage());
 
+/**
+ * Checks that local storage can be used before handing it to the remote profile.
+ * @returns {?Storage} `window.localStorage`, or null when it is blocked.
+ */
 function safeStorage() {
   try {
     window.localStorage.getItem('reruntv.probe');
@@ -80,6 +94,10 @@ function safeStorage() {
   }
 }
 
+/**
+ * Gets this device's remote profile: the buttons seen and learn-mode overrides.
+ * @returns {object} The profile from `createRemoteProfile`.
+ */
 export function remoteProfile() {
   return profile;
 }
@@ -90,6 +108,11 @@ export function remoteProfile() {
 const rawListeners = new Set();
 let captureNext = null;
 
+/**
+ * Listens to every raw remote input before routing, for the Remote test screen.
+ * @param {(info: object) => void} fn Called with each event's raw info.
+ * @returns {Function} Stops listening.
+ */
 export function onRemoteInput(fn) {
   rawListeners.add(fn);
   return () => rawListeners.delete(fn);
@@ -97,25 +120,45 @@ export function onRemoteInput(fn) {
 
 // While set, every button goes to fn(info) and nothing is routed.
 let inputSink = null;
+/**
+ * Sends every button to a sink instead of routing it, until cleared.
+ * @param {?Function} fn The sink, or null to route normally again.
+ */
 export function setRemoteInputSink(fn) {
   inputSink = typeof fn === 'function' ? fn : null;
 }
 
-// Learn mode: the next button pressed is handed to fn({ rawId, remoteKey }).
+/**
+ * Learn mode: the next button pressed is handed to fn({ rawId, remoteKey }).
+ * @param {(info: object) => void} fn Called once with the next button's info.
+ * @returns {Function} Cancels the capture if it has not fired.
+ */
 export function captureNextButton(fn) {
   captureNext = typeof fn === 'function' ? fn : null;
   return () => { if (captureNext === fn) captureNext = null; };
 }
 
+/**
+ * Passes a raw input to every raw listener; a listener that throws is logged and skipped.
+ * @param {object} info The raw input info.
+ */
 function emitRaw(info) {
   rawListeners.forEach((fn) => { try { fn(info); } catch (e) { console.warn('[tv-input] raw listener failed', e); } });
 }
 
 // Back leaves straight away instead of asking (docs/design/01 §12), per device.
 const BACK_EXITS_KEY = 'reruntv.backExitsImmediately';
+/**
+ * Reads whether Back on live TV leaves without asking, on this device.
+ * @returns {boolean} True when set.
+ */
 export function backExitsImmediately() {
   try { return window.localStorage.getItem(BACK_EXITS_KEY) === '1'; } catch (e) { return false; }
 }
+/**
+ * Saves whether Back on live TV leaves without asking, on this device.
+ * @param {boolean} on True to leave without asking.
+ */
 export function setBackExitsImmediately(on) {
   try {
     if (on) window.localStorage.setItem(BACK_EXITS_KEY, '1');
@@ -125,13 +168,20 @@ export function setBackExitsImmediately(on) {
 
 // ---------- Context ----------
 
+/**
+ * Tests whether a text input, text area or editable element has focus.
+ * @returns {boolean} True when one does.
+ */
 function textFieldFocused() {
   const el = document.activeElement;
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
 }
 
-// 'none' means TV routing stands aside and the keyboard handler decides (setup
-// screen, standby wake, PIN entry, a plugin's own modal).
+/**
+ * 'none' means TV routing stands aside and the keyboard handler decides (setup
+ * screen, standby wake, PIN entry, a plugin's own modal).
+ * @returns {string} The routing context: `dialog`, `text`, `menu`, `details`, `guide`, `banner`, `timeMachine`, `plugin`, `watching` or `none`.
+ */
 export function currentContext() {
   if (exitPromptOpen() || openModal()) {
     // A text field inside a dialog keeps digits, ".", Backspace and arrows (Back
@@ -174,6 +224,13 @@ const PLUGIN_ACTION_FALLBACK = {
   'media.playPause': 'menu.toggle',
 };
 
+/**
+ * Maps a remote key to an action for a context. Plugin channels get their own table and may take actions first.
+ * @param {string} context The routing context from `currentContext`.
+ * @param {string} remoteKey The RemoteKey name.
+ * @param {boolean} longPressed True for a long press.
+ * @returns {?string} The action name, or null when the key does nothing there.
+ */
 function route(context, remoteKey, longPressed) {
   if (context === 'plugin') {
     if (longPressed && PLUGIN_ACTIONS[`long:${remoteKey}`]) return PLUGIN_ACTIONS[`long:${remoteKey}`];
@@ -184,6 +241,12 @@ function route(context, remoteKey, longPressed) {
   return routeRemoteKey(context, remoteKey, { longPress: longPressed, buttons: S.config && S.config.remote && S.config.remote.buttons });
 }
 
+/**
+ * Tests whether a key has a long-press action in a context, so its press must wait for the hold.
+ * @param {string} context The routing context.
+ * @param {string} remoteKey The RemoteKey name.
+ * @returns {boolean} True when it has one.
+ */
 function longPressable(context, remoteKey) {
   if (context === 'plugin') return !!PLUGIN_ACTIONS[`long:${remoteKey}`];
   return hasLongPress(context, remoteKey);
@@ -191,6 +254,11 @@ function longPressable(context, remoteKey) {
 
 // ---------- Actions ----------
 
+/**
+ * Hands a key to the keyboard handler as a minimal keydown-shaped event.
+ * @param {string} key The `KeyboardEvent.key` value.
+ * @param {?object} source The originating event, for `repeat` and `preventDefault`.
+ */
 function sendKey(key, source) {
   if (!keyboardHandler) return;
   keyboardHandler({
@@ -204,6 +272,10 @@ function sendKey(key, source) {
   });
 }
 
+/**
+ * Moves the guide selection by about a screenful of rows.
+ * @param {number} direction 1 to page down, -1 to page up.
+ */
 function pageGuide(direction) {
   const rows = guideRowsEl ? Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row')) : [];
   const total = rows.length;
@@ -214,6 +286,10 @@ function pageGuide(direction) {
   pageGuideSelection(direction, step);
 }
 
+/**
+ * Lists the TV menu's buttons.
+ * @returns {HTMLElement[]} The `.tv-menu-btn` elements.
+ */
 function menuButtons() {
   return Array.from(shortcutsOverlayEl.querySelectorAll('.tv-menu-btn'));
 }
@@ -272,6 +348,12 @@ const VOLUME_REPEAT_MS = 125;
 let holdStartedAt = new Map();
 let lastVolumeKeyAt = 0;
 
+/**
+ * Runs a routed action: a `key:` action goes to the keyboard handler with held-key rate limits, a `plugin.action:` goes to the plugin channel with a core fallback, anything else runs from `ACTIONS`.
+ * @param {?string} action The action name.
+ * @param {?object} source The originating event, for `repeat`.
+ * @returns {boolean} True when the action was run.
+ */
 function runAction(action, source) {
   if (!action) return false;
   if (action.startsWith('key:')) {
@@ -311,8 +393,12 @@ function runAction(action, source) {
 
 // ---------- Keyboard-shaped events ----------
 
-// From app.js's keydown listener. true = handled here; the keyboard handler
-// must not see this event.
+/**
+ * From app.js's keydown listener. true = handled here; the keyboard handler
+ * must not see this event.
+ * @param {KeyboardEvent} event The keydown event.
+ * @returns {boolean} True when handled here.
+ */
 export function routeKeydown(event) {
   const raw = { source: 'keyboard', key: event.key, keyCode: event.keyCode, code: event.code, repeat: !!event.repeat, action: 'down' };
   const captured = tapRawInput(raw, normalizeKey(event));
@@ -351,6 +437,13 @@ export function routeKeydown(event) {
   return runShort(context, remoteKey, event);
 }
 
+/**
+ * Runs the short-press action for a key.
+ * @param {string} context The routing context.
+ * @param {string} remoteKey The RemoteKey name.
+ * @param {?object} event The originating event, if any.
+ * @returns {boolean} True when an action ran.
+ */
 function runShort(context, remoteKey, event) {
   const action = route(context, remoteKey, false);
   if (!action) return false;
@@ -358,8 +451,13 @@ function runShort(context, remoteKey, event) {
   return runAction(action, event);
 }
 
-// A tap for the Remote test screen and learn mode. Returns true when the
-// event was consumed by one of them and must not be routed.
+/**
+ * A tap for the Remote test screen and learn mode. Returns true when the
+ * event was consumed by one of them and must not be routed.
+ * @param {object} raw The raw input info.
+ * @param {?string} remoteKey The RemoteKey it maps to, if any.
+ * @returns {boolean} True when consumed.
+ */
 function tapRawInput(raw, remoteKey) {
   const rawId = rawKeyId(raw);
   const info = { ...raw, rawId, remoteKey: remoteKey || null, at: Date.now() };
@@ -377,11 +475,21 @@ function tapRawInput(raw, remoteKey) {
   return false;
 }
 
-// Learn-mode overrides win over the automatic mapping.
+/**
+ * Learn-mode overrides win over the automatic mapping.
+ * @param {object} raw The raw input info.
+ * @param {?string} fallback The automatic RemoteKey.
+ * @returns {?string} The RemoteKey to use.
+ */
 function resolveRemoteKey(raw, fallback) {
   return profile.overrideFor(rawKeyId(raw)) || fallback;
 }
 
+/**
+ * Finishes a long-press key on keyup: runs the short action, or a long action that fired late. TV mode only.
+ * @param {KeyboardEvent} event The keyup event.
+ * @returns {boolean} True when handled here.
+ */
 export function routeKeyup(event) {
   if (!isTvMode()) return false;
   const remoteKey = resolveRemoteKey({ source: 'keyboard', key: event.key, keyCode: event.keyCode, code: event.code }, normalizeKey(event));
@@ -396,10 +504,14 @@ export function routeKeyup(event) {
 }
 
 // ---------- Native bridge (Android TV client) ----------
-// The Android client posts RemoteKey names here instead of synthesizing
-// letters, once it sees `version` (android-tv-client MainActivity). It returns
-// what happened so the client can fall back: 'handled', 'ignored', or 'exit'
-// (only after the person chose EXIT in the prompt).
+/**
+ * The Android client posts RemoteKey names here instead of synthesizing
+ * letters, once it sees `version` (android-tv-client MainActivity). It returns
+ * what happened so the client can fall back: 'handled', 'ignored', or 'exit'
+ * (only after the person chose EXIT in the prompt).
+ * @param {?object} evt The posted event: raw Android fields (`source`, `keyCode`, `scanCode`, `repeat`, `longPress`, `holdMs`, `action`) or a RemoteKey `key`.
+ * @returns {string} `handled` or `ignored`.
+ */
 function nativeInput(evt) {
   if (!evt) return 'ignored';
   // Version 2 clients post raw Android KeyEvent codes and let this side
@@ -452,14 +564,21 @@ function nativeInput(evt) {
   return 'handled';
 }
 
-// Every delivered button is recorded for this device and marks the page, which
-// un-hides hints for it ([data-hint-requires], guide.css/overlays.css). A hint
-// for a button this remote has never sent stays hidden (docs/design/01 §5.2).
+/**
+ * Every delivered button is recorded for this device and marks the page, which
+ * un-hides hints for it ([data-hint-requires], guide.css/overlays.css). A hint
+ * for a button this remote has never sent stays hidden (docs/design/01 §5.2).
+ * @param {string} remoteKey The RemoteKey name.
+ */
 function noteRemoteKey(remoteKey) {
   profile.note(remoteKey);
   markRemoteKey(remoteKey);
 }
 
+/**
+ * Marks the page as having a remote key (and its optional group), un-hiding the hints that need it.
+ * @param {string} remoteKey The RemoteKey name.
+ */
 function markRemoteKey(remoteKey) {
   const root = document.documentElement;
   root.classList.add(`remote-has-${remoteKey}`);
@@ -470,6 +589,9 @@ function markRemoteKey(remoteKey) {
   });
 }
 
+/**
+ * Marks every key this device's remote has sent before.
+ */
 function applyKnownRemoteKeys() {
   profile.seenKeys().forEach(markRemoteKey);
 }
@@ -489,6 +611,10 @@ const LEGACY_KEYS = {
 let exitPromptEl = null;
 let exitPromptReturnFocus = null;
 
+/**
+ * Finds how this client can close itself.
+ * @returns {?Function} A function that exits, or null when it cannot.
+ */
 function exitCapability() {
   if (window.AndroidRemoteBridge && typeof window.AndroidRemoteBridge.exitApp === 'function') {
     return () => window.AndroidRemoteBridge.exitApp();
@@ -497,10 +623,18 @@ function exitCapability() {
   return null;
 }
 
+/**
+ * Tests whether the exit prompt is showing.
+ * @returns {boolean} True when it is.
+ */
 export function exitPromptOpen() {
   return !!exitPromptEl && !exitPromptEl.classList.contains('hidden');
 }
 
+/**
+ * Builds the exit prompt's element and registers it as an overlay surface.
+ * @returns {HTMLElement} The prompt element, hidden.
+ */
 function buildExitPrompt() {
   const el = document.createElement('div');
   el.id = 'tv-exit-prompt';
@@ -519,6 +653,9 @@ function buildExitPrompt() {
   return el;
 }
 
+/**
+ * Shows the exit prompt with KEEP WATCHING focused, STANDBY and, where possible, EXIT. With "Back exits immediately" on, leaves or goes to standby without asking.
+ */
 export function showExitPrompt() {
   // "Back exits immediately" (TV menu › Remote): leave without asking, or
   // drop to standby where this client can't close itself.
@@ -549,6 +686,9 @@ export function showExitPrompt() {
   keep.focus(); // the safe choice is the default, never EXIT
 }
 
+/**
+ * Hides the exit prompt and gives focus back to where it was.
+ */
 export function hideExitPrompt() {
   if (!exitPromptEl) return;
   exitPromptEl.classList.add('hidden');
@@ -560,15 +700,22 @@ export function hideExitPrompt() {
   exitPromptReturnFocus = null;
 }
 
-// The modal currently on screen: the exit prompt, or learn mode's list.
+/**
+ * The modal currently on screen: the exit prompt, or learn mode's list.
+ * @returns {?HTMLElement} The dialog's root element, or null.
+ */
 function activeDialogEl() {
   if (exitPromptOpen()) return exitPromptEl;
   const modal = openModal();
   return modal ? modal.element() : null;
 }
 
-// A focused kit control that uses ◀▶ itself (data-ui-arrows="horizontal":
-// Slider, Segmented, NumberStepper) gets the key instead of losing focus.
+/**
+ * A focused kit control that uses ◀▶ itself (data-ui-arrows="horizontal":
+ * Slider, Segmented, NumberStepper) gets the key instead of losing focus.
+ * @param {string} key `ArrowLeft` or `ArrowRight`.
+ * @returns {boolean} True when a control took the key.
+ */
 function arrowsToControl(key) {
   const el = document.activeElement;
   const dialog = activeDialogEl();
@@ -586,6 +733,10 @@ function arrowsToControl(key) {
   return true;
 }
 
+/**
+ * Moves focus to the next or previous button in the active dialog, wrapping around.
+ * @param {number} direction 1 for next, -1 for previous.
+ */
 function moveDialogFocus(direction) {
   const dialog = activeDialogEl();
   if (!dialog) return;
@@ -601,6 +752,9 @@ function moveDialogFocus(direction) {
 // TV mode hides the cursor after 3 s without pointer movement; moving the
 // pointer (an air mouse, LG's Magic Remote) brings it back.
 let cursorTimer = null;
+/**
+ * Shows the cursor and, in TV mode, hides it again after 3 s without movement.
+ */
 function onPointerMove() {
   document.documentElement.classList.remove('cursor-idle');
   clearTimeout(cursorTimer);
@@ -610,6 +764,11 @@ function onPointerMove() {
 
 // ---------- Install ----------
 
+/**
+ * Installs TV-mode input: keyup and focus-loss handling, the idle cursor, CEC keys and the `window.RerunTVInput` bridge for the Android client.
+ * @param {object} opts Options.
+ * @param {Function} opts.handleKey The keyboard handler that `key:` actions are sent to.
+ */
 export function installTvInput({ handleKey }) {
   keyboardHandler = handleKey;
   window.addEventListener('keyup', routeKeyup);

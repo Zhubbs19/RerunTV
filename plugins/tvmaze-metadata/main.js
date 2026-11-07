@@ -8,8 +8,12 @@
 const API = 'https://api.tvmaze.com';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// The fields a match can use, from TVmaze's show object. `summary` stays
-// HTML here; the renderer turns it into text (ctx.titleMatch.plainSummary).
+/**
+ * The fields a match can use, from TVmaze's show object. `summary` stays
+ * HTML here; the renderer turns it into text (ctx.titleMatch.plainSummary).
+ * @param {object} show A TVmaze show object.
+ * @returns {object} The show's id, name, year, premiere date, network, country, schedule, summary, image and URL.
+ */
 function showFrom(show) {
   const network = show.network || show.webChannel || null;
   const schedule = show.schedule && (show.schedule.time || (show.schedule.days || []).length)
@@ -30,6 +34,11 @@ function showFrom(show) {
   };
 }
 
+/**
+ * Picks the fields a match uses from a TVmaze episode object.
+ * @param {object} ep A TVmaze episode object.
+ * @returns {object} The episode's id, season, number, name, air date, air time and HTML summary.
+ */
 function episodeFrom(ep) {
   return {
     id: ep.id,
@@ -42,6 +51,10 @@ function episodeFrom(ep) {
   };
 }
 
+/**
+ * Registers the plugin's IPC handlers for show search and episode lists.
+ * @param {object} ctx The plugin's main-process ctx (`ipcMain`, `fetchJsonCached`).
+ */
 function activate(ctx) {
   const { ipcMain, fetchJsonCached } = ctx;
   const get = (key, url, ttl) => fetchJsonCached(key, url, { headers: { Accept: 'application/json' } }, ttl);

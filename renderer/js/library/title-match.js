@@ -7,7 +7,17 @@
 // Pure: no DOM, no config. Reads a playlist entry ({ path, title, series,
 // duration }) and returns plain values.
 
+/**
+ * Tells whether a value is a non-blank string.
+ * @param {*} value The value.
+ * @returns {boolean} True for a string with non-space text.
+ */
 const hasText = (value) => typeof value === 'string' && value.trim() !== '';
+/**
+ * Splits a path into its non-empty segments.
+ * @param {*} filePath A path.
+ * @returns {string[]} The segments.
+ */
 const segments = (filePath) => String(filePath || '').split(/[\\/]+/).filter(Boolean);
 
 // Episode codes, as the library's tagging reads them: S02E01, s2.e1, 2x01.
@@ -19,6 +29,11 @@ const EPISODE_CODES = [
 ];
 const SEASON_DIR = /^(s(eason)?[ ._-]?\d{1,4}|specials?)$/i;
 
+/**
+ * Finds the first episode code in a name.
+ * @param {string} name A file name.
+ * @returns {?object} `{ season, episode, index }`, or `null`.
+ */
 function codeIn(name) {
   for (const pattern of EPISODE_CODES) {
     const match = name.match(pattern);
@@ -27,13 +42,21 @@ function codeIn(name) {
   return null;
 }
 
-// A file name without its extension and a trailing bracket group of release
-// junk ("[1080p]"). A group with a year in it stays, for splitYear.
+/**
+ * A file name without its extension and a trailing bracket group of release
+ * junk ("[1080p]"). A group with a year in it stays, for splitYear.
+ * @param {string} name A file name.
+ * @returns {string} The cleaned name.
+ */
 function cleanName(name) {
   return name.replace(/\.[^./\\]+$/, '').replace(/[[(](?![^\])]*\b(?:19|20)\d\d\b)[^\])]*[\])]\s*$/, '').trim();
 }
 
-/** The season and episode a file is, from its series details or its name. */
+/**
+ * The season and episode a file is, from its series details or its name.
+ * @param {?object} file A playlist entry.
+ * @returns {?object} `{ season, episode }`, or `null` when unknown or a season-as-year code.
+ */
 export function episodeOf(file) {
   const series = file && file.series;
   if (series && Number.isInteger(series.season) && Number.isInteger(series.episode) && series.season < 1900) {
@@ -47,6 +70,8 @@ export function episodeOf(file) {
  * What to search for. An episode is searched by its show: the series name it
  * was given, the name before its episode code, or the folder it sits in past
  * any season folder. Anything else by its title or cleaned file name.
+ * @param {?object} file A playlist entry.
+ * @returns {string} The search text.
  */
 export function searchQueryFor(file) {
   const parts = segments(file && file.path);
@@ -62,7 +87,11 @@ export function searchQueryFor(file) {
   return (hasText(file && file.title) ? file.title : cleanName(name)).trim();
 }
 
-/** 'tv' for an episode, 'movie' for anything feature length, else null. */
+/**
+ * 'tv' for an episode, 'movie' for anything feature length, else null.
+ * @param {?object} file A playlist entry.
+ * @returns {?string} `'tv'`, `'movie'` or `null`.
+ */
 export function preferredKind(file) {
   if (episodeOf(file)) return 'tv';
   return Number(file && file.duration) >= 70 * 60 ? 'movie' : null;
@@ -78,6 +107,9 @@ const TRAILING_YEAR = /[\s._-]+((?:19|20)\d\d)$/;
  * Film", "1977 - Some Film", "An Episode (February 13, 1943)". It comes out
  * of the query to rank the results instead. A title that is only a year
  * ("1917") is left alone, and a "year" past next year is part of the title.
+ * @param {*} query The search text.
+ * @param {Date} [now] The current date, which bounds a plausible year.
+ * @returns {object} `{ title, year }`; `year` is `null` when none was found.
  */
 export function splitYear(query, now = new Date()) {
   let title = String(query || '').trim();
@@ -98,6 +130,10 @@ export function splitYear(query, now = new Date()) {
 /**
  * Results ({ year, mediaType }) from the named year first, then a year either
  * side; among equals the preferred kind; otherwise the catalogue's own order.
+ * @param {Array<object>} results Catalogue results with `year` and `mediaType`.
+ * @param {?number} year The year to rank by.
+ * @param {?string} [prefer] The preferred `mediaType`.
+ * @returns {Array<object>} The results reordered; the input itself when there is nothing to rank by.
  */
 export function rankByYear(results, year, prefer = null) {
   if (!year && !prefer) return results;
@@ -114,7 +150,11 @@ export function rankByYear(results, year, prefer = null) {
     .map(({ r }) => r);
 }
 
-/** Text from a catalogue's HTML summary ("<p>It <b>begins</b>.</p>"). */
+/**
+ * Text from a catalogue's HTML summary ("<p>It <b>begins</b>.</p>").
+ * @param {?string} html The summary HTML.
+ * @returns {string} Plain text with tags removed and entities decoded.
+ */
 export function plainSummary(html) {
   if (!html) return '';
   const entities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" };

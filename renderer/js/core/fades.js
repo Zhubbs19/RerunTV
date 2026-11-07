@@ -8,7 +8,11 @@
 // Two breaks closer than this aren't two act breaks.
 const MIN_SNAPPED_GAP_MS = 60000;
 
-/** How far a break may move to reach a fade, in ms; 0 while the switch is off. */
+/**
+ * How far a break may move to reach a fade, in ms; 0 while the switch is off.
+ * @param {object} config The app config; reads `config.commercials`.
+ * @returns {number} The snap window in ms (minutes capped at 15, default 3).
+ */
 export function fadeSnapWindowMs(config) {
   const c = (config && config.commercials) || {};
   if (!c.snapToFades) return 0;
@@ -20,6 +24,9 @@ export function fadeSnapWindowMs(config) {
  * A file's fades as [{ atMs, strength }] ascending, `scale` times their
  * position in the file (a slot stretched or squeezed in the schedule), or
  * null when it has none.
+ * @param {object} file A channel file entry; reads `file.breakMarks`.
+ * @param {number} [scale=1] Factor applied to each fade position.
+ * @returns {?Array<{atMs: number, strength: number}>} The fades, or null.
  */
 export function fadesOf(file, scale = 1) {
   const marks = file && Array.isArray(file.breakMarks) ? file.breakMarks : null;
@@ -36,6 +43,10 @@ export function fadesOf(file, scale = 1) {
  * little further away. Slots stay in order; a slot left behind by its
  * predecessor's move (no room before the next one) is dropped (null).
  * marks: [{ atMs, strength }] ascending.
+ * @param {number[]} rawOffsets Slot offsets in ms into the file, ascending.
+ * @param {Array<{atMs: number, strength: number}>} marks The fades, ascending.
+ * @param {number} windowMs How far a slot may move, in ms.
+ * @returns {Array<?number>} The snapped offsets, null for a dropped slot.
  */
 export function snapOffsetsToFades(rawOffsets, marks, windowMs) {
   const used = new Set();

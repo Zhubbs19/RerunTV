@@ -1,35 +1,41 @@
+// Local media helpers: ffmpeg path resolution, the video/image/audio extension
+// lists, recursive folder scans, and the transcode-and-swap fix for files with
+// codecs Chromium can't play.
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
-// ffmpeg-static resolves to a path inside node_modules at dev time. Once this
-// app is packaged with electron-builder, node_modules is normally sealed into
-// app.asar and a binary can't execute from inside it — electron-builder's
-// "asarUnpack" convention is to keep unpacked copies alongside under
-// app.asar.unpacked, so redirect there if that's where we're actually running.
-// This is the raw, unconditionally-resolved path — always computed (core
-// still needs to hand it to the ffmpeg-transcode plugin), but NOT what
-// transcode callers should spawn directly. That's getFfmpegPath() below,
-// which only returns non-null once the ffmpeg-transcode plugin has actually
-// published it (see plugins/ffmpeg-transcode/main.js) — so ffmpeg stays a
-// real, disable-able plugin (GPL binary, isolated for licensing clarity)
-// rather than an unconditional core dependency, even though its resolution
-// still happens here since a plugin under userData/plugins/ can't resolve an
-// npm package the app's own node_modules wouldn't be on its require() path.
-// require() itself is wrapped rather than assumed to succeed: ffmpeg-static
-// being uninstalled (a build that deliberately omits the GPL binary) must
-// not crash the whole app before any plugin even loads. If it's missing,
-// fall back to a system-installed ffmpeg found on PATH
-// (resolveFfmpegFromPath, below) rather than giving up immediately — this
-// is what actually lets a build like this one avoid bundling the GPL binary
-// at all while still supporting every ffmpeg-dependent feature for anyone
-// who already has ffmpeg installed. Only if BOTH fail does
-// FFMPEG_STATIC_PATH stay null, and ffmpeg-transcode's own
-// activate() (plugins/ffmpeg-transcode/main.js) already handles a falsy path
-// by failing just that one plugin, the same per-plugin isolation every other
-// plugin load error already gets. This same code path runs in both repos —
-// the original always finds ffmpeg-static, so the PATH fallback below simply
-// never triggers there.
+/**
+ * ffmpeg-static resolves to a path inside node_modules at dev time. Once this
+ * app is packaged with electron-builder, node_modules is normally sealed into
+ * app.asar and a binary can't execute from inside it — electron-builder's
+ * "asarUnpack" convention is to keep unpacked copies alongside under
+ * app.asar.unpacked, so redirect there if that's where we're actually running.
+ * This is the raw, unconditionally-resolved path — always computed (core
+ * still needs to hand it to the ffmpeg-transcode plugin), but NOT what
+ * transcode callers should spawn directly. That's getFfmpegPath() below,
+ * which only returns non-null once the ffmpeg-transcode plugin has actually
+ * published it (see plugins/ffmpeg-transcode/main.js) — so ffmpeg stays a
+ * real, disable-able plugin (GPL binary, isolated for licensing clarity)
+ * rather than an unconditional core dependency, even though its resolution
+ * still happens here since a plugin under userData/plugins/ can't resolve an
+ * npm package the app's own node_modules wouldn't be on its require() path.
+ * require() itself is wrapped rather than assumed to succeed: ffmpeg-static
+ * being uninstalled (a build that deliberately omits the GPL binary) must
+ * not crash the whole app before any plugin even loads. If it's missing,
+ * fall back to a system-installed ffmpeg found on PATH
+ * (resolveFfmpegFromPath, below) rather than giving up immediately — this
+ * is what actually lets a build like this one avoid bundling the GPL binary
+ * at all while still supporting every ffmpeg-dependent feature for anyone
+ * who already has ffmpeg installed. Only if BOTH fail does
+ * FFMPEG_STATIC_PATH stay null, and ffmpeg-transcode's own
+ * activate() (plugins/ffmpeg-transcode/main.js) already handles a falsy path
+ * by failing just that one plugin, the same per-plugin isolation every other
+ * plugin load error already gets. This same code path runs in both repos —
+ * the original always finds ffmpeg-static, so the PATH fallback below simply
+ * never triggers there.
+ * @returns {?string} The first ffmpeg binary found on PATH, or null.
+ */
 function resolveFfmpegFromPath() {
   const exeNames = process.platform === 'win32' ? ['ffmpeg.exe'] : ['ffmpeg'];
   const pathDirs = (process.env.PATH || process.env.Path || '').split(path.delimiter).filter(Boolean);
@@ -54,7 +60,15 @@ if (FFMPEG_STATIC_PATH) {
 }
 
 let activeFfmpegPath = null;
+/**
+ * Returns the ffmpeg path published by the FFmpeg Transcode plugin.
+ * @returns {?string} The path, or null while that plugin is not active.
+ */
 function getFfmpegPath() { return activeFfmpegPath; }
+/**
+ * Sets the ffmpeg path that transcode and measuring callers use.
+ * @param {?string} p The binary path; falsy clears it.
+ */
 function setFfmpegPath(p) { activeFfmpegPath = p || null; }
 
 const VIDEO_EXTENSIONS = new Set([
@@ -74,25 +88,37 @@ const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bm
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']);
 const LAN_MEDIA_EXTENSIONS = new Set([...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS, ...AUDIO_EXTENSIONS]);
 
-// Some source files (old rips especially) use codecs Chromium's <video> can't
-// decode — e.g. MPEG-4 Part 2 "DivX/Xvid" muxed into an .mp4 container. There's
-// no software fallback for that inside Chromium. Unplayable files get
-// transcoded once to H.264 via the bundled ffmpeg and swapped in at the exact
-// same path, so nothing else about the channel's config needs to change. The
-// original is moved into a sibling "_originals_backup" folder rather than
-// deleted — this is a real personal media library, not disposable cache data.
+/**
+ * Some source files (old rips especially) use codecs Chromium's <video> can't
+ * decode — e.g. MPEG-4 Part 2 "DivX/Xvid" muxed into an .mp4 container. There's
+ * no software fallback for that inside Chromium. Unplayable files get
+ * transcoded once to H.264 via the bundled ffmpeg and swapped in at the exact
+ * same path, so nothing else about the channel's config needs to change. The
+ * original is moved into a sibling "_originals_backup" folder rather than
+ * deleted — this is a real personal media library, not disposable cache data.
+ * @param {string} srcPath The media file's path.
+ * @returns {string} Where its original is kept, in a sibling `_originals_backup` folder.
+ */
 function backupPathFor(srcPath) {
   const backupDir = path.join(path.dirname(srcPath), '_originals_backup');
   return path.join(backupDir, path.basename(srcPath));
 }
 
+/**
+ * Returns where a transcode of a file is written before it is swapped in.
+ * @param {string} srcPath The media file's path.
+ * @returns {string} `<srcPath>.transcoded.mp4`.
+ */
 function pendingTranscodePathFor(srcPath) {
   return `${srcPath}.transcoded.mp4`;
 }
 
-// If the app crashed between the two renames that make up a swap (original
-// moved to backup, transcoded output not yet promoted), finish it now rather
-// than leaving the channel with a missing file at srcPath.
+/**
+ * If the app crashed between the two renames that make up a swap (original
+ * moved to backup, transcoded output not yet promoted), finish it now rather
+ * than leaving the channel with a missing file at srcPath.
+ * @param {string} srcPath The media file's path.
+ */
 function recoverPendingSwap(srcPath) {
   const backupPath = backupPathFor(srcPath);
   const pendingPath = pendingTranscodePathFor(srcPath);
@@ -104,13 +130,17 @@ function recoverPendingSwap(srcPath) {
   }
 }
 
-// Async (fs.promises.readdir), not the fs.readdirSync this used to be — a
-// real media library can be nested many folders deep with thousands of
-// files, and a fully synchronous walk blocks this whole process (window,
-// every LAN request, every other IPC call) for the entire scan. Each
-// `await` below hands control back to the event loop between directories,
-// so other work can interleave instead of the app appearing frozen for
-// however long the scan takes.
+/**
+ * Async (fs.promises.readdir), not the fs.readdirSync this used to be — a
+ * real media library can be nested many folders deep with thousands of
+ * files, and a fully synchronous walk blocks this whole process (window,
+ * every LAN request, every other IPC call) for the entire scan. Each
+ * `await` below hands control back to the event loop between directories,
+ * so other work can interleave instead of the app appearing frozen for
+ * however long the scan takes.
+ * @param {string} folderPath The folder to walk recursively.
+ * @returns {Promise<string[]>} Sorted absolute paths of every video file, skipping `_originals_backup` folders.
+ */
 async function scanFolderForVideos(folderPath) {
   const results = [];
   async function walk(dir) {
@@ -138,6 +168,11 @@ async function scanFolderForVideos(folderPath) {
   return results;
 }
 
+/**
+ * Waits a number of milliseconds.
+ * @param {number} ms How long to wait.
+ * @returns {Promise<void>} Resolves after the delay.
+ */
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 // Windows (unlike POSIX) refuses to rename a file that still has an open
@@ -147,6 +182,13 @@ function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 // retries absorbs that instead of failing the whole swap outright.
 const RENAME_RETRY_ATTEMPTS = 5;
 const RENAME_RETRY_BASE_MS = 300;
+/**
+ * Renames a file, retrying with a growing delay while Windows holds it locked.
+ * @param {string} from The current path.
+ * @param {string} to The new path.
+ * @returns {Promise<void>} Resolves once renamed.
+ * @throws {Error} The last rename error after every attempt fails.
+ */
 async function renameWithRetry(from, to) {
   for (let i = 1; i <= RENAME_RETRY_ATTEMPTS; i++) {
     try {
@@ -170,6 +212,11 @@ const transcodesInFlight = new Map(); // srcPath -> Promise
 // all means it is hung (a dead network share, a stuck decoder) and gets killed.
 const TRANSCODE_STALL_MS = 5 * 60 * 1000;
 
+/**
+ * Transcodes a local file to H.264 and swaps it in at the same path, backing up the original; a second request for the same file joins the running one.
+ * @param {string} srcPath An absolute local file path.
+ * @returns {Promise<object>} `{ path }` on success, or `{ error }`.
+ */
 function transcodeVideo(srcPath) {
   if (typeof srcPath !== 'string' || !path.isAbsolute(srcPath) || /^mediasource:/i.test(srcPath)) {
     return Promise.resolve({ error: 'Only an absolute local file path can be transcoded.' });
@@ -184,6 +231,11 @@ function transcodeVideo(srcPath) {
   return job;
 }
 
+/**
+ * Runs one transcode and swap for a file without checking for a run already in progress.
+ * @param {string} srcPath An absolute local file path.
+ * @returns {Promise<object>} `{ path }` on success, or `{ error }`.
+ */
 async function transcodeVideoUncoordinated(srcPath) {
   recoverPendingSwap(srcPath);
 

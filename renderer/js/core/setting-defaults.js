@@ -13,6 +13,11 @@
 import { registryDefaultForPath, registryDefaults } from './settings-registry.js';
 
 const NO_REPEAT_KEYS = ['noRepeatCommercials', 'noRepeatBumpers', 'noRepeatInterstitials'];
+/**
+ * The default for each no-repeat switch: the old single noRepeatInBreak switch's value.
+ * @param {object} config The app config.
+ * @returns {boolean} True when noRepeatInBreak was on.
+ */
 const fromNoRepeatInBreak = (config) => !!(config.commercials && config.commercials.noRepeatInBreak);
 
 export const NEW_SETTING_DEFAULTS = [
@@ -20,19 +25,33 @@ export const NEW_SETTING_DEFAULTS = [
   ...NO_REPEAT_KEYS.map((key) => [['commercials', key], fromNoRepeatInBreak]),
 ];
 
+/**
+ * Deep-copies a JSON-safe default value.
+ * @param {*} value The value.
+ * @returns {*} The copy.
+ */
 const clone = (value) => (value && typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value);
 
-// The default for a settings path (for "reset" and the registry rows), or
-// undefined when the setting has none (the caller then deletes the key, as it
-// always did).
+/**
+ * The default for a settings path (for "reset" and the registry rows), or
+ * undefined when the setting has none (the caller then deletes the key, as it
+ * always did).
+ * @param {string[]} path The settings path, e.g. `['controls', 'startupChannel']`.
+ * @param {object} [config={}] The app config, for defaults derived from other settings.
+ * @returns {*} The default value, or undefined.
+ */
 export function defaultForPath(path, config = {}) {
   const hit = NEW_SETTING_DEFAULTS.find(([p]) => p.length === path.length && p.every((key, i) => key === path[i]));
   if (hit) return typeof hit[1] === 'function' ? hit[1](config) : clone(hit[1]);
   return registryDefaultForPath(path);
 }
 
-// Adds whichever of the defaults are missing, leaving every set value alone.
-// Returns how many it added.
+/**
+ * Adds whichever of the defaults are missing, leaving every set value alone.
+ * Returns how many it added.
+ * @param {object} config The app config; changed in place.
+ * @returns {number} How many defaults were added.
+ */
 export function fillNewSettingDefaults(config) {
   let added = 0;
   NEW_SETTING_DEFAULTS.forEach(([path, value]) => {

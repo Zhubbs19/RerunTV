@@ -19,6 +19,11 @@ import { toDatetimeLocalValue } from '../core/util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './channel-preview.js';
 
 // ---------- PREVIEW ON… (docs/design/06 §5 — send a channel to another screen) ----------
+/**
+ * Asks which other connected screen should tune to a channel, then sends it there.
+ * @param {object} ch The channel config to preview.
+ * @returns {Promise<void>}
+ */
 export async function openPreviewOnDialog(ch) {
   let clients;
   try { clients = (await refreshPersonalClients()).filter((c) => c.id !== getClientId()); } catch (e) { clients = (S.personalClients || []).filter((c) => c.id !== getClientId()); }
@@ -58,8 +63,13 @@ export async function openPreviewOnDialog(ch) {
 // dropdown and quick-jump buttons below, which all need ch.blocks/
 // ch.broadcastHours, not just the number already stashed on the dataset.
 let previewChannel = null;
+// The element focused before the modal opened, refocused when it closes.
 let previewReturnFocus = null;
 
+/**
+ * Opens the PREVIEW modal for a channel, defaulting the "as of" time to now and listing its blocks.
+ * @param {object} ch The channel config to preview.
+ */
 export function openPreviewModal(ch) {
   previewChannel = ch;
   previewReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -82,6 +92,9 @@ export function openPreviewModal(ch) {
   previewModalDatetimeEl.focus();
 }
 
+/**
+ * Hides the PREVIEW modal and returns focus to whatever opened it.
+ */
 function closePreviewModal() {
   previewModalEl.classList.add('hidden');
   previewChannel = null;
@@ -120,6 +133,10 @@ previewModalEl.addEventListener('keydown', (e) => {
 // getPreviewFieldMs falls back to parsing the field like before.
 let previewPreciseMs = null;
 
+/**
+ * Reads the modal's "as of" time, preferring the exact millisecond a quick-jump stored over the minute-precision field.
+ * @returns {number} Epoch milliseconds; the current time when the field is empty or invalid.
+ */
 function getPreviewFieldMs() {
   const raw = previewModalDatetimeEl.value;
   if (previewPreciseMs != null && raw === toDatetimeLocalValue(new Date(previewPreciseMs))) {
@@ -129,6 +146,10 @@ function getPreviewFieldMs() {
   return Number.isFinite(ms) ? ms : Date.now();
 }
 
+/**
+ * Sets the modal's "as of" time, remembering the exact millisecond for the next quick jump.
+ * @param {number} ms Epoch milliseconds.
+ */
 function setPreviewFieldMs(ms) {
   previewPreciseMs = ms;
   previewModalDatetimeEl.value = toDatetimeLocalValue(new Date(ms));

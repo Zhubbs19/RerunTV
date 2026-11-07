@@ -1,3 +1,7 @@
+// The phone-browser remote page served by the companion-app plugin's LAN
+// server: remote buttons, the channel list, a settings editor, a file browser
+// and the now-watching readout, all talking to the paired /command, /tune,
+// /state, /channels and /api/* routes in ../main.js.
 (function () {
   'use strict';
   var state = {

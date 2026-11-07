@@ -21,6 +21,7 @@ import { formatClock, formatOffset, getDisplayTitle } from '../core/util.js';
 import { isVirtualChannel, virtualChannelSupportsTimeMachine, virtualChannelTimeMachineText } from './virtual.js';
 import { Toast } from '../ui/toast.js';
 
+// OSD label for each break type while the viewed time is inside a break.
 const BREAK_OSD_LABELS = {
   commercial: 'COMMERCIAL BREAK', trivia: 'TRIVIA', channelId: 'STATION ID',
   upNext: 'UP NEXT', adBreakIn: 'COMMERCIAL BREAK', adBreakOut: 'BACK TO THE SHOW',
@@ -28,6 +29,10 @@ const BREAK_OSD_LABELS = {
   localAvail: 'STATION MESSAGE', preemption: 'SPECIAL REPORT', premiereJingle: 'PREMIERING NOW', sweepsPromo: 'A SPECIAL EVENT',
 };
 
+/**
+ * Whether the time machine can be used on the current channel.
+ * @returns {boolean} True when it is enabled in settings and the channel supports it.
+ */
 export function timeMachineAvailable() {
   if (!(S.config.timeMachine && S.config.timeMachine.enabled)) return false;
   // A plugin channel can opt in when its own playback is a pure function of
@@ -39,13 +44,19 @@ export function timeMachineAvailable() {
   return !!getChannel(S.currentNumber);
 }
 
-// The REW/FF ladder up to "Fastest shuttle" (GUIDE & TIME MACHINE).
+/**
+ * The REW/FF ladder up to "Fastest shuttle" (GUIDE & TIME MACHINE).
+ * @returns {Array<number>} The shuttle speeds, slowest first (always at least one).
+ */
 function shuttleSpeeds() {
   const max = timeMachineOptions(S.config).maxShuttle;
   const speeds = SHUTTLE_SPEEDS.filter((v) => v <= max);
   return speeds.length ? speeds : [SHUTTLE_SPEEDS[0]];
 }
 
+/**
+ * Shows or hides the TIME SHIFT badge for the current offset from real time.
+ */
 export function updateTimeShiftBadge() {
   const showBadge = !(S.config.timeMachine && S.config.timeMachine.showTimeShiftBadge === false);
   if (!showBadge || Math.abs(S.timeOffsetMs) < 1000) {
@@ -56,6 +67,9 @@ export function updateTimeShiftBadge() {
   timeShiftBadgeEl.classList.remove('hidden');
 }
 
+/**
+ * Refreshes the VCR on-screen display: mode, speed, viewed clock, what airs at the viewed time, and the scrubber.
+ */
 export function updateVcrOsd() {
   const ch = getChannel(S.currentNumber);
   if (S.shuttleDir === 0) {
@@ -101,6 +115,13 @@ let scrubSig = '';
 let scrubPrograms = [];
 let scrubDragging = false;
 
+/**
+ * Creates an element with an optional class name and text.
+ * @param {string} tag Tag name.
+ * @param {string} [className] Class attribute.
+ * @param {?string} [text] Text content.
+ * @returns {HTMLElement} The new element.
+ */
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -108,11 +129,20 @@ function el(tag, className, text) {
   return node;
 }
 
+/**
+ * Formats a timestamp as weekday, month, day and clock time.
+ * @param {number} ms Epoch milliseconds.
+ * @returns {string} Text such as `Mon Jan 5 8:30 PM`.
+ */
 function dayClock(ms) {
   const d = new Date(ms);
   return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${MONTHS[d.getMonth()]} ${d.getDate()} ${formatClock(d)}`;
 }
 
+/**
+ * Builds the scrubber strip inside the VCR OSD the first time it is needed.
+ * @returns {HTMLElement} The scrubber element.
+ */
 function ensureScrubber() {
   if (scrubEl) return scrubEl;
   scrubEl = el('div', 'tm-scrubber');
@@ -133,6 +163,10 @@ function ensureScrubber() {
   return scrubEl;
 }
 
+/**
+ * Redraws the scrubber strip around the viewed time.
+ * Program and break segments are rebuilt only when the window, channel or config generation changes; the cursor, LIVE marker and labels update every call.
+ */
 function renderScrubber() {
   if (!S.timeMachineOn) return;
   const strip = ensureScrubber();
@@ -200,18 +234,28 @@ function renderScrubber() {
   strip.querySelector('.tm-scrub-track').setAttribute('aria-valuetext', dayClock(viewed));
 }
 
+/**
+ * Shows a message banner on the scrubber strip.
+ * @param {string} text Banner text.
+ */
 function showScrubBanner(text) {
   const banner = ensureScrubber().querySelector('.tm-scrub-banner');
   banner.textContent = text;
   banner.classList.remove('hidden');
 }
 
+/**
+ * Hides the scrubber's message banner.
+ */
 function hideScrubBanner() {
   if (scrubEl) scrubEl.querySelector('.tm-scrub-banner').classList.add('hidden');
 }
 
-// Desktop pointer: click or drag anywhere on the strip to move there (paused);
-// Enter/T plays from it, like OK on a remote.
+/**
+ * Desktop pointer: click or drag anywhere on the strip to move there (paused);
+ * Enter/T plays from it, like OK on a remote.
+ * @param {HTMLElement} track The scrubber track element.
+ */
 function installScrubberPointer(track) {
   const moveTo = (event) => {
     if (!scrubWin) return;
@@ -244,8 +288,12 @@ let scrubPreviewTimer = null;
 let holdStartedAt = 0;
 let holdDir = 0;
 let lastBoundaryStepAt = 0;
+// Minimum gap between program-boundary steps while a key is held.
 const BOUNDARY_REPEAT_MS = 400;
 
+/**
+ * Schedules one preview refresh shortly after a scrub step, so rapid steps share a reload.
+ */
 function queueScrubPreview() {
   if (scrubPreviewTimer) return;
   scrubPreviewTimer = setTimeout(() => {
@@ -254,6 +302,10 @@ function queueScrubPreview() {
   }, 150);
 }
 
+/**
+ * Enters the paused scrub state, stopping any shuttle and pausing playback.
+ * @returns {boolean} False when the time machine is off.
+ */
 function beginScrub() {
   if (!S.timeMachineOn) return false;
   if (S.shuttleDir !== 0) {
@@ -270,32 +322,44 @@ function beginScrub() {
   return true;
 }
 
-// The moment the picture on screen belongs to. A paused scrub keeps the schedule clock
-// running (viewNow() is real time plus a fixed offset), so by the time play is pressed
-// the clock is ahead of the frame being watched — a few seconds on a 30 s ad is enough
-// to land on the next ad, or back in the show. Committing to this moment instead puts
-// play exactly where the screen is. previewOffsetMs says which offset it was taken at, so
-// a different writer moving the offset (the guide, an air check) is not overridden.
+/**
+ * The moment the picture on screen belongs to. A paused scrub keeps the schedule clock
+ * running (viewNow() is real time plus a fixed offset), so by the time play is pressed
+ * the clock is ahead of the frame being watched — a few seconds on a 30 s ad is enough
+ * to land on the next ad, or back in the show. Committing to this moment instead puts
+ * play exactly where the screen is. previewOffsetMs says which offset it was taken at, so
+ * a different writer moving the offset (the guide, an air check) is not overridden.
+ * @param {number} ms The viewed time of the frame on screen, epoch milliseconds.
+ */
 function holdAt(ms) {
   S.previewMs = ms;
   S.previewOffsetMs = S.timeOffsetMs;
 }
 
-// A parked scrub is a paused tape: the viewed time stays where it was put. Without this the
-// schedule clock ran on under the preview, so the frame on screen, the OSD, ◀▶ steps and the
-// moment Enter committed to were all slightly different instants, and each press landed
-// somewhere new.
+/**
+ * A parked scrub is a paused tape: the viewed time stays where it was put. Without this the
+ * schedule clock ran on under the preview, so the frame on screen, the OSD, ◀▶ steps and the
+ * moment Enter committed to were all slightly different instants, and each press landed
+ * somewhere new.
+ * @param {number} ms The viewed time to hold, epoch milliseconds.
+ */
 function freezeView(ms) {
   S.frozenViewMs = ms;
   S.frozenOffsetMs = S.timeOffsetMs;
 }
 
-// Let the clock run again from the frozen moment (play, shuttle or leaving).
+/**
+ * Let the clock run again from the frozen moment (play, shuttle or leaving).
+ */
 function thawView() {
   if (S.frozenViewMs != null && S.timeOffsetMs === S.frozenOffsetMs) S.timeOffsetMs = S.frozenViewMs - Date.now();
   S.frozenViewMs = null;
 }
 
+/**
+ * Moves the viewed time to a given moment and parks there, paused, until play is pressed.
+ * @param {number} targetMs Viewed time to move to, epoch milliseconds.
+ */
 export function scrubToTime(targetMs) {
   if (!Number.isFinite(targetMs) || !beginScrub()) return;
   hideScrubBanner();
@@ -306,14 +370,23 @@ export function scrubToTime(targetMs) {
   queueScrubPreview();
 }
 
+/**
+ * Moves the viewed time by a relative amount and parks there.
+ * @param {number} deltaMs Milliseconds to move, negative for back.
+ */
 export function scrubBy(deltaMs) {
   scrubToTime(viewNow() + deltaMs);
 }
 
-// ◀▶ in TV mode: 10 s, then 30 s, then 2 min, then whole programs the longer
-// the key is held (scrubber-model.js). repeat is the key's auto-repeat flag;
-// a fresh press restarts the ramp. Hold time is UI gesture timing, so
-// performance.now(), not the viewed clock.
+/**
+ * ◀▶ in TV mode: 10 s, then 30 s, then 2 min, then whole programs the longer
+ * the key is held (scrubber-model.js). repeat is the key's auto-repeat flag;
+ * a fresh press restarts the ramp. Hold time is UI gesture timing, so
+ * performance.now(), not the viewed clock.
+ * @param {number} direction 1 for forward, -1 for back.
+ * @param {object} [opts] Key options.
+ * @param {boolean} [opts.repeat=false] Whether this is a key auto-repeat.
+ */
 export function scrubStep(direction, { repeat = false } = {}) {
   if (!S.timeMachineOn) return;
   const now = performance.now();
@@ -331,8 +404,11 @@ export function scrubStep(direction, { repeat = false } = {}) {
   scrubBy(direction * step);
 }
 
-// ▲▼ in TV mode: the previous/next program start (replacing [ and ] on a
-// remote that has no such buttons).
+/**
+ * ▲▼ in TV mode: the previous/next program start (replacing [ and ] on a
+ * remote that has no such buttons).
+ * @param {number} direction 1 for the next program start, -1 for the previous one.
+ */
 export function scrubProgramBoundary(direction) {
   if (!S.timeMachineOn) return;
   const ch = getChannel(S.currentNumber);
@@ -348,10 +424,17 @@ export function scrubProgramBoundary(direction) {
   if (target != null) scrubToTime(target);
 }
 
-// TV menu › Time Machine › Go to… (§3.2). A jump inside the strip's window
-// plays straight away; a far one lands paused on a banner and plays on OK.
-// play: true is for a date the viewer picked on purpose (the calendar): it always plays
-// straight away, with a toast saying where it landed, instead of parking on the banner.
+/**
+ * TV menu › Time Machine › Go to… (§3.2). A jump inside the strip's window
+ * plays straight away; a far one lands paused on a banner and plays on OK.
+ * play: true is for a date the viewer picked on purpose (the calendar): it always plays
+ * straight away, with a toast saying where it landed, instead of parking on the banner.
+ * @param {number} targetMs Viewed time to jump to, epoch milliseconds.
+ * @param {string} label Name of the destination shown on the banner or toast.
+ * @param {object} [opts] Jump options.
+ * @param {boolean} [opts.play=false] Always play straight away and show a toast.
+ * @returns {Promise<void>} Resolves once the jump has played or parked.
+ */
 export async function timeMachineGoTo(targetMs, label, { play = false } = {}) {
   if (!Number.isFinite(targetMs)) return;
   if (!S.timeMachineOn) enterTimeMachine();
@@ -372,7 +455,10 @@ export async function timeMachineGoTo(targetMs, label, { play = false } = {}) {
   showScrubBanner(`${label} · ${dayClock(targetMs)} — OK TO PLAY`);
 }
 
-// What's airing at the viewed time on this channel (for "Start of this show").
+/**
+ * What's airing at the viewed time on this channel (for "Start of this show").
+ * @returns {?number} Start time of the program at the viewed time, or null when unknown.
+ */
 export function currentProgramStart() {
   const ch = getChannel(S.currentNumber);
   if (!ch) return null;
@@ -385,6 +471,9 @@ export function currentProgramStart() {
   }
 }
 
+/**
+ * Hides the trivia card, station ID bar and dynamic bumper text used by the shuttle preview.
+ */
 function hideShuttleBreakOverlays() {
   triviaCardEl.classList.add('hidden');
   fitSlotCardEl.classList.add('hidden');
@@ -392,11 +481,14 @@ function hideShuttleBreakOverlays() {
   dynamicBumperTextEl.classList.add('hidden');
 }
 
-// While shuttling the player is paused and scrubbed like a tape: seek
-// within the current file (or bumper, if scrubbed into a break window),
-// reload only when the schedule crosses into a different one. Deliberately
-// bypasses playChannelLive's decode watchdog and transcode path — this is a
-// preview, not a tune-in.
+/**
+ * While shuttling the player is paused and scrubbed like a tape: seek
+ * within the current file (or bumper, if scrubbed into a break window),
+ * reload only when the schedule crosses into a different one. Deliberately
+ * bypasses playChannelLive's decode watchdog and transcode path — this is a
+ * preview, not a tune-in.
+ * @returns {Promise<void>} Resolves once the preview frame is loaded or seeked.
+ */
 export async function updateShuttlePreview() {
   const ch = getChannel(S.currentNumber);
   if (!ch) return;
@@ -500,6 +592,10 @@ export async function updateShuttlePreview() {
   }
 }
 
+/**
+ * Animation-frame step while shuttling: advances the time offset by the shuttle speed and refreshes the OSD and preview about every 180 ms.
+ * @param {number} ts The `requestAnimationFrame` timestamp.
+ */
 export function shuttleTick(ts) {
   if (!S.timeMachineOn || S.shuttleDir === 0) return;
   const dt = S.shuttleLastTs ? (ts - S.shuttleLastTs) : 16;
@@ -519,6 +615,10 @@ export function shuttleTick(ts) {
   S.shuttleRAF = requestAnimationFrame(shuttleTick);
 }
 
+/**
+ * Starts rewinding or fast-forwarding, or steps up the speed when already going that way.
+ * @param {number} dir 1 for fast-forward, -1 for rewind.
+ */
 export function startShuttle(dir) {
   if (!S.timeMachineOn) return;
   thawView();
@@ -542,8 +642,10 @@ export function startShuttle(dir) {
   pushRemoteState();
 }
 
-// Everything that has to stop the moment the tape leaves live playback,
-// whether it's shuttling (startShuttle) or stepping/dragging (beginScrub).
+/**
+ * Everything that has to stop the moment the tape leaves live playback,
+ * whether it's shuttling (startShuttle) or stepping/dragging (beginScrub).
+ */
 function pauseForScrubbing() {
   cancelUpNextBar();
   // Restores rate/mute/squeeze panel if a credits speedup was mid-flight.
@@ -566,6 +668,9 @@ function pauseForScrubbing() {
   tapeFxEl.classList.remove('hidden');
 }
 
+/**
+ * Stops shuttling or scrubbing and clears the tape effect and preview overlays, without starting playback.
+ */
 export function stopShuttle() {
   thawView();
   S.shuttleDir = 0;
@@ -581,17 +686,20 @@ export function stopShuttle() {
   hideShuttleBreakOverlays();
 }
 
-// Jump straight to the next/previous break's start instead of shuttling
-// through content to find one by eye. Unlike ordinary shuttling (which
-// leaves the player paused on a scrubbed preview frame until T/Enter commits
-// it — updateShuttlePreview), this commits and starts real playback
-// immediately via shuttlePlay: landing exactly on a break is the whole
-// point, so there's nothing meaningful left to preview, and leaving it
-// paused just means a frozen frame (occasionally a visibly stuck/stale one,
-// since a paused <video> doesn't always repaint promptly after a seek) with
-// no indication anything happened. Silent no-op outside the time machine or
-// when there's genuinely nothing to find (Infinity/-Infinity), rather than
-// jumping to a nonsense timestamp.
+/**
+ * Jump straight to the next/previous break's start instead of shuttling
+ * through content to find one by eye. Unlike ordinary shuttling (which
+ * leaves the player paused on a scrubbed preview frame until T/Enter commits
+ * it — updateShuttlePreview), this commits and starts real playback
+ * immediately via shuttlePlay: landing exactly on a break is the whole
+ * point, so there's nothing meaningful left to preview, and leaving it
+ * paused just means a frozen frame (occasionally a visibly stuck/stale one,
+ * since a paused <video> doesn't always repaint promptly after a seek) with
+ * no indication anything happened. Silent no-op outside the time machine or
+ * when there's genuinely nothing to find (Infinity/-Infinity), rather than
+ * jumping to a nonsense timestamp.
+ * @returns {Promise<void>} Resolves once playback starts at the break.
+ */
 export async function jumpToNextBreak() {
   if (!S.timeMachineOn) return;
   const ch = getChannel(S.currentNumber);
@@ -603,6 +711,10 @@ export async function jumpToNextBreak() {
   await shuttlePlay();
 }
 
+/**
+ * Jumps to the previous break's start and plays from there; see `jumpToNextBreak`.
+ * @returns {Promise<void>} Resolves once playback starts at the break.
+ */
 export async function jumpToPrevBreak() {
   if (!S.timeMachineOn) return;
   const ch = getChannel(S.currentNumber);
@@ -614,9 +726,12 @@ export async function jumpToPrevBreak() {
   await shuttlePlay();
 }
 
-// The \ key: a few seconds before the show comes back from the break that is
-// on (or the next one), playing from there, so the end of a break and the cut
-// back to the show can be checked without sitting through the ads.
+/**
+ * The \ key: jumps to a few seconds before the show comes back from the break that is
+ * on (or the next one) and plays from there, so the end of a break and the cut
+ * back to the show can be checked without sitting through the ads.
+ * @returns {Promise<void>} Resolves once playback starts near the break's end.
+ */
 export async function jumpToBreakEnd() {
   if (!S.timeMachineOn) return;
   const ch = getChannel(S.currentNumber);
@@ -633,9 +748,12 @@ export async function jumpToBreakEnd() {
   await shuttlePlay();
 }
 
-// Commit wherever the shuttle landed: resume normal playback at the
-// shifted time. Everything downstream reads viewNow(), so the channel
-// simply behaves as if that were the current moment.
+/**
+ * Commit wherever the shuttle landed: resume normal playback at the
+ * shifted time. Everything downstream reads viewNow(), so the channel
+ * simply behaves as if that were the current moment.
+ * @returns {Promise<void>} Resolves once playback has resumed at the shifted time.
+ */
 export async function shuttlePlay() {
   // Play where the picture is, not where the clock has run on to (see holdAt). While
   // shuttling the preview lags the clock by up to a tick; while parked it lags by however
@@ -723,6 +841,10 @@ export async function shuttlePlay() {
   pushRemoteState();
 }
 
+/**
+ * Drops the time offset and resumes the current channel at real "now".
+ * @returns {Promise<void>} Resolves once live playback has started.
+ */
 export async function returnToLive() {
   S.frozenViewMs = null;
   S.timeOffsetMs = 0;
@@ -754,10 +876,13 @@ export async function returnToLive() {
   pushRemoteState();
 }
 
-// J: back to the start of the show on screen, the way a DVR's "start over"
-// does. Uses the time machine's own jump (so the schedule stays honest: you
-// are watching it as it aired, L returns to live) and says so when the time
-// machine is off, since that is the one thing it needs.
+/**
+ * J: back to the start of the show on screen, the way a DVR's "start over"
+ * does. Uses the time machine's own jump (so the schedule stays honest: you
+ * are watching it as it aired, L returns to live) and says so when the time
+ * machine is off, since that is the one thing it needs.
+ * @returns {Promise<void>} Resolves once the jump is done.
+ */
 export async function restartCurrentShow() {
   if (!timeMachineAvailable()) {
     flashMessage('START OVER NEEDS THE TIME MACHINE — TURN IT ON IN SETTINGS', 'restartShowFlashTimer');
@@ -768,6 +893,9 @@ export async function restartCurrentShow() {
   await timeMachineGoTo(start, 'START OF THIS SHOW');
 }
 
+/**
+ * Turns the time machine on and opens the VCR OSD, when the current channel supports it.
+ */
 export function enterTimeMachine() {
   if (!timeMachineAvailable()) return;
   S.timeMachineOn = true;
@@ -781,6 +909,12 @@ export function enterTimeMachine() {
   pushRemoteState();
 }
 
+/**
+ * Turns the time machine off and resumes playback, keeping the time offset unless asked to go live.
+ * @param {object} [opts] Exit options.
+ * @param {boolean} [opts.toLive] Also return to live instead of staying at the shifted time.
+ * @returns {Promise<void>} Resolves once playback has resumed.
+ */
 export async function exitTimeMachine(opts) {
   opts = opts || {};
   // Nothing was being scrubbed or previewed: the player is already on the right content at

@@ -21,6 +21,10 @@ let installed = false;
 const elements = new Set();
 const contexts = new Set();
 
+/**
+ * Reads this device's saved output choice from localStorage.
+ * @returns {?{deviceId: string, label: string}} The saved choice, or null.
+ */
 function readChoice() {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || 'null');
@@ -30,6 +34,10 @@ function readChoice() {
   }
 }
 
+/**
+ * Saves the output choice to localStorage, or clears it for null; storage failures are ignored.
+ * @param {?{deviceId: string, label: string}} next The choice.
+ */
 function writeChoice(next) {
   try {
     if (next) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -37,7 +45,11 @@ function writeChoice(next) {
   } catch (e) { /* storage unavailable: the choice lasts this session */ }
 }
 
-// Real output devices, without Chromium's 'default'/'communications' aliases.
+/**
+ * Real output devices, without Chromium's 'default'/'communications' aliases.
+ * @returns {Promise<Array<{deviceId: string, label: string}>>} The outputs; empty when they cannot
+ *   be listed.
+ */
 export async function listAudioOutputs() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return [];
   try {
@@ -50,17 +62,27 @@ export async function listAudioOutputs() {
   }
 }
 
+/**
+ * A copy of the current output choice.
+ * @returns {?{deviceId: string, label: string}} The choice, or null for the system default.
+ */
 export function getAudioOutputChoice() {
   return choice ? { ...choice } : null;
 }
 
-// Whether the chosen device is connected right now (false when none is chosen).
+/**
+ * Whether the chosen device is connected right now (false when none is chosen).
+ * @returns {boolean} True when the chosen device is connected.
+ */
 export function isAudioOutputPresent() {
   return present;
 }
 
-// The id to hand setSinkId: the saved id, else a device with the saved label
-// (a device can come back under a new id), else '' for the system default.
+/**
+ * The id to hand setSinkId: the saved id, else a device with the saved label
+ * (a device can come back under a new id), else '' for the system default.
+ * @returns {Promise<string>} The device id, or an empty string.
+ */
 async function resolve() {
   if (!choice) { present = false; return ''; }
   const outputs = await listAudioOutputs();
@@ -70,19 +92,35 @@ async function resolve() {
   return match ? match.deviceId : '';
 }
 
+/**
+ * Points one media element at a device, unless it is there already or cannot switch.
+ * @param {HTMLMediaElement} el The element.
+ * @param {string} id The device id ('' for the default).
+ */
 function sinkElement(el, id) {
   if (typeof el.setSinkId !== 'function' || el.sinkId === id) return;
   el.setSinkId(id).catch((e) => console.warn('[audio-output] could not switch a media element', e && e.message));
 }
 
+/**
+ * Points an AudioContext at a device, unless it is there already or cannot switch.
+ * @param {AudioContext} ctx The context.
+ * @param {string} id The device id ('' for the default).
+ */
 function sinkContext(ctx, id) {
   if (typeof ctx.setSinkId !== 'function' || ctx.sinkId === id) return;
   ctx.setSinkId(id).catch((e) => console.warn('[audio-output] could not switch the audio context', e && e.message));
 }
 
-// force re-points everything even when sinkId already matches: when an HDMI
-// device drops out and comes back, Chromium leaves elements on the fallback
-// device while their sinkId still reads as the chosen one.
+/**
+ * Re-resolves the chosen device and points every known media element and AudioContext at it.
+ * force re-points everything even when sinkId already matches: when an HDMI
+ * device drops out and comes back, Chromium leaves elements on the fallback
+ * device while their sinkId still reads as the chosen one.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.force=false] Re-point even elements whose `sinkId` already matches.
+ * @returns {Promise<void>}
+ */
 async function applyAll({ force = false } = {}) {
   const wasPresent = present;
   const id = await resolve();
@@ -102,14 +140,22 @@ async function applyAll({ force = false } = {}) {
   });
 }
 
-// Points a newly created AudioContext at the chosen device (core/audio.js).
+/**
+ * Points a newly created AudioContext at the chosen device (core/audio.js).
+ * @param {AudioContext} ctx The new context.
+ */
 export function applyAudioOutputToContext(ctx) {
   if (!ctx || !installed) return;
   contexts.add(ctx);
   sinkContext(ctx, resolvedId);
 }
 
-// choice: { deviceId, label } from listAudioOutputs(), or null for the system default.
+/**
+ * Saves and applies a new output choice.
+ * choice: { deviceId, label } from listAudioOutputs(), or null for the system default.
+ * @param {?{deviceId: string, label: string}} next The choice.
+ * @returns {Promise<boolean>} Whether the chosen device is connected.
+ */
 export async function setAudioOutput(next) {
   choice = next && next.deviceId ? { deviceId: next.deviceId, label: String(next.label || '') } : null;
   writeChoice(choice);
@@ -117,7 +163,11 @@ export async function setAudioOutput(next) {
   return present;
 }
 
-// Called once from app.js, host window only.
+/**
+ * Wraps `HTMLMediaElement.prototype.play` so every element plays through the chosen device, and
+ * follows device changes.
+ * Called once from app.js, host window only.
+ */
 export function installAudioOutput() {
   if (installed || typeof HTMLMediaElement === 'undefined') return;
   installed = true;

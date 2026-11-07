@@ -1,3 +1,5 @@
+// PLUGINS-tab settings section for Breaking News Alerts: on/off, interval,
+// style, position, duration, sound and voiceover, plus the headline bank.
 import { renderHeadlinesList, runBreakingNewsAlert, scheduleNextNewsAlert } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('breaking-news', {

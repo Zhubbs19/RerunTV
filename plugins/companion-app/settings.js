@@ -1,3 +1,5 @@
+// PLUGINS-tab settings for the companion app: the LAN access switch and,
+// while it is running, the pairing code, QR code and links.
 window.RCBPlugins.registerPluginSettings('companion-app', {
   sections: [{
     id: 'general',

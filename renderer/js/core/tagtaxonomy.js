@@ -8,11 +8,22 @@
 // no engine needed for that half.
 import { S } from './state.js';
 
+/**
+ * Trims and lower-cases a tag for comparison.
+ * @param {*} t The tag.
+ * @returns {string} The normalized tag.
+ */
 function normalize(t) { return String(t || '').trim().toLowerCase(); }
 
-// contentType (per-file facet, per-day-part-slot) is deliberately excluded
-// everywhere below — it's a fixed 5-value enum edited via <select>, not a
-// free-text tag a user could have mistyped two different ways.
+/**
+ * Every tag-array location in one channel's files (its own pool and its blocks' pools), as { get,
+ * set, sourcePath }.
+ * contentType (per-file facet, per-day-part-slot) is deliberately excluded
+ * everywhere below — it's a fixed 5-value enum edited via <select>, not a
+ * free-text tag a user could have mistyped two different ways.
+ * @param {object} ch The channel config.
+ * @returns {Array<object>} The tag fields.
+ */
 function allTagFields(ch) {
   const fields = [];
   const addFileFields = (f) => {
@@ -33,8 +44,11 @@ function allTagFields(ch) {
   return fields;
 }
 
-// One {get,set} pair per array-of-tags location, box-wide. `set` receives
-// the already-deduped replacement array; callers just assign it back.
+/**
+ * One {get,set} pair per array-of-tags location, box-wide. `set` receives
+ * the already-deduped replacement array; callers just assign it back.
+ * @returns {Array<object>} The tag fields ({ get, set, sourcePath? }).
+ */
 function collectAllTagFields() {
   const fields = [];
   (S.config.channels || []).forEach((ch) => fields.push(...allTagFields(ch)));
@@ -73,10 +87,14 @@ function collectAllTagFields() {
   return fields;
 }
 
-// Every distinct tag in use anywhere, with a usage count and which
-// taxonomy categories (if any) already list it. Sorted by usage descending
-// so the tags most worth cleaning up (or promoting into the taxonomy)
-// surface first.
+/**
+ * Every distinct tag in use anywhere, with a usage count and which
+ * taxonomy categories (if any) already list it. Sorted by usage descending
+ * so the tags most worth cleaning up (or promoting into the taxonomy)
+ * surface first.
+ * @returns {Array<{tag: string, count: number, mediaPaths: string[], categories: string[]}>} One
+ *   row per tag.
+ */
 export function collectTagUsage() {
   const uses = new Map();
   collectAllTagFields().forEach((field) => {
@@ -100,14 +118,19 @@ export function collectTagUsage() {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
-// Renames a tag everywhere it appears — every file's tags/facets, every
-// interstitial pool entry and ad preset's contentTags, every curation
-// profile's theme seeds/pool scope/bumper tags/day-part slots, and the
-// taxonomy's own category lists. Renaming to an existing tag merges the
-// two (the target array is deduped, never gets two copies). Facets are
-// updated directly (not just re-derived via mirrorFacetsIntoTags) so a
-// later unrelated facet edit can't resurrect the old spelling by re-
-// mirroring a stale facets array into tags.
+/**
+ * Renames a tag everywhere it appears — every file's tags/facets, every
+ * interstitial pool entry and ad preset's contentTags, every curation
+ * profile's theme seeds/pool scope/bumper tags/day-part slots, and the
+ * taxonomy's own category lists. Renaming to an existing tag merges the
+ * two (the target array is deduped, never gets two copies). Facets are
+ * updated directly (not just re-derived via mirrorFacetsIntoTags) so a
+ * later unrelated facet edit can't resurrect the old spelling by re-
+ * mirroring a stale facets array into tags.
+ * @param {string} oldTag The tag to rename.
+ * @param {string} newTag The new spelling.
+ * @returns {number} How many tag lists changed.
+ */
 export function renameTagEverywhere(oldTag, newTag) {
   const from = normalize(oldTag);
   const to = normalize(newTag);
@@ -124,9 +147,13 @@ export function renameTagEverywhere(oldTag, newTag) {
   return touched;
 }
 
-// Removes a tag everywhere it appears — no replacement, just gone. Used
-// for cleaning up a genuinely unwanted/mistaken tag rather than fixing a
-// misspelling (renameTagEverywhere is for that).
+/**
+ * Removes a tag everywhere it appears — no replacement, just gone. Used
+ * for cleaning up a genuinely unwanted/mistaken tag rather than fixing a
+ * misspelling (renameTagEverywhere is for that).
+ * @param {string} tag The tag to remove.
+ * @returns {number} How many tag lists changed.
+ */
 export function removeTagEverywhere(tag) {
   const target = normalize(tag);
   if (!target) return 0;

@@ -13,20 +13,39 @@
 import { querySchedule } from '../core/schedule-query.js';
 import { deepClone as cloneJson } from '../core/util.js';
 
-// Windows paths (a drive letter or UNC share) compare case-insensitively, the
-// way the filesystem does; anything else stays exact.
+/**
+ * Windows paths (a drive letter or UNC share) compare case-insensitively, the
+ * way the filesystem does; anything else stays exact.
+ * @param {string} text A path.
+ * @returns {boolean} True for a drive-letter or UNC path.
+ */
 function isWindowsPath(text) {
   return /^[a-z]:[\\/]/i.test(text) || text.startsWith('\\\\');
 }
 
+/**
+ * Returns the case folding a prefix's paths compare under.
+ * @param {string} prefix A path prefix.
+ * @returns {(text: string) => string} Lower-cases for Windows paths, identity otherwise.
+ */
 function foldFor(prefix) {
   return isWindowsPath(prefix) ? (t) => t.toLowerCase() : (t) => t;
 }
 
+/**
+ * Tells whether a path ends with a separator.
+ * @param {string} text A path.
+ * @returns {boolean} True when it ends with `/` or `\`.
+ */
 const endsWithSep = (text) => /[\\/]$/.test(text);
 
-// A prefix match only at a path boundary: moving `J:\Media` must not also
-// rewrite `J:\Media Center`.
+/**
+ * A prefix match only at a path boundary: moving `J:\Media` must not also
+ * rewrite `J:\Media Center`.
+ * @param {*} ref A path or media ref.
+ * @param {string} prefix The root prefix.
+ * @returns {boolean} True when `ref` is the prefix or under it.
+ */
 export function underPrefix(ref, prefix) {
   const text = String(ref || '');
   if (!prefix || !text) return false;
@@ -38,8 +57,14 @@ export function underPrefix(ref, prefix) {
   return t.startsWith(`${p}\\`) || t.startsWith(`${p}/`);
 }
 
-// Swaps the `from` prefix for `to`, keeping exactly one separator between the
-// new prefix and the rest, whichever of the two was written with a trailing one.
+/**
+ * Swaps the `from` prefix for `to`, keeping exactly one separator between the
+ * new prefix and the rest, whichever of the two was written with a trailing one.
+ * @param {string} ref A path or media ref.
+ * @param {string} from The old prefix.
+ * @param {string} to The new prefix.
+ * @returns {string} The rewritten ref, or `ref` unchanged when it is not under `from`.
+ */
 export function rewritePrefix(ref, from, to) {
   if (!underPrefix(ref, from)) return ref;
   const rest = String(ref).slice(from.length);
@@ -54,6 +79,12 @@ export function rewritePrefix(ref, from, to) {
   return endsWithSep(to) ? `${to}${rest.slice(1)}` : `${to}${rest}`;
 }
 
+/**
+ * Rejects a root move that is incomplete, a no-op or between provider roots.
+ * @param {string} from The old location.
+ * @param {string} to The new location.
+ * @throws {Error} When the move can't be done.
+ */
 function checkMove(from, to) {
   if (!from || !to) throw new Error('A root move needs both the old and the new location.');
   if (from === to) throw new Error('The new location is the same as the old one.');
@@ -62,9 +93,15 @@ function checkMove(from, to) {
   }
 }
 
-// Rewrites channel folder refs and playlist paths under `from`, in place, and
-// counts what it touched. Shared by the plan (on a copy) and the apply (on the
-// live config) so the preview and the write cannot disagree.
+/**
+ * Rewrites channel folder refs and playlist paths under `from`, in place, and
+ * counts what it touched. Shared by the plan (on a copy) and the apply (on the
+ * live config) so the preview and the write cannot disagree.
+ * @param {object} config A box config, changed in place.
+ * @param {string} from The old prefix.
+ * @param {string} to The new prefix.
+ * @param {object} counts `{ channels, folders, files }` counters, incremented.
+ */
 function rewriteChannelPaths(config, from, to, counts) {
   (config.channels || []).forEach((channel) => {
     let touched = false;
@@ -82,6 +119,13 @@ function rewriteChannelPaths(config, from, to, counts) {
 /**
  * Plans the move. Returns { config, index, counts } — copies, never the inputs.
  * `index` may be null when the library has not been built; channels still move.
+ * @param {object} config The box config.
+ * @param {?object} index The library index, if built.
+ * @param {object} move The move.
+ * @param {string} move.from The old prefix.
+ * @param {string} move.to The new prefix.
+ * @returns {object} `{ config, index, counts }`.
+ * @throws {Error} When the move can't be done.
  */
 export function planRootMove(config, index, { from, to }) {
   checkMove(from, to);
@@ -111,6 +155,12 @@ export function planRootMove(config, index, { from, to }) {
 /**
  * The same rewrite as planRootMove, applied to the live config in place (the
  * caller records it with commitConfigPatch). Returns the counts.
+ * @param {object} config The box config, changed in place.
+ * @param {object} move The move.
+ * @param {string} move.from The old prefix.
+ * @param {string} move.to The new prefix.
+ * @returns {object} `{ channels, folders, files, roots, items }` counts.
+ * @throws {Error} When the move can't be done.
  */
 export function applyRootMoveInPlace(config, { from, to }) {
   checkMove(from, to);
@@ -124,6 +174,11 @@ export function applyRootMoveInPlace(config, { from, to }) {
  * keyed by library item where there is one and by filename otherwise — never by
  * the full path, which is what a root move changes. Returns
  * { identical, changed, programs }.
+ * @param {object} before The channel config before the move.
+ * @param {object} after The channel config after the move.
+ * @param {number} fromMs Start of the compared window, epoch ms.
+ * @param {number} toMs End of the compared window, epoch ms.
+ * @returns {object} `{ identical, changed, programs }`; `changed` holds at most 20 keys.
  */
 export function airingDiffIgnoringPaths(before, after, fromMs, toMs) {
   const key = (entry) => {

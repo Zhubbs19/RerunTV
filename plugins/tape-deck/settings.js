@@ -8,24 +8,35 @@
 // renderer service the deck registers, so the planner has exactly one home.
 const PLUGIN_ID = 'tape-deck';
 
-// A settings SECTION gets a much narrower ctx than a channel does — see
-// renderPluginSettings (setup-plugin-settings.js). Its `ctx.settings` is the
-// stored VALUES, not a namespace of functions, and there is no ctx.channels
-// at all. Worse for a panel like this one, those values are a snapshot taken
-// when the section was rendered, so a painter that redraws itself after a
-// write would read back what was there before it.
-//
-// Both problems go away by reading and writing through the renderer-wide ctx,
-// which is always current — the same thing film-reel-marks and
-// digital-music-channel do for the same reason.
+/**
+ * A settings SECTION gets a much narrower ctx than a channel does — see
+ * renderPluginSettings (setup-plugin-settings.js). Its `ctx.settings` is the
+ * stored VALUES, not a namespace of functions, and there is no ctx.channels
+ * at all. Worse for a panel like this one, those values are a snapshot taken
+ * when the section was rendered, so a painter that redraws itself after a
+ * write would read back what was there before it.
+ *
+ * Both problems go away by reading and writing through the renderer-wide ctx,
+ * which is always current — the same thing film-reel-marks and
+ * digital-music-channel do for the same reason.
+ * @returns {object} The renderer-wide plugin ctx.
+ */
 function core() {
   return window.RCBPlugins.ctx;
 }
 
+/**
+ * Reads the deck's stored plugin settings through the always-current ctx.
+ * @returns {object} The stored settings, or an empty object.
+ */
 function readSettings() {
   return core().settings.getPluginSettings(PLUGIN_ID) || {};
 }
 
+/**
+ * Merges a patch into the deck's stored plugin settings.
+ * @param {object} patch Settings fields to write.
+ */
 function writeSettings(patch) {
   core().settings.updatePluginSettings(PLUGIN_ID, patch);
 }
@@ -51,10 +62,19 @@ const ART_SLOTS = [
   ['label', 'CASSETTE / DISC LABEL'],
 ];
 
+/**
+ * Looks up the renderer service the deck registers for recording and previews.
+ * @returns {?object} The deck's renderer service, or nothing if the plugin has not loaded.
+ */
 function deckService() {
   return window.RCBPlugins.getRendererService(PLUGIN_ID);
 }
 
+/**
+ * Formats a length in seconds as `1h 05m` or `4m 09s`.
+ * @param {number} totalSeconds Length in seconds.
+ * @returns {string} The short duration label.
+ */
 function formatDuration(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds));
   const h = Math.floor(s / 3600);
@@ -63,20 +83,33 @@ function formatDuration(totalSeconds) {
   return h ? `${h}h ${pad(m)}m` : `${m}m ${pad(s % 60)}s`;
 }
 
+/**
+ * Escapes a value for safe use in HTML text and attributes.
+ * @param {*} value The value to escape; null and undefined become an empty string.
+ * @returns {string} The escaped text.
+ */
 function escapeHtml(value) {
   return String(value == null ? '' : value)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// <input type="datetime-local"> wants a local-time string with no zone, and
-// gives one back. Converting by hand rather than through toISOString, which
-// would silently shift everything by the UTC offset.
+/**
+ * <input type="datetime-local"> wants a local-time string with no zone, and
+ * gives one back. Converting by hand rather than through toISOString, which
+ * would silently shift everything by the UTC offset.
+ * @param {number} ms Epoch milliseconds.
+ * @returns {string} A `YYYY-MM-DDTHH:MM` local-time string.
+ */
 function toLocalInputValue(ms) {
   const d = new Date(ms);
   const pad = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * Reads the deck settings with every field checked and defaulted.
+ * @returns {object} Format, quality, record mode, wear, record-onto, default minutes and the timer list.
+ */
 function settingsOf() {
   const cfg = readSettings();
   const known = MODE_LABELS.map(([id]) => id);
@@ -91,35 +124,54 @@ function settingsOf() {
   };
 }
 
+/**
+ * Reads the custom sound map, slot id to file path.
+ * @returns {object} The stored map, or an empty object if missing or malformed.
+ */
 function soundsOf() {
   const stored = readSettings().sounds;
   return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
 }
 
+/**
+ * Reads the custom animation map, slot id to `{ path, ms }`.
+ * @returns {object} The stored map, or an empty object if missing or malformed.
+ */
 function animationsOf() {
   const stored = readSettings().animations;
   return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
 }
 
-// Loose on purpose: comparing two folder paths for a UI hint, where Windows
-// differs in case and separator without meaning anything by it.
+/**
+ * Loose on purpose: comparing two folder paths for a UI hint, where Windows
+ * differs in case and separator without meaning anything by it.
+ * @param {?string} value A folder path.
+ * @returns {string} The path lower-cased, with forward slashes and no trailing slash.
+ */
 function normalizePath(value) {
   return String(value || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-// The file picker returns a full path; only its last segment is worth showing
-// in a row that already has a label.
+/**
+ * The file picker returns a full path; only its last segment is worth showing
+ * in a row that already has a label.
+ * @param {?string} filePath A full file path.
+ * @returns {string} The last path segment.
+ */
 function basenameOf(filePath) {
   return String(filePath || '').split(/[\\/]/).pop();
 }
 
-// The job in flight, shown in the panel so the state is legible from setup
-// as well as from the TV screen — the on-screen readout only exists on live
-// TV, which is exactly where you are not while arranging a recording.
-//
-// Polled rather than pushed: the plugin's progress events go to the deck's
-// own listener, and a panel that may not be open has no business holding a
-// subscription. The timer is cleared as soon as the row leaves the document.
+/**
+ * The job in flight, shown in the panel so the state is legible from setup
+ * as well as from the TV screen — the on-screen readout only exists on live
+ * TV, which is exactly where you are not while arranging a recording.
+ *
+ * Polled rather than pushed: the plugin's progress events go to the deck's
+ * own listener, and a panel that may not be open has no business holding a
+ * subscription. The timer is cleared as soon as the row leaves the document.
+ * @param {HTMLElement} container The element the readout is drawn into.
+ */
 function watchActiveJob(container) {
   const paint = async () => {
     if (!container.isConnected) { clearInterval(timer); return; }
@@ -150,6 +202,7 @@ function watchActiveJob(container) {
   paint();
 }
 
+// Status words for each stage of the active recording job.
 const STAGE_WORDS = {
   starting: 'WORKING OUT WHAT AIRS',
   cutting: 'RECORDING',
@@ -157,10 +210,19 @@ const STAGE_WORDS = {
   assembling: 'ASSEMBLING THE TAPE',
 };
 
+/**
+ * Lists the channels worth recording: visible ones that have files.
+ * @returns {Array<object>} Channel configs in channel-number order.
+ */
 function recordableChannels() {
   return core().channels.sortedChannels().filter((channel) => !channel.hidden && (channel.files || []).length);
 }
 
+/**
+ * Builds the one-line description of a tape used in the shelf and the ONTO list.
+ * @param {object} tape A tape record from the tape list.
+ * @returns {string} Title, channel, date, length and wear joined with dots.
+ */
 function tapeLine(tape) {
   const wear = tape.media === 'disc' ? 0 : (tape.generation || 0);
   return [
@@ -172,8 +234,11 @@ function tapeLine(tape) {
   ].join(' · ');
 }
 
-// Draws the sound-slot rows. Standalone, like every other painter here, so a
-// handler can redraw through the exact path that drew it.
+/**
+ * Draws the sound-slot rows. Standalone, like every other painter here, so a
+ * handler can redraw through the exact path that drew it.
+ * @param {HTMLElement} container The element the rows are drawn into.
+ */
 function paintSounds(container) {
   const service = deckService();
   if (!service || typeof service.soundSlots !== 'function') {
@@ -215,7 +280,10 @@ function paintSounds(container) {
   });
 }
 
-// Draws the animation-slot rows.
+/**
+ * Draws the animation-slot rows.
+ * @param {HTMLElement} container The element the rows are drawn into.
+ */
 function paintAnimations(container) {
   const service = deckService();
   if (!service || typeof service.animationSlots !== 'function') {
@@ -275,8 +343,12 @@ function paintAnimations(container) {
   });
 }
 
-// Draws the disc section: what is in a drive right now, and the option to
-// point at a VIDEO_TS folder instead.
+/**
+ * Draws the disc section: what is in a drive right now, and the option to
+ * point at a VIDEO_TS folder instead.
+ * @param {HTMLElement} container The element the section is drawn into.
+ * @returns {Promise<void>}
+ */
 async function paintDiscs(container) {
   const chosen = readSettings().discFolder || '';
   let drives = [];
@@ -319,9 +391,13 @@ async function paintDiscs(container) {
   });
 }
 
-// Draws the shelf of finished tapes and their artwork. Standalone rather than
-// a section method so every handler below can redraw through the exact path
-// that drew the list, and the panel and the disk never disagree.
+/**
+ * Draws the shelf of finished tapes and their artwork. Standalone rather than
+ * a section method so every handler below can redraw through the exact path
+ * that drew the list, and the panel and the disk never disagree.
+ * @param {HTMLElement} container The element the shelf is drawn into.
+ * @returns {Promise<void>}
+ */
 async function paintLibrary(container) {
   container.innerHTML = '<span class="panel-status">Reading the tape shelf…</span>';
   if (typeof window.api.tapesList !== 'function') {

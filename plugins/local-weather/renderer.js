@@ -6,13 +6,22 @@
 // already core-exposed window.api.noaaGetForecast and swaps the display
 // over to it if it resolves before the user tunes away. Migrated as-is
 // from the old core weather.js/virtual.js.
+/**
+ * Hashes a string to an unsigned 32-bit seed.
+ * @param {string} str The text to hash.
+ * @returns {number} A 32-bit unsigned integer.
+ */
 function hashString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
   return h;
 }
 
-// mulberry32 — small, fast, deterministic PRNG from a 32-bit seed.
+/**
+ * mulberry32 — small, fast, deterministic PRNG from a 32-bit seed.
+ * @param {number} seed The 32-bit seed.
+ * @returns {Function} A function returning a number in [0, 1) on each call.
+ */
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function rand() {
@@ -23,6 +32,11 @@ function mulberry32(seed) {
   };
 }
 
+/**
+ * Whole days since the Unix epoch for a timestamp.
+ * @param {number} dateMs Timestamp in milliseconds.
+ * @returns {number} The day index.
+ */
 function dayIndex(dateMs) {
   return Math.floor(dateMs / 86400000);
 }
@@ -37,6 +51,12 @@ const CONDITIONS_COLD = [
   { name: 'CLOUDY', weight: 3 }, { name: 'SNOW', weight: 2 }, { name: 'RAIN', weight: 1 },
 ];
 
+/**
+ * Picks a weighted random sky condition, using the cold-weather list in cold months.
+ * @param {Function} rand A seeded random function from `mulberry32()`.
+ * @param {number} month Month index, 0 to 11.
+ * @returns {string} The condition name, such as `PARTLY CLOUDY`.
+ */
 function pickCondition(rand, month) {
   const list = MONTH_BASE_TEMP[month] <= 42 ? CONDITIONS_COLD : CONDITIONS_WARM;
   const total = list.reduce((s, c) => s + c.weight, 0);
@@ -48,12 +68,25 @@ function pickCondition(rand, month) {
   return list[0].name;
 }
 
+/**
+ * Deterministic temperature for a location and day: the month's base plus seeded noise.
+ * @param {number} locationSeed Seed from `hashString()` of the location.
+ * @param {number} dIdx Day index from `dayIndex()`.
+ * @param {number} month Month index, 0 to 11.
+ * @returns {number} Temperature in degrees Fahrenheit.
+ */
 function tempForDay(locationSeed, dIdx, month) {
   const rand = mulberry32((locationSeed + dIdx * 2654435761) >>> 0);
   const base = MONTH_BASE_TEMP[month];
   return Math.round(base + (rand() - 0.5) * 24);
 }
 
+/**
+ * Generates a synthetic current reading and three-day forecast, the same for the same day and location.
+ * @param {number} dateMs The day to generate for, in milliseconds.
+ * @param {string} location Free-text location, used only as a seed.
+ * @returns {object} `{ condition, tempF, high, low, forecast }`.
+ */
 function generateWeather(dateMs, location) {
   const locationSeed = hashString(location || 'ANYTOWN, USA');
   const dIdx = dayIndex(dateMs);
@@ -83,19 +116,28 @@ function generateWeather(dateMs, location) {
   return { condition, tempF, high, low, forecast };
 }
 
+/**
+ * Chance of precipitation from an NWS forecast period.
+ * @param {?object} period An api.weather.gov forecast period.
+ * @returns {?number} Percentage, or null when the period has none.
+ */
 function popValue(period) {
   return period && period.probabilityOfPrecipitation && period.probabilityOfPrecipitation.value != null
     ? period.probabilityOfPrecipitation.value : null;
 }
 
-// Maps api.weather.gov's /forecast periods into the same shape
-// generateWeather() returns, so applyData() can use either without caring
-// which one produced it. Only meaningful for *now* — callers fall back to
-// the synthetic generator in time-machine mode. Beyond the original
-// condition/temp/high/low, also carries wind + chance-of-precip + NWS's own
-// prose forecast — the synthetic generator has no equivalent for these
-// (nothing to model them on), so applyData() only renders this "detail" row
-// when a real NOAA lookup actually supplied it.
+/**
+ * Maps api.weather.gov's /forecast periods into the same shape
+ * generateWeather() returns, so applyData() can use either without caring
+ * which one produced it. Only meaningful for *now* — callers fall back to
+ * the synthetic generator in time-machine mode. Beyond the original
+ * condition/temp/high/low, also carries wind + chance-of-precip + NWS's own
+ * prose forecast — the synthetic generator has no equivalent for these
+ * (nothing to model them on), so applyData() only renders this "detail" row
+ * when a real NOAA lookup actually supplied it.
+ * @param {Array<object>} periods The `periods` array from an api.weather.gov forecast.
+ * @returns {?object} Weather in `generateWeather()`'s shape plus `wind`, `pop` and `detailedForecast`, or null when there are no periods.
+ */
 function mapNoaaPeriods(periods) {
   if (!periods || !periods.length) return null;
   const first = periods[0];
@@ -129,27 +171,48 @@ let currentContainer = null;
 let currentCtx = null; // set in render() — applyData() has no ctx param of its own, needs ctx.WEEKDAYS
 let clockTimer = null;
 
-// Sets the header location line — called with the free-text config value up
-// front (render(), so there's never a blank moment) and again with NWS's own
-// resolved place name once/if a real forecast lookup lands, same
-// upgrade-in-place pattern applyData() uses for the readout itself.
+/**
+ * Sets the header location line — called with the free-text config value up
+ * front (render(), so there's never a blank moment) and again with NWS's own
+ * resolved place name once/if a real forecast lookup lands, same
+ * upgrade-in-place pattern applyData() uses for the readout itself.
+ * @param {string} text The location text to show.
+ */
 function applyLocationText(text) {
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="location"]').textContent = text;
 }
 
-// Forecasts are produced in °F and mph (the NWS and the generator both are);
-// SETTINGS › Plug-ins › Local weather can show °C and km/h instead.
+/**
+ * Forecasts are produced in °F and mph (the NWS and the generator both are);
+ * SETTINGS › Plug-ins › Local weather can show °C and km/h instead.
+ * @returns {boolean} True when the box is set to Celsius and km/h.
+ */
 function metric() {
   return !!(window.S && window.S.config.weather && window.S.config.weather.units === 'C');
 }
+/**
+ * Converts a Fahrenheit temperature to the display unit.
+ * @param {number} f Temperature in Fahrenheit.
+ * @returns {number} Temperature in the configured unit, rounded.
+ */
 function temp(f) { return metric() ? Math.round((f - 32) * 5 / 9) : f; }
+/**
+ * Converts an NWS wind string from mph to km/h when the box is metric.
+ * @param {string} text Wind text such as `NW 10 mph`.
+ * @returns {string} The text in the configured unit.
+ */
 function windText(text) {
   return metric()
     ? String(text).replace(/(\d+)/g, (m) => String(Math.round(Number(m) * 1.609))).replace(/mph/i, 'km/h')
     : text;
 }
 
+/**
+ * Renders a weather reading (current, detail row and forecast cards) into the channel.
+ * @param {object} w Weather from `generateWeather()` or `mapNoaaPeriods()`.
+ * @param {boolean} isLive True when the data came from a real NWS lookup; shows the source tag.
+ */
 function applyData(w, isLive) {
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="source"]').classList.toggle('hidden', !isLive);
@@ -197,6 +260,10 @@ function applyData(w, isLive) {
   });
 }
 
+/**
+ * Writes the time-machine-aware clock and date into the header.
+ * @param {object} ctx The plugin context.
+ */
 function updateClock(ctx) {
   if (!currentContainer) return;
   const d = new Date(ctx.viewNow());

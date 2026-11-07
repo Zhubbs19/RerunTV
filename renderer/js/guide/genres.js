@@ -14,16 +14,33 @@ export const DEFAULT_GUIDE_GENRES = Object.freeze({
   educational: '#0891b2',
 });
 
+/**
+ * Normalizes a genre name for lookup.
+ * @param {*} value A genre name.
+ * @returns {string} The trimmed, lower-cased name.
+ */
 export function normalizeGuideGenre(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+/**
+ * Hashes a string to a stable hue.
+ * @param {string} value The text to hash.
+ * @returns {number} A hue in 0..359.
+ */
 function hashHue(value) {
   let hash = 0;
   for (const char of value) hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
   return Math.abs(hash) % 360;
 }
 
+/**
+ * Converts an HSL colour to a hex string.
+ * @param {number} h Hue in degrees, 0..359.
+ * @param {number} s Saturation in percent.
+ * @param {number} l Lightness in percent.
+ * @returns {string} A `#rrggbb` colour.
+ */
 function hslToHex(h, s, l) {
   s /= 100;
   l /= 100;
@@ -35,11 +52,22 @@ function hslToHex(h, s, l) {
   return '#' + rgb.map((part) => Math.round((part + m) * 255).toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * Returns the default colour for a genre.
+ * Known genres use the built-in palette; others get a stable colour from their name.
+ * @param {string} genre The genre name.
+ * @returns {string} A `#rrggbb` colour.
+ */
 export function defaultGuideGenreColor(genre) {
   const key = normalizeGuideGenre(genre);
   return DEFAULT_GUIDE_GENRES[key] || hslToHex(hashHue(key), 58, 38);
 }
 
+/**
+ * Picks dark or white text for a genre background by its luminance.
+ * @param {string} background A `#rrggbb` colour.
+ * @returns {string} A `#rrggbb` text colour; white when the input is not a hex colour.
+ */
 export function guideGenreTextColor(background) {
   const match = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(background || '');
   if (!match) return '#ffffff';
@@ -51,6 +79,12 @@ export function guideGenreTextColor(background) {
   return luminance > 0.42 ? '#10131a' : '#ffffff';
 }
 
+/**
+ * Reads a theme's genre-colour settings.
+ * @param {object} config The box config.
+ * @param {string} themeId The theme id.
+ * @returns {object} `{ enabled, colors }`, where `colors` maps genre to colour.
+ */
 export function guideGenreThemeConfig(config, themeId) {
   const entry = config?.display?.guideGenreStyles?.[themeId];
   return {
@@ -59,6 +93,13 @@ export function guideGenreThemeConfig(config, themeId) {
   };
 }
 
+/**
+ * Returns the genre colours for a file's guide cell under a theme.
+ * @param {object} file The channel file.
+ * @param {object} config The box config.
+ * @param {string} themeId The theme id.
+ * @returns {?object} `{ key, background, foreground }`, or `null` when genre colours are off or the file has no genre.
+ */
 export function guideGenreStyleForFile(file, config, themeId) {
   const themeConfig = guideGenreThemeConfig(config, themeId);
   if (!themeConfig.enabled) return null;

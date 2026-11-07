@@ -28,6 +28,7 @@ import { ORDER_POLICIES, describeWhere, runQuery, validateWhere } from '../libra
 const KINDS = ['episode', 'movie', 'short', 'commercial', 'bumper', 'music', 'other'];
 const ORDER_LABELS = { series: 'Series order', natural: 'By title', shuffle: 'Shuffled (stable)', recent: 'Newest first' };
 const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+// Display names for where a preset came from.
 const SOURCE_LABELS = { builtin: 'Built in', plugin: 'Plugin', saved: 'Yours' };
 
 // What this screen knows about the host's library. Refetched, never patched
@@ -42,10 +43,21 @@ const P = {
   notice: '',
 };
 
+/**
+ * The PRESETS subtab's container element.
+ * @returns {?HTMLElement} The container, or null when it is not in the page.
+ */
 const root = () => document.getElementById('library-presets-root');
 
 // ---------- Host calls ----------
 
+/**
+ * Calls one method on the host's media library.
+ * @param {string} method The library service method name.
+ * @param {object} [payload={}] Arguments for the method.
+ * @returns {Promise<*>} The method's result.
+ * @throws {Error} When the library is unavailable or the call fails.
+ */
 async function call(method, payload = {}) {
   if (!window.api || typeof window.api.libraryCall !== 'function') throw new Error('The media library is not available on this device.');
   const response = await window.api.libraryCall(method, payload);
@@ -53,6 +65,10 @@ async function call(method, payload = {}) {
   return response.result;
 }
 
+/**
+ * Refetches the library status and index from the host, then redraws.
+ * @returns {Promise<void>}
+ */
 async function refresh() {
   try {
     const status = await call('status');
@@ -66,6 +82,12 @@ async function refresh() {
   render();
 }
 
+/**
+ * Runs one long action, reporting failures in a dialog and never leaving the screen stuck busy.
+ * @param {string} busy The busy key while it runs.
+ * @param {() => Promise<void>} fn The action.
+ * @returns {Promise<void>}
+ */
 async function run(busy, fn) {
   if (P.busy) return;
   P.busy = busy;
@@ -82,23 +104,53 @@ async function run(busy, fn) {
 
 // ---------- Small helpers ----------
 
+/**
+ * The library items that are still attached to a location.
+ * @returns {Array<object>} The items; empty when the index is not loaded.
+ */
 const liveItems = () => (P.index ? Object.values(P.index.items || {}).filter((item) => !item.detached) : []);
+/**
+ * The presets saved in the library index.
+ * @returns {Array<object>} The saved templates.
+ */
 const savedPresets = () => (P.index && P.index.presets ? Object.values(P.index.presets) : []);
 
+/**
+ * Builds a status paragraph.
+ * @param {string} text The message.
+ * @param {string} [tone=''] Optional tone suffix for a `text-<tone>` class.
+ * @returns {HTMLElement} The paragraph.
+ */
 function note(text, tone = '') {
   return h('p', { className: `panel-status library-note${tone ? ` text-${tone}` : ''}`, text, attrs: { role: 'status' } });
 }
 
+/**
+ * Builds a library table.
+ * @param {string[]} headers Column header labels.
+ * @param {Array<HTMLElement>} rows Body rows.
+ * @returns {HTMLElement} The table.
+ */
 function table(headers, rows) {
   return h('table', { className: 'library-table' },
     h('thead', {}, h('tr', {}, headers.map((label) => h('th', { text: label, attrs: { scope: 'col' } })))),
     h('tbody', {}, rows));
 }
 
+/**
+ * Builds a table cell.
+ * @param {*} content A node or text for the cell.
+ * @param {string} [className=''] Class for the cell.
+ * @returns {HTMLElement} The `td`.
+ */
 function cell(content, className = '') {
   return h('td', { className }, content);
 }
 
+/**
+ * Built-in, plugin and saved presets, with a saved preset replacing a built-in of the same id.
+ * @returns {Array<object>} `{ template, source }` entries.
+ */
 function allPresets() {
   const saved = savedPresets();
   const savedIds = new Set(saved.map((preset) => preset.id));
@@ -108,7 +160,11 @@ function allPresets() {
     .map((template) => ({ template, source: savedIds.has(template.id) ? 'saved' : templateSource(template) }));
 }
 
-// One line per slot: "Music videos: 212 ready (14.3 hr)" or "needs 10 more".
+/**
+ * One line per slot: "Music videos: 212 ready (14.3 hr)" or "needs 10 more".
+ * @param {object} resolved The preset resolved against the library (`resolveTemplate`).
+ * @returns {Array<object>} `{ id, short, text }` per slot.
+ */
 function slotRows(resolved) {
   return Object.entries(resolved.slots).map(([id, slot]) => {
     const need = slot.spec.optional ? 0 : (slot.spec.min || 1);
@@ -122,8 +178,12 @@ function slotRows(resolved) {
   });
 }
 
-// The list's one-line reading of a preset against the library: what is short,
-// else how much it would air. The per-slot lines go in the cell's tooltip.
+/**
+ * The list's one-line reading of a preset against the library: what is short,
+ * else how much it would air. The per-slot lines go in the cell's tooltip.
+ * @param {object} resolved The preset resolved against the library.
+ * @returns {string} The summary line.
+ */
 function readinessSummary(resolved) {
   const rows = slotRows(resolved);
   const short = rows.filter((row) => row.short);
@@ -147,6 +207,8 @@ function readinessSummary(resolved) {
  * Resolve a preset against the library, preview, and apply it as one channel
  * plus any ad-pool entries its breaks slot adds. Shared with CHANNELS ›
  * + ADD CHANNEL › FROM TEMPLATE and DESCRIBE IT (setup/channels.js).
+ * @param {object} template The preset template.
+ * @returns {Promise<boolean>} True when a channel was added; false when the library is missing or the person cancelled.
  */
 export async function applyPreset(template) {
   let library;
@@ -199,8 +261,15 @@ export async function applyPreset(template) {
 // The form edits a flat copy and converts back to a template on save, so a
 // half-typed slot never has to be a valid `where`.
 
+// Creator form field name to the library query field it matches.
 const SLOT_FIELDS = { kind: 'kind', genre: 'facets.genre', era: 'facets.era', series: 'series.name', tags: 'tags', text: 'text' };
 
+/**
+ * Turns a slot's match conditions into the creator's simple form fields.
+ * Anything the form can't show sets `advanced`, and the original conditions are kept.
+ * @param {object} [where={}] The slot's `match` conditions.
+ * @returns {object} The form fields.
+ */
 function slotFormFromWhere(where = {}) {
   const form = { kind: '', genre: '', era: '', series: '', tags: '', text: '', advanced: false, where };
   Object.entries(where || {}).forEach(([key, value]) => {
@@ -214,10 +283,20 @@ function slotFormFromWhere(where = {}) {
   return form;
 }
 
+/**
+ * Splits comma-separated text into trimmed, non-empty values.
+ * @param {?string} text The text.
+ * @returns {string[]} The values.
+ */
 function listOf(text) {
   return String(text || '').split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * Turns the creator's form fields for a slot back into match conditions.
+ * @param {object} form The slot's form fields.
+ * @returns {object} The match conditions.
+ */
 function slotWhereFromForm(form) {
   if (form.advanced) return form.where;
   const where = {};
@@ -231,6 +310,12 @@ function slotWhereFromForm(form) {
   return where;
 }
 
+/**
+ * Builds the creator's working copy of a preset.
+ * @param {object} template The preset template.
+ * @param {string} source `'saved'` when editing a saved preset, `'new'` otherwise.
+ * @returns {object} The editor form.
+ */
 function editorFromTemplate(template, source) {
   const slots = Object.entries(template.slots).map(([key, spec]) => ({
     key, label: spec.label || key, min: spec.min || 1, optional: !!spec.optional, order: spec.order || 'series',
@@ -259,6 +344,11 @@ function editorFromTemplate(template, source) {
   };
 }
 
+/**
+ * Builds a preset template from the creator's form.
+ * @param {object} form The editor form; slot keys are filled in on it.
+ * @returns {object} The template.
+ */
 function templateFromEditor(form) {
   const slots = {};
   form.slots.forEach((slot) => {
@@ -286,7 +376,12 @@ function templateFromEditor(form) {
   return out;
 }
 
-// A slot's live match count against the library, for the creator.
+/**
+ * Counts matched and ready items for one slot.
+ * A slot's live match count against the library, for the creator.
+ * @param {object} slot The slot's form fields.
+ * @returns {object} `{ matched, ready }`, plus `empty` or `error` when there is nothing to count.
+ */
 function slotCount(slot) {
   const where = slotWhereFromForm(slot);
   if (!Object.keys(where).length) return { empty: true, matched: 0, ready: 0 };
@@ -301,6 +396,11 @@ function slotCount(slot) {
 
 // ---------- Actions ----------
 
+/**
+ * Opens the preset creator on a template.
+ * @param {object} template The preset template.
+ * @param {string} source `'saved'` or `'new'`.
+ */
 function openEditor(template, source) {
   P.editing = editorFromTemplate(template, source);
   render();
@@ -308,11 +408,17 @@ function openEditor(template, source) {
   if (name) name.focus();
 }
 
+/**
+ * Opens the creator on a blank preset.
+ */
 function newPreset() {
   openEditor(blankTemplate({ name: 'New preset' }), 'new');
 }
 
-// CUSTOMIZE: a copy of a built-in or plugin preset, saved under its own id.
+/**
+ * CUSTOMIZE: a copy of a built-in or plugin preset, saved under its own id.
+ * @param {object} template The preset to copy.
+ */
 function customize(template) {
   const copy = JSON.parse(JSON.stringify(template));
   copy.id = uniqueId(`${template.id}-mine`);
@@ -320,6 +426,11 @@ function customize(template) {
   openEditor(copy, 'new');
 }
 
+/**
+ * A preset id not used by any listed preset.
+ * @param {string} base The preferred id.
+ * @returns {string} `base`, or `base-2`, `base-3`, ...
+ */
 function uniqueId(base) {
   const taken = new Set(allPresets().map(({ template }) => template.id));
   let id = base;
@@ -328,6 +439,10 @@ function uniqueId(base) {
   return id;
 }
 
+/**
+ * Asks for a channel and opens the creator on a preset copied from its structure.
+ * @returns {Promise<void>}
+ */
 async function fromChannel() {
   const channels = (S.config.channels || []).filter((ch) => (ch.files || []).length);
   if (!channels.length) { await alertDialog('No channel has any programs yet.', { title: 'NOTHING TO COPY' }); return; }
@@ -347,6 +462,10 @@ async function fromChannel() {
   openEditor(templateFromChannel(ch, { id: uniqueId(slugify(name)), name }), 'new');
 }
 
+/**
+ * Imports a preset file and opens it in the creator.
+ * @returns {Promise<void>}
+ */
 async function importPreset() {
   await run('import', async () => {
     const imported = await window.api.importConfig();
@@ -358,6 +477,11 @@ async function importPreset() {
   });
 }
 
+/**
+ * Saves a preset to a `.rerun-template` file.
+ * @param {object} template The preset template.
+ * @returns {Promise<void>}
+ */
 async function exportPreset(template) {
   try {
     const filePath = await window.api.exportConfig(template, `${template.id}.rerun-template`);
@@ -368,6 +492,11 @@ async function exportPreset(template) {
   }
 }
 
+/**
+ * Asks, then removes a saved preset.
+ * @param {object} template The preset template.
+ * @returns {Promise<void>}
+ */
 async function removePreset(template) {
   const ok = await confirmDialog({ title: 'REMOVE PRESET?', message: `Remove “${template.name}”? Channels already built from it are not touched.`, confirmText: 'REMOVE', danger: true });
   if (!ok) return;
@@ -378,6 +507,10 @@ async function removePreset(template) {
   });
 }
 
+/**
+ * Validates the creator's form and saves it as a preset.
+ * @returns {Promise<void>}
+ */
 async function saveEditing() {
   await run('save', async () => {
     const form = P.editing;
@@ -403,6 +536,15 @@ async function saveEditing() {
 
 // ---------- Rendering ----------
 
+/**
+ * Wraps a control in a labelled form field.
+ * @param {string} label The label text.
+ * @param {HTMLElement} control The control (or a stepper or toggle wrapping one).
+ * @param {object} [opts={}] Options.
+ * @param {boolean} [opts.wide=false] Whether the field spans the full row.
+ * @param {string} [opts.help=''] Help text under the control.
+ * @returns {HTMLElement} The field.
+ */
 function field(label, control, { wide = false, help = '' } = {}) {
   // A stepper's or a labelled toggle's input is what the label points at.
   const target = control.input || (control.tagName === 'LABEL' ? control.querySelector('input') : control);
@@ -411,32 +553,75 @@ function field(label, control, { wide = false, help = '' } = {}) {
     help ? h('span', { className: 'library-reason', text: help }) : null);
 }
 
-// Inputs carry the same classes as every other setup form (.block-text-input,
-// .block-hour-select, .block-priority-input): an unclassed control falls back
-// to the browser's white default and stands out against the theme.
+/**
+ * Inputs carry the same classes as every other setup form (.block-text-input,
+ * .block-hour-select, .block-priority-input): an unclassed control falls back
+ * to the browser's white default and stands out against the theme.
+ * @param {string} id Element id.
+ * @param {*} value Initial value.
+ * @param {(value: string) => void} onInput Called on each input.
+ * @param {object} [opts={}] Options.
+ * @param {string} [opts.placeholder=''] Placeholder text.
+ * @param {?string} [opts.list=null] Id of a datalist.
+ * @param {string} [opts.type='text'] Input type.
+ * @param {?number} [opts.min=null] Minimum, for number inputs.
+ * @returns {HTMLInputElement} The input.
+ */
 function textInput(id, value, onInput, { placeholder = '', list = null, type = 'text', min = null } = {}) {
   const el = h('input', { type, id, className: 'block-text-input', value: value == null ? '' : String(value), placeholder, attrs: { list, min } });
   el.addEventListener('input', () => onInput(el.value));
   return el;
 }
 
+/**
+ * Builds a themed select.
+ * @param {string} id Element id.
+ * @param {string} value The selected value.
+ * @param {Array<Array<string>>} options `[value, label]` pairs.
+ * @param {(value: string) => void} onChange Called with the new value.
+ * @returns {HTMLElement} The select control.
+ */
 function selectInput(id, value, options, onChange) {
   return Select({ id, value, className: 'block-hour-select', options: options.map(([v, label]) => ({ value: v, label })), onChange });
 }
 
+/**
+ * Builds a number stepper.
+ * @param {string} id Element id.
+ * @param {number} value Initial value.
+ * @param {object} [opts={}] Options.
+ * @param {number} [opts.min=1] Minimum.
+ * @param {number} [opts.max=999] Maximum.
+ * @param {string} [opts.label=''] Accessible label.
+ * @param {(value: number) => void} onChange Called with the new value.
+ * @returns {HTMLElement} The stepper (its `input` is the field).
+ */
 function numberInput(id, value, { min = 1, max = 999, label = '' } = {}, onChange) {
   const stepper = NumberStepper({ id, value, min, max, step: 1, label, onChange });
   stepper.input.classList.add('block-priority-input');
   return stepper;
 }
 
-// A labelled switch; the same control the setup kit uses everywhere else.
+/**
+ * A labelled switch; the same control the setup kit uses everywhere else.
+ * @param {string} id Element id.
+ * @param {boolean} checked Initial state.
+ * @param {(checked: boolean) => void} onChange Called with the new state.
+ * @param {string} label The switch label.
+ * @returns {HTMLElement} The toggle.
+ */
 function toggle(id, checked, onChange, label) {
   return Toggle({ id, checked, onChange, label });
 }
 
-// The block editor's day-of-week buttons (.block-day-btn), so a preset's
-// weekly block reads like a channel's own BLOCKS tab.
+/**
+ * The block editor's day-of-week buttons (.block-day-btn), so a preset's
+ * weekly block reads like a channel's own BLOCKS tab.
+ * @param {string} prefix Id prefix for the buttons.
+ * @param {number[]} days Selected weekdays (0 = Sunday).
+ * @param {(day: number, on: boolean) => void} onChange Called when a day is toggled.
+ * @returns {HTMLElement} The button row.
+ */
 function daysRow(prefix, days, onChange) {
   return h('div', { className: 'block-days-row', attrs: { role: 'group', 'aria-label': 'Days of the week' } }, DAY_LABELS.map((label, day) => {
     const on = days.includes(day);
@@ -451,6 +636,13 @@ function daysRow(prefix, days, onChange) {
   }));
 }
 
+/**
+ * Builds a titled card with optional help text.
+ * @param {string} title Card title.
+ * @param {?string} help Help text.
+ * @param {...?Node} children Card contents; null ones are skipped.
+ * @returns {HTMLElement} The card.
+ */
 function sectionCard(title, help, ...children) {
   return h('div', { className: 'library-card' },
     h('div', { className: 'library-card-title', text: title }),
@@ -458,16 +650,33 @@ function sectionCard(title, help, ...children) {
     ...children);
 }
 
+/**
+ * Every distinct value one field takes across the live items, sorted.
+ * @param {(item: object) => *} read Reads the field from an item (a value or an array).
+ * @returns {string[]} The values.
+ */
 function knownValues(read) {
   const values = new Set();
   liveItems().forEach((item) => { const v = read(item); (Array.isArray(v) ? v : [v]).forEach((one) => { if (one) values.add(String(one)); }); });
   return [...values].sort();
 }
 
+/**
+ * Builds a `datalist` of suggestions.
+ * @param {string} id Element id.
+ * @param {string[]} values The options.
+ * @returns {HTMLElement} The datalist.
+ */
 function datalist(id, values) {
   return h('datalist', { id }, values.map((value) => h('option', { value })));
 }
 
+/**
+ * Builds the creator's card for one slot, with a live match count.
+ * @param {object} slot The slot's form fields (edited in place).
+ * @param {number} index The slot's position.
+ * @returns {HTMLElement} The card.
+ */
 function renderSlotCard(slot, index) {
   const form = P.editing;
   const countEl = h('span', { className: 'library-reason', attrs: { role: 'status' } });
@@ -507,6 +716,12 @@ function renderSlotCard(slot, index) {
   return card;
 }
 
+/**
+ * Builds the creator's card for one programming block.
+ * @param {object} row The block's form fields (edited in place).
+ * @param {number} index The block's position.
+ * @returns {HTMLElement} The card.
+ */
 function renderProgrammingRow(row, index) {
   const form = P.editing;
   const prefix = `preset-block-${index}`;
@@ -534,6 +749,10 @@ function renderProgrammingRow(row, index) {
     when);
 }
 
+/**
+ * Draws the preset creator.
+ * @param {HTMLElement} container The PRESETS container.
+ */
 function renderEditor(container) {
   const form = P.editing;
   const summaryEl = h('p', { className: 'panel-status', attrs: { role: 'status', 'aria-live': 'polite' } });
@@ -598,6 +817,12 @@ function renderEditor(container) {
   container.appendChild(editor);
 }
 
+/**
+ * A slot key not used by the form's other slots.
+ * @param {object} form The editor form.
+ * @param {string} base The preferred key.
+ * @returns {string} `base`, or `base2`, `base3`, ...
+ */
 function uniqueSlotKey(form, base) {
   const taken = new Set(form.slots.map((slot) => slot.key));
   let key = base;
@@ -606,6 +831,10 @@ function uniqueSlotKey(form, base) {
   return key;
 }
 
+/**
+ * Draws the preset list with each preset's readiness against the library.
+ * @param {HTMLElement} container The PRESETS container.
+ */
 function renderList(container) {
   container.appendChild(h('div', { className: 'library-actions' },
     Button({ label: 'NEW PRESET', variant: 'primary', id: 'library-presets-new-btn', disabled: !!P.busy, onPress: newPreset }),
@@ -657,6 +886,9 @@ function renderList(container) {
   container.appendChild(table(['Preset', 'Source', 'Your library', ''], rows));
 }
 
+/**
+ * Redraws the PRESETS subtab.
+ */
 function render() {
   const container = root();
   if (!container) return;
@@ -668,8 +900,10 @@ function render() {
   else renderList(container);
 }
 
-// Called from renderLibraryPanels (setup/library.js) whenever the setup
-// screen opens or config is replaced. Draws what it has, then refetches.
+/**
+ * Called from renderLibraryPanels (setup/library.js) whenever the setup
+ * screen opens or config is replaced. Draws what it has, then refetches.
+ */
 export function renderPresetsPanel() {
   render();
   refresh();
@@ -678,6 +912,7 @@ export function renderPresetsPanel() {
 /**
  * Built-in, plugin and saved presets as `{ template, source }` (source:
  * builtin | plugin | saved), for CHANNELS › + ADD CHANNEL's chooser.
+ * @returns {Promise<Array<object>>} `{ template, source }` entries.
  */
 export async function listAllPresets() {
   try {
@@ -691,7 +926,11 @@ export async function listAllPresets() {
   return allPresets();
 }
 
-/** One line on what a preset builds, for lists and the chooser. */
+/**
+ * One line on what a preset builds, for lists and the chooser.
+ * @param {object} template The preset template.
+ * @returns {string} The description, such as "3 blocks · own ads".
+ */
 export function presetShape(template) {
   const programming = template.programming || [];
   return [

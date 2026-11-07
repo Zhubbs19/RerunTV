@@ -39,10 +39,18 @@ const { configHost } = require('../config/config');
 const { getMainWindow } = require('../config/window-ref');
 const { callMediaService } = require('../media/dispatch');
 
+/**
+ * Returns the folder installed plugins live in.
+ * @returns {string} `<userData>/plugins`.
+ */
 function getPluginsDir() {
   return path.join(app.getPath('userData'), 'plugins');
 }
 
+/**
+ * Returns the plugins folder, creating it when missing.
+ * @returns {string} `<userData>/plugins`.
+ */
 function ensurePluginsDir() {
   const dir = getPluginsDir();
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -67,14 +75,18 @@ function ensurePluginsDir() {
 // so this is a no-op there.
 const BUNDLED_PLUGINS_DIR = path.join(__dirname, '..', '..', 'plugins').replace('app.asar', 'app.asar.unpacked');
 
-// Whether `id` ships with the app's own ./plugins/ folder (as opposed to a
-// user-installed one, by hand or via INSTALL FROM ZIP) — used by the PLUGINS
-// tab to decide whether FULLY UNINSTALL is offered at all. A bundled plugin
-// can't actually be removed that way: seedBundledPlugins() above
-// unconditionally re-copies any bundled folder that's missing from
-// userData/plugins/ on every boot, so deleting one only for it to silently
-// reappear (still enabled, still approved) would be confusing rather than
-// destructive-but-honest. Disabling is the real "off switch" for those.
+/**
+ * Whether `id` ships with the app's own ./plugins/ folder (as opposed to a
+ * user-installed one, by hand or via INSTALL FROM ZIP) — used by the PLUGINS
+ * tab to decide whether FULLY UNINSTALL is offered at all. A bundled plugin
+ * can't actually be removed that way: seedBundledPlugins() above
+ * unconditionally re-copies any bundled folder that's missing from
+ * userData/plugins/ on every boot, so deleting one only for it to silently
+ * reappear (still enabled, still approved) would be confusing rather than
+ * destructive-but-honest. Disabling is the real "off switch" for those.
+ * @param {string} id A plugin id or folder name.
+ * @returns {boolean} True when the app's own `plugins/` folder has that plugin.
+ */
 function isBundledPluginId(id) {
   try {
     return fs.statSync(path.join(BUNDLED_PLUGINS_DIR, id)).isDirectory();
@@ -101,11 +113,20 @@ function isBundledPluginId(id) {
 const FOLDED_INTO_CORE = {
   'video-splicer': 'the Video Splicer is built in now (setup › LIBRARY › SPLICER).',
 };
+// Folded-into-core plugin ids already logged this run, so each is reported once.
 const reportedFoldedIntoCore = new Set();
 
+/**
+ * Returns the path of the ledger of plugin folders that bundled-plugin seeding installed.
+ * @returns {string} `<plugins>/.bundled-manifest.json`.
+ */
 function seededManifestPath() {
   return path.join(getPluginsDir(), '.bundled-manifest.json');
 }
+/**
+ * Reads the bundled-plugin ledger, accepting the old array form; a missing or corrupt file reads as empty.
+ * @returns {Map<string, ?string>} Plugin id to the source hash it was seeded from (null for the old form).
+ */
 function loadSeededManifest() {
   try {
     const parsed = JSON.parse(fs.readFileSync(seededManifestPath(), 'utf-8'));
@@ -118,6 +139,10 @@ function loadSeededManifest() {
     return new Map();
   }
 }
+/**
+ * Writes the bundled-plugin ledger, best-effort.
+ * @param {Map<string, ?string>} entries Plugin id to seeded source hash.
+ */
 function saveSeededManifest(entries) {
   try {
     const plugins = Object.fromEntries(Array.from(entries).sort(([a], [b]) => a.localeCompare(b)));
@@ -131,6 +156,10 @@ function saveSeededManifest(entries) {
 // hashed. Keyed on absolute path; the cache lives for the process lifetime
 // since the plugin file set is small and stable.
 const fileHashCache = new Map();
+/**
+ * @param {string} absolute The file's absolute path.
+ * @returns {string} The file's SHA-256 hex digest.
+ */
 function hashFileCached(absolute) {
   const stat = fs.statSync(absolute);
   const cached = fileHashCache.get(absolute);
@@ -142,6 +171,11 @@ function hashFileCached(absolute) {
   return hash;
 }
 
+/**
+ * Hashes a folder's relative file names and contents in a stable order.
+ * @param {string} dir The folder to hash.
+ * @returns {string} The SHA-256 hex digest.
+ */
 function hashDirectory(dir) {
   const hash = crypto.createHash('sha256');
   function visit(current, relative = '') {
@@ -159,14 +193,21 @@ function hashDirectory(dir) {
   return hash.digest('hex');
 }
 
-// Integrity records live outside plugin folders so plugin code cannot edit
-// its own expected hash. ZIP installs are recorded immediately after a
-// successful extraction; manually copied plugins must be explicitly trusted
-// once. A later byte change blocks main/renderer/CSS activation until the
-// user reviews and trusts the new hash.
+/**
+ * Integrity records live outside plugin folders so plugin code cannot edit
+ * its own expected hash. ZIP installs are recorded immediately after a
+ * successful extraction; manually copied plugins must be explicitly trusted
+ * once. A later byte change blocks main/renderer/CSS activation until the
+ * user reviews and trusts the new hash.
+ * @returns {string} `<plugins>/.plugin-integrity.json`.
+ */
 function integrityManifestPath() {
   return path.join(getPluginsDir(), '.plugin-integrity.json');
 }
+/**
+ * Reads the trusted-hash records; a missing or corrupt file reads as empty.
+ * @returns {object} Plugin id to `{ hash, trustedAt }`.
+ */
 function loadIntegrityManifest() {
   try {
     const parsed = JSON.parse(fs.readFileSync(integrityManifestPath(), 'utf-8'));
@@ -174,38 +215,55 @@ function loadIntegrityManifest() {
       ? parsed.plugins : {};
   } catch (e) { return {}; }
 }
+/**
+ * Writes the trusted-hash records and drops the discovery cache.
+ * @param {object} plugins Plugin id to `{ hash, trustedAt }`.
+ */
 function saveIntegrityManifest(plugins) {
   invalidatePluginDiscovery();
   fs.writeFileSync(integrityManifestPath(), JSON.stringify({ version: 1, plugins }, null, 2));
 }
+/**
+ * Trusts a plugin's current folder hash.
+ * @param {string} id The plugin id.
+ * @param {string} hash The folder hash from `hashDirectory`.
+ */
 function recordPluginIntegrity(id, hash) {
   const plugins = loadIntegrityManifest();
   plugins[id] = { hash, trustedAt: new Date().toISOString() };
   saveIntegrityManifest(plugins);
 }
+/**
+ * Forgets a plugin's trusted hash.
+ * @param {string} id The plugin id.
+ */
 function removePluginIntegrity(id) {
   const plugins = loadIntegrityManifest();
   if (plugins[id]) { delete plugins[id]; saveIntegrityManifest(plugins); }
 }
 
-// Refreshing an app-owned copy REPLACES it rather than copying over it.
-// fs.cpSync only adds and overwrites; a file the bundled source no longer
-// ships stays behind forever. That is not cosmetic: the leftover changes the
-// installed folder's hash, so discoverPlugins() reads the copy as 'modified'
-// and loadMainPlugins() then refuses to activate it until the user approves
-// an integrity change they never made. Found exactly that way — the
-// ffmpeg-transcode plugin's settings UI was split out of a renderer.js that
-// the bundled source stopped shipping, the orphan survived the update, and
-// the plugin every ffmpeg feature depends on (codec fix, caption extraction,
-// thumbnail capture, recording) silently stopped loading.
-//
-// Removing the old copy first is an OPTIMISATION for clearing orphans, not a
-// requirement, and it must never be load-bearing: fs.rmSync on Windows
-// throws whenever anything in the tree is still open, which for a folder the
-// app itself just loaded from is entirely possible. So a failed removal
-// falls back to the overwrite-in-place this used to do — the orphan survives
-// another boot, which is the old behaviour and survivable, rather than the
-// removal taking the whole app down with it.
+/**
+ * Refreshing an app-owned copy REPLACES it rather than copying over it.
+ * fs.cpSync only adds and overwrites; a file the bundled source no longer
+ * ships stays behind forever. That is not cosmetic: the leftover changes the
+ * installed folder's hash, so discoverPlugins() reads the copy as 'modified'
+ * and loadMainPlugins() then refuses to activate it until the user approves
+ * an integrity change they never made. Found exactly that way — the
+ * ffmpeg-transcode plugin's settings UI was split out of a renderer.js that
+ * the bundled source stopped shipping, the orphan survived the update, and
+ * the plugin every ffmpeg feature depends on (codec fix, caption extraction,
+ * thumbnail capture, recording) silently stopped loading.
+ *
+ * Removing the old copy first is an OPTIMISATION for clearing orphans, not a
+ * requirement, and it must never be load-bearing: fs.rmSync on Windows
+ * throws whenever anything in the tree is still open, which for a folder the
+ * app itself just loaded from is entirely possible. So a failed removal
+ * falls back to the overwrite-in-place this used to do — the orphan survives
+ * another boot, which is the old behaviour and survivable, rather than the
+ * removal taking the whole app down with it.
+ * @param {string} sourceDir The bundled plugin folder.
+ * @param {string} destDir The installed copy to replace.
+ */
 function replaceBundledCopy(sourceDir, destDir) {
   try {
     fs.rmSync(destDir, { recursive: true, force: true });
@@ -215,6 +273,9 @@ function replaceBundledCopy(sourceDir, destDir) {
   fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
 }
 
+/**
+ * Copies or refreshes every bundled plugin into userData/plugins and removes copies of bundled plugins that no longer ship.
+ */
 function seedBundledPlugins() {
   invalidatePluginDiscovery();
   let folders;
@@ -260,8 +321,13 @@ function seedBundledPlugins() {
   }
 }
 
-// One bundled plugin's copy brought up to date. Split out so the caller can
-// contain a failure to this plugin instead of the whole seeding pass.
+/**
+ * One bundled plugin's copy brought up to date. Split out so the caller can
+ * contain a failure to this plugin instead of the whole seeding pass.
+ * @param {string} name The bundled plugin's folder name.
+ * @param {string} dest The installed plugins folder.
+ * @param {Map<string, ?string>} seeded The bundled-plugin ledger, updated in place.
+ */
 function seedOneBundledPlugin(name, dest, seeded) {
   const sourceDir = path.join(BUNDLED_PLUGINS_DIR, name);
   const destDir = path.join(dest, name);
@@ -298,10 +364,11 @@ function seedOneBundledPlugin(name, dest, seeded) {
 // main-plugin-capabilities.js alongside the rest of the capability-checking
 // logic — see that file's header comment for why it's a separate module.
 
-// Reads every <pluginsDir>/<folder>/manifest.json, returning {id, name,
-// version, description, style, renderer, settings, main, dir, error} per entry — a
-// malformed manifest or duplicate id shows up as `error` rather than
-// throwing, so one broken plugin folder can't take the rest down with it.
+/**
+ * Checks that a manifest's `dataDir` is a single plain folder name.
+ * @param {string} name The declared `dataDir`.
+ * @returns {boolean} True for letters, digits, `.`, `_` and `-`, excluding `.` and `..`.
+ */
 function isSafeDataDirName(name) {
   return /^[A-Za-z0-9._-]+$/.test(name) && name !== '.' && name !== '..';
 }
@@ -316,8 +383,15 @@ function isSafeDataDirName(name) {
 const DISCOVERY_TTL_MS = 2000;
 let discoveryCache = null; // { at, dir, results }
 
+/**
+ * Drops the cached discovery result so the next `discoverPlugins()` reads the folders again.
+ */
 function invalidatePluginDiscovery() { discoveryCache = null; }
 
+/**
+ * Returns every installed plugin's manifest entry, from a short-lived cache.
+ * @returns {Array<object>} A fresh copy of the discovery result.
+ */
 function discoverPlugins() {
   const dir = ensurePluginsDir();
   const now = Date.now();
@@ -327,6 +401,13 @@ function discoverPlugins() {
   return structuredClone(discoveryCache.results);
 }
 
+/**
+ * Reads every <pluginsDir>/<folder>/manifest.json, returning {id, name,
+ * version, description, style, renderer, settings, main, dir, error} per entry — a
+ * malformed manifest or duplicate id shows up as `error` rather than
+ * throwing, so one broken plugin folder can't take the rest down with it.
+ * @returns {Array<object>} One entry per plugin folder.
+ */
 function discoverPluginsUncached() {
   const dir = ensurePluginsDir();
   const seen = new Set();
@@ -437,20 +518,26 @@ function discoverPluginsUncached() {
   return results;
 }
 
-// Wraps the ipcMain/spawn/http/fs surface a plugin's activate(ctx) receives
-// with versions that check every call against that plugin's own declared
-// `capabilities` (manifest.json) before letting it through — an
-// undeclared channel/binary/port throws immediately, caught by
-// loadMainPlugins() the same way any other activate()-time error is (that
-// one plugin fails to load, everything else is unaffected). This is a
-// same-process check, not a hard OS security boundary — a plugin could
-// still `require('fs')`/`require('child_process')` directly instead of
-// using ctx and bypass it entirely. What it DOES give: every first-party
-// plugin converted to use ctx.fs/ctx.spawn/ctx.createServer/ctx.ipcMain
-// (rather than requiring those modules itself) can no longer touch
-// anything it didn't declare by accident, and the declaration itself is
-// what the approval prompt (setup-plugins.js) shows the user before a new
-// or changed capability set is allowed to activate at all.
+/**
+ * Wraps the ipcMain/spawn/http/fs surface a plugin's activate(ctx) receives
+ * with versions that check every call against that plugin's own declared
+ * `capabilities` (manifest.json) before letting it through — an
+ * undeclared channel/binary/port throws immediately, caught by
+ * loadMainPlugins() the same way any other activate()-time error is (that
+ * one plugin fails to load, everything else is unaffected). This is a
+ * same-process check, not a hard OS security boundary — a plugin could
+ * still `require('fs')`/`require('child_process')` directly instead of
+ * using ctx and bypass it entirely. What it DOES give: every first-party
+ * plugin converted to use ctx.fs/ctx.spawn/ctx.createServer/ctx.ipcMain
+ * (rather than requiring those modules itself) can no longer touch
+ * anything it didn't declare by accident, and the declaration itself is
+ * what the approval prompt (setup-plugins.js) shows the user before a new
+ * or changed capability set is allowed to activate at all.
+ * @param {object} baseCtx The shared plugin context main.js builds.
+ * @param {object} manifest The plugin's manifest.
+ * @param {string} pluginDir The plugin's install folder.
+ * @returns {object} The plugin's `ctx`.
+ */
 function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
   const dataDir = typeof manifest.dataDir === 'string' && isSafeDataDirName(manifest.dataDir)
@@ -540,39 +627,45 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   };
 }
 
-// Runs every discovered plugin's main.js (if present, not disabled, and
-// already approved for its current declared capabilities — see
-// capabilitiesSignature(), main-plugin-capabilities.js) via require(),
-// calling its exported activate(ctx) if the module provides one. A throw
-// during require() or
-// activate() is caught and attached to that plugin's entry (surfaced in
-// the PLUGINS setup panel) rather than crashing boot — one bad plugin
-// shouldn't take the whole app down.
-// `approvedSignatures` is `config.plugins.approvedCapabilities`
-// ({id: signature}, see main.js) — a plugin whose current manifest
-// capabilities don't match what's there is skipped (not activated) and
-// returned in `needsApproval` instead, same "restart to activate" flow as
-// a fresh install already uses (see setup-plugins.js).
-// `extraCtx` is merged into every plugin's activate(ctx) alongside the
-// standard {ipcMain, app, pluginDir} — e.g. { fetchJsonCached } so plugins
-// that fetch external JSON APIs share the same disk cache/timeout/offline-
-// fallback behavior as the app's own former TMDB/NOAA integrations, without
-// each plugin needing a fragile relative require() across the app root.
-// extraCtx.services is expected to be a single shared plain object passed by
-// reference — a plugin can publish a capability onto it (e.g.
-// `ctx.services.ffmpegPath = ...`) for a later-activated dependent plugin
-// (or core, after loadMainPlugins() returns) to read.
-// Async because an isolated plugin (see the `isolated` field above) has to
-// actually fork a real OS process and wait for it to finish activate() —
-// that can't be synchronous the way require()+activate() for a same-process
-// plugin is. Plugins with nothing in common activate side by side, but a
-// plugin is only started once every plugin it `dependsOn` has finished
-// (runInDependencyOrder, activation-order.js) — that is what keeps the "a
-// publisher always finishes activating before a dependent reader starts"
-// guarantee ctx.services (and an isolated plugin's servicesSnapshot, see
-// isolation.js) relies on. Reading another plugin's value without declaring
-// it in dependsOn was never promised to work (PLUGIN_DEVELOPMENT.md's
-// "Loading order"), and now really doesn't.
+/**
+ * Runs every discovered plugin's main.js (if present, not disabled, and
+ * already approved for its current declared capabilities — see
+ * capabilitiesSignature(), main-plugin-capabilities.js) via require(),
+ * calling its exported activate(ctx) if the module provides one. A throw
+ * during require() or
+ * activate() is caught and attached to that plugin's entry (surfaced in
+ * the PLUGINS setup panel) rather than crashing boot — one bad plugin
+ * shouldn't take the whole app down.
+ * `approvedSignatures` is `config.plugins.approvedCapabilities`
+ * ({id: signature}, see main.js) — a plugin whose current manifest
+ * capabilities don't match what's there is skipped (not activated) and
+ * returned in `needsApproval` instead, same "restart to activate" flow as
+ * a fresh install already uses (see setup-plugins.js).
+ * `extraCtx` is merged into every plugin's activate(ctx) alongside the
+ * standard {ipcMain, app, pluginDir} — e.g. { fetchJsonCached } so plugins
+ * that fetch external JSON APIs share the same disk cache/timeout/offline-
+ * fallback behavior as the app's own former TMDB/NOAA integrations, without
+ * each plugin needing a fragile relative require() across the app root.
+ * extraCtx.services is expected to be a single shared plain object passed by
+ * reference — a plugin can publish a capability onto it (e.g.
+ * `ctx.services.ffmpegPath = ...`) for a later-activated dependent plugin
+ * (or core, after loadMainPlugins() returns) to read.
+ * Async because an isolated plugin (see the `isolated` field above) has to
+ * actually fork a real OS process and wait for it to finish activate() —
+ * that can't be synchronous the way require()+activate() for a same-process
+ * plugin is. Plugins with nothing in common activate side by side, but a
+ * plugin is only started once every plugin it `dependsOn` has finished
+ * (runInDependencyOrder, activation-order.js) — that is what keeps the "a
+ * publisher always finishes activating before a dependent reader starts"
+ * guarantee ctx.services (and an isolated plugin's servicesSnapshot, see
+ * isolation.js) relies on. Reading another plugin's value without declaring
+ * it in dependsOn was never promised to work (PLUGIN_DEVELOPMENT.md's
+ * "Loading order"), and now really doesn't.
+ * @param {string[]} disabledIds Plugins the user disabled.
+ * @param {object} extraCtx The shared context merged into every plugin's `ctx`.
+ * @param {object} approvedSignatures Plugin id to approved capabilities signature.
+ * @returns {Promise<object>} `{ loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders, activatedNetPorts }`.
+ */
 async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const disabled = new Set(disabledIds || []);
   const approved = approvedSignatures || {};
@@ -669,20 +762,15 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   };
 }
 
-// Installs a plugin from a .zip a user picked (PLUGINS tab "INSTALL FROM
-// ZIP…" button, see setup-plugins.js). Two shapes are accepted: manifest.json
-// right at the zip's root, or nested one level inside a single top-level
-// folder (the common case when a zip tool preserves the source folder name,
-// e.g. "my-plugin/manifest.json") — auto-detected rather than requiring the
-// user to know which their zip tool produced. The install target is always
-// named after manifest.json's own `id`, not the zip's filename or internal
-// folder name, so re-zipping the same plugin under a different name doesn't
-// create a duplicate install.
-// Finds manifest.json either at the archive root or exactly one level deep
-// inside a single top-level folder — returns the entry-name prefix to strip
-// off every extracted path ('' for root, 'dir/' for one level deep), or null
-// if neither shape matches (multiple top-level folders, no manifest at all —
-// too ambiguous to auto-detect).
+/**
+ * Finds manifest.json either at the archive root or exactly one level deep
+ * inside a single top-level folder — returns the entry-name prefix to strip
+ * off every extracted path ('' for root, 'dir/' for one level deep), or null
+ * if neither shape matches (multiple top-level folders, no manifest at all —
+ * too ambiguous to auto-detect).
+ * @param {Array<object>} entries The zip's `AdmZip` entries.
+ * @returns {?string} The prefix, or null.
+ */
 function findManifestPrefix(entries) {
   const rootManifest = entries.find((e) => !e.isDirectory && e.entryName === 'manifest.json');
   if (rootManifest) return '';
@@ -699,6 +787,21 @@ function findManifestPrefix(entries) {
   return null;
 }
 
+/**
+ * Installs a plugin from a .zip a user picked (PLUGINS tab "INSTALL FROM
+ * ZIP…" button, see setup-plugins.js). Two shapes are accepted: manifest.json
+ * right at the zip's root, or nested one level inside a single top-level
+ * folder (the common case when a zip tool preserves the source folder name,
+ * e.g. "my-plugin/manifest.json") — auto-detected rather than requiring the
+ * user to know which their zip tool produced. The install target is always
+ * named after manifest.json's own `id`, not the zip's filename or internal
+ * folder name, so re-zipping the same plugin under a different name doesn't
+ * create a duplicate install.
+ * @param {string} zipPath The zip file.
+ * @param {object} [opts] Install options.
+ * @param {boolean} [opts.overwrite] Whether to replace an existing install with the same id.
+ * @returns {object} `{ success: true, id, name, shapeChanged }`, `{ success: false, alreadyExists: true, id, name }` or `{ success: false, error }`.
+ */
 function installPluginFromZip(zipPath, opts) {
   opts = opts || {};
   let zip;
@@ -774,14 +877,18 @@ function installPluginFromZip(zipPath, opts) {
   return { success: true, id: manifest.id, name: manifest.name || manifest.id, shapeChanged };
 }
 
-// Permanently deletes a plugin's own folder under userData/plugins/ — the
-// PLUGINS tab's FULLY UNINSTALL action (setup-plugins.js), distinct from
-// disabling (which keeps the files, just skips activation). Refuses a
-// bundled plugin outright rather than deleting and having it silently
-// reappear on the next boot (see isBundledPluginId() above) — the renderer
-// already hides the button for those, but the main process re-checks here
-// too since this is a destructive filesystem operation that shouldn't trust
-// the caller alone.
+/**
+ * Permanently deletes a plugin's own folder under userData/plugins/ — the
+ * PLUGINS tab's FULLY UNINSTALL action (setup-plugins.js), distinct from
+ * disabling (which keeps the files, just skips activation). Refuses a
+ * bundled plugin outright rather than deleting and having it silently
+ * reappear on the next boot (see isBundledPluginId() above) — the renderer
+ * already hides the button for those, but the main process re-checks here
+ * too since this is a destructive filesystem operation that shouldn't trust
+ * the caller alone.
+ * @param {string} id The plugin id, or the folder name of a plugin whose manifest failed to load.
+ * @returns {object} `{ success: true, id, name }` or `{ success: false, error }`.
+ */
 function uninstallPlugin(id) {
   const plugin = discoverPlugins().find((x) => x.id === id || (x.error && x.dir === id));
   if (!plugin) return { success: false, error: `Plugin "${id}" not found.` };
@@ -797,20 +904,25 @@ function uninstallPlugin(id) {
   return { success: true, id, name: plugin.name };
 }
 
-// A plugin that is NOT active (disabled, awaiting a capabilities or integrity
-// approval, or failed to load) still gets safe answers for the IPC channels its
-// renderer calls unconditionally, so those calls resolve with an empty result
-// instead of rejecting with a raw "no handler registered" error. The answers
-// are declared as data in the manifest (`fallbackIpc`: { channel: value }) and
-// registered here by core; an inactive plugin's own code is never loaded, since
-// it has not been approved or integrity-checked.
-// `inactiveIds` covers both disabled plugins and ones pending a capabilities
-// approval prompt (loadMainPlugins()'s `needsApproval`, see main.js) — both
-// need the same safe fallback while they're not actually running.
-// `plugins` is optional — pass loadMainPlugins()'s own returned `allPlugins`
-// (it already did the discoverPlugins() scan this boot) to skip a redundant
-// re-scan/re-parse of every manifest.json; omit it to have this do its own
-// discoverPlugins() call, e.g. if this is ever invoked standalone.
+/**
+ * A plugin that is NOT active (disabled, awaiting a capabilities or integrity
+ * approval, or failed to load) still gets safe answers for the IPC channels its
+ * renderer calls unconditionally, so those calls resolve with an empty result
+ * instead of rejecting with a raw "no handler registered" error. The answers
+ * are declared as data in the manifest (`fallbackIpc`: { channel: value }) and
+ * registered here by core; an inactive plugin's own code is never loaded, since
+ * it has not been approved or integrity-checked.
+ * `inactiveIds` covers both disabled plugins and ones pending a capabilities
+ * approval prompt (loadMainPlugins()'s `needsApproval`, see main.js) — both
+ * need the same safe fallback while they're not actually running.
+ * `plugins` is optional — pass loadMainPlugins()'s own returned `allPlugins`
+ * (it already did the discoverPlugins() scan this boot) to skip a redundant
+ * re-scan/re-parse of every manifest.json; omit it to have this do its own
+ * discoverPlugins() call, e.g. if this is ever invoked standalone.
+ * @param {string[]} inactiveIds Plugins that are not running.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {Array<object>} [plugins] The discovery result to reuse.
+ */
 function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   const inactive = new Set(inactiveIds || []);
   (plugins || discoverPlugins()).forEach((plugin) => {
@@ -827,7 +939,11 @@ function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   });
 }
 
-// manifest.fallbackIpc: { "<channel>": <JSON value> }. Anything else is dropped.
+/**
+ * manifest.fallbackIpc: { "<channel>": <JSON value> }. Anything else is dropped.
+ * @param {*} raw The manifest's `fallbackIpc` value.
+ * @returns {object} Channel name to a JSON-copied answer.
+ */
 function normalizeFallbackIpc(raw) {
   const out = {};
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
@@ -838,12 +954,21 @@ function normalizeFallbackIpc(raw) {
   return out;
 }
 
-// `deps` carries accessors (not raw values) for everything main.js populates
-// inside app.whenReady() AFTER this is called — pluginMainLoadErrors,
-// pluginsNeedingApproval, activatedMediaSourceProviders, and pluginServicesRef
-// are all `let`s in main.js reassigned once loadMainPlugins() itself resolves,
-// so capturing their current (still-initial) value here instead of a getter
-// would silently freeze every one of these handlers on stale boot-time data.
+/**
+ * `deps` carries accessors (not raw values) for everything main.js populates
+ * inside app.whenReady() AFTER this is called — pluginMainLoadErrors,
+ * pluginsNeedingApproval, activatedMediaSourceProviders, and pluginServicesRef
+ * are all `let`s in main.js reassigned once loadMainPlugins() itself resolves,
+ * so capturing their current (still-initial) value here instead of a getter
+ * would silently freeze every one of these handlers on stale boot-time data.
+ * Registers the `plugins:*` IPC handlers for the PLUGINS tab and the generic bridge.
+ * @param {object} ipcMain Electron's `ipcMain`.
+ * @param {object} deps Accessors for values main.js assigns after plugins load.
+ * @param {Function} deps.getPluginMainLoadErrors Returns plugin id to load error.
+ * @param {Function} deps.getPluginsNeedingApproval Returns plugins awaiting a capabilities approval.
+ * @param {Function} deps.getActivatedMediaSourceProviders Returns providerId to plugin id.
+ * @param {Function} deps.getPluginServicesRef Returns the shared plugin service registry.
+ */
 function registerPluginsIpc(ipcMain, deps) {
   const {
     getPluginMainLoadErrors, getPluginsNeedingApproval, getActivatedMediaSourceProviders, getPluginServicesRef,

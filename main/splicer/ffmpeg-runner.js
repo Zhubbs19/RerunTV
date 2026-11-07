@@ -14,14 +14,22 @@
 
 const { spawn } = require('child_process');
 
+/**
+ * Picks the ffmpeg to run: the path the job runner passed, else `ffmpeg` on PATH.
+ * @returns {string} The ffmpeg command or path.
+ */
 function resolveFfmpegPath() {
   if (process.env.RERUNTV_FFMPEG_PATH) return process.env.RERUNTV_FFMPEG_PATH;
   return process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 }
 
 const ffmpegPath = resolveFfmpegPath();
+// Every ffmpeg process still running, so a cancel can kill them all.
 const running = new Set();
 
+/**
+ * Kills every ffmpeg this process started.
+ */
 function stopAll() {
   for (const proc of running) {
     try { proc.kill('SIGKILL'); } catch (e) { /* already gone */ }
@@ -30,6 +38,9 @@ function stopAll() {
 }
 
 let cancelled = false;
+/**
+ * Stops every running ffmpeg and exits with code 130; runs once.
+ */
 function cancelAndExit() {
   if (cancelled) return;
   cancelled = true;
@@ -46,6 +57,11 @@ if (process.parentPort) {
 process.on('SIGINT', cancelAndExit);
 process.on('SIGTERM', cancelAndExit);
 
+/**
+ * Starts ffmpeg and tracks the process so a cancel can kill it.
+ * @param {string[]} args ffmpeg arguments.
+ * @returns {ChildProcess} The spawned process.
+ */
 function spawnFfmpeg(args) {
   const proc = spawn(ffmpegPath, args, { windowsHide: true });
   running.add(proc);
@@ -54,8 +70,12 @@ function spawnFfmpeg(args) {
   return proc;
 }
 
-// Resolves { code, stderr } whatever the exit code; rejects only when ffmpeg
-// can't start at all.
+/**
+ * Resolves { code, stderr } whatever the exit code; rejects only when ffmpeg
+ * can't start at all.
+ * @param {string[]} args ffmpeg arguments.
+ * @returns {Promise<object>} `{ code, stderr }`.
+ */
 function runFfmpeg(args) {
   return new Promise((resolve, reject) => {
     const proc = spawnFfmpeg(args);
@@ -66,9 +86,15 @@ function runFfmpeg(args) {
   });
 }
 
-// Same as runFfmpeg, but also reports live progress via ffmpeg's
-// `-progress pipe:1` (percent of duration), for long single-pass scans where
-// the caller would otherwise see nothing until the whole file has been read.
+/**
+ * Same as runFfmpeg, but also reports live progress via ffmpeg's
+ * `-progress pipe:1` (percent of duration), for long single-pass scans where
+ * the caller would otherwise see nothing until the whole file has been read.
+ * @param {string[]} args ffmpeg arguments.
+ * @param {?number} totalDuration The input's length in seconds; progress is reported only when given.
+ * @param {?Function} onPercent Called with a 0 to 100 value each time it changes.
+ * @returns {Promise<object>} `{ code, stderr }`.
+ */
 function runFfmpegWithProgress(args, totalDuration, onPercent) {
   return new Promise((resolve, reject) => {
     const report = totalDuration && onPercent;
@@ -98,6 +124,12 @@ function runFfmpegWithProgress(args, totalDuration, onPercent) {
   });
 }
 
+/**
+ * Runs ffmpeg and collects everything it writes to stdout.
+ * @param {string[]} args ffmpeg arguments.
+ * @returns {Promise<Buffer>} The output bytes.
+ * @throws {Error} When ffmpeg exits with a non-zero code.
+ */
 function runFfmpegCollectStdout(args) {
   return new Promise((resolve, reject) => {
     const proc = spawnFfmpeg(args);
@@ -113,9 +145,16 @@ function runFfmpegCollectStdout(args) {
   });
 }
 
-// Raw frames as they're decoded, frameSize bytes each, handed to onFrame(frame,
-// index) — for scans over a whole recording that must neither hold it all in
-// memory nor go quiet until the end.
+/**
+ * Raw frames as they're decoded, frameSize bytes each, handed to onFrame(frame,
+ * index) — for scans over a whole recording that must neither hold it all in
+ * memory nor go quiet until the end.
+ * @param {string[]} args ffmpeg arguments that write raw frames to stdout.
+ * @param {number} frameSize Bytes per frame.
+ * @param {Function} onFrame Called with `(frame, index)` for each whole frame.
+ * @returns {Promise<number>} How many frames were handed out.
+ * @throws {Error} When ffmpeg exits with a non-zero code.
+ */
 function runFfmpegFrames(args, frameSize, onFrame) {
   return new Promise((resolve, reject) => {
     const proc = spawnFfmpeg(args);

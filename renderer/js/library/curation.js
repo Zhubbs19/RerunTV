@@ -20,6 +20,12 @@ import {
 import { S } from '../core/state.js';
 import { hashString, mulberry32, randomInterstitialId } from '../core/util.js';
 
+/**
+ * Returns a copy of an array shuffled by a seeded random generator.
+ * @param {Array<*>} arr The array to shuffle.
+ * @param {number} seed The generator seed.
+ * @returns {Array<*>} The shuffled copy.
+ */
 function seededShuffle(arr, seed) {
   const rand = mulberry32(seed);
   const out = arr.slice();
@@ -34,17 +40,26 @@ function seededShuffle(arr, seed) {
 // theme; era next; mood is the softest (a "cozy" mood spans many genres).
 const FACET_WEIGHTS = { genre: 3, contentType: 2, era: 2, mood: 1 };
 
+/**
+ * @param {object} item A file entry.
+ * @returns {Set<string>} Its tags, lower-cased.
+ */
 function tagSetOf(item) {
   return new Set((item.tags || []).map((t) => t.toLowerCase()));
 }
 
-// Weighted overlap between a file's own tags (which, per mirrorFacetsIntoTags,
-// already include anything set via structured facets) and a themeSeeds
-// object ({genre,era,mood,contentType} arrays). A file with no tags at all
-// can never score — untagged content is only reachable via an untargeted/
-// 'all' pool scope, not by theme match. Takes themeSeeds directly (not a
-// profile) so a dayPartTemplate slot's own narrower seeds (buildDayPartPlan
-// below) can be scored the same way as the profile's own.
+/**
+ * Weighted overlap between a file's own tags (which, per mirrorFacetsIntoTags,
+ * already include anything set via structured facets) and a themeSeeds
+ * object ({genre,era,mood,contentType} arrays). A file with no tags at all
+ * can never score — untagged content is only reachable via an untargeted/
+ * 'all' pool scope, not by theme match. Takes themeSeeds directly (not a
+ * profile) so a dayPartTemplate slot's own narrower seeds (buildDayPartPlan
+ * below) can be scored the same way as the profile's own.
+ * @param {object} file A file entry.
+ * @param {object} themeSeeds Seed arrays keyed by facet (`genre`, `era`, `mood`, `contentType`).
+ * @returns {number} The weighted score; 0 for an untagged file.
+ */
 export function scoreCandidate(file, themeSeeds) {
   const tags = tagSetOf(file);
   if (!tags.size) return 0;
@@ -57,9 +72,14 @@ export function scoreCandidate(file, themeSeeds) {
   return score;
 }
 
-// A day-part slot only overrides genre/contentType (freshDayPartSlot,
-// channels.js) — era/mood always inherit the profile's own seeds, since a
-// slot is about "what plays in this hour", not a wholesale re-theme.
+/**
+ * A day-part slot only overrides genre/contentType (freshDayPartSlot,
+ * channels.js) — era/mood always inherit the profile's own seeds, since a
+ * slot is about "what plays in this hour", not a wholesale re-theme.
+ * @param {object} profile The curation profile.
+ * @param {object} slot The day-part slot.
+ * @returns {object} Theme seeds for the slot.
+ */
 function slotThemeSeeds(profile, slot) {
   return {
     genre: slot.genre && slot.genre.length ? slot.genre : profile.themeSeeds.genre,
@@ -69,10 +89,14 @@ function slotThemeSeeds(profile, slot) {
   };
 }
 
-// Every file across every channel that falls within the profile's
-// contentPoolScope (folders 'all' or an explicit list of ch.folders[] entry
-// ids; tags 'any' or an explicit list a file must carry at least one of) —
-// the raw candidate set before theme scoring narrows it further.
+/**
+ * Every file across every channel that falls within the profile's
+ * contentPoolScope (folders 'all' or an explicit list of ch.folders[] entry
+ * ids; tags 'any' or an explicit list a file must carry at least one of) —
+ * the raw candidate set before theme scoring narrows it further.
+ * @param {object} profile The curation profile.
+ * @returns {Array<object>} Candidate file entries.
+ */
 function poolScope(profile) {
   const { folders, tags } = profile.contentPoolScope;
   const folderIds = Array.isArray(folders) && folders.length ? resolveScopeFolderIds(folders) : folders;
@@ -95,12 +119,18 @@ function poolScope(profile) {
 // library (which could be thousands of files) onto one fresh channel.
 const MAX_CURATED_FILES = 60;
 
-// `excludePaths` (a target channel's own current file paths, for a
-// re-curate run — see curateChannel below) is filtered out before scoring,
-// not after: since apply is add-only and silently skips a path already in
-// the channel (applyCurationProposal), scoring in something already
-// present would waste a slot in the MAX_CURATED_FILES cap on a no-op
-// instead of surfacing genuinely new matches.
+/**
+ * `excludePaths` (a target channel's own current file paths, for a
+ * re-curate run — see curateChannel below) is filtered out before scoring,
+ * not after: since apply is add-only and silently skips a path already in
+ * the channel (applyCurationProposal), scoring in something already
+ * present would waste a slot in the MAX_CURATED_FILES cap on a no-op
+ * instead of surfacing genuinely new matches.
+ * @param {object} profile The curation profile.
+ * @param {string|number} seed The shuffle seed.
+ * @param {?Set<string>} excludePaths Paths to leave out.
+ * @returns {object} `{ folders, files, matchedCount, totalScanned }`.
+ */
 export function buildProgrammingPlan(profile, seed, excludePaths) {
   const candidates = poolScope(profile).filter((f) => !excludePaths || !excludePaths.has(f.path));
   const scored = candidates.map((f) => ({ f, score: scoreCandidate(f, profile.themeSeeds) }));
@@ -128,13 +158,20 @@ export function buildProgrammingPlan(profile, seed, excludePaths) {
 // themed handful is more useful to review than dozens.
 const MAX_FILES_PER_SLOT = 20;
 
-// One ch.blocks[]-shaped patch per dayPartTemplate slot, each scored against
-// the profile's seeds narrowed by that slot's own genre/contentType
-// (slotThemeSeeds). `excludePaths` is shared and grows across slots as they're
-// built (see the caller below) so the same file never lands in two slots —
-// each slot also excludes anything already in the flat plan for the same
-// reason. Falls back to the slot's own unscored pool the same way
-// buildProgrammingPlan does, so an unmatched slot still previews something.
+/**
+ * One ch.blocks[]-shaped patch per dayPartTemplate slot, each scored against
+ * the profile's seeds narrowed by that slot's own genre/contentType
+ * (slotThemeSeeds). `excludePaths` is shared and grows across slots as they're
+ * built (see the caller below) so the same file never lands in two slots —
+ * each slot also excludes anything already in the flat plan for the same
+ * reason. Falls back to the slot's own unscored pool the same way
+ * buildProgrammingPlan does, so an unmatched slot still previews something.
+ * @param {object} profile The curation profile.
+ * @param {object} slot The day-part slot.
+ * @param {string|number} seed The shuffle seed.
+ * @param {Set<string>} excludePaths Paths to leave out.
+ * @returns {object} `{ slot, files, matchedCount, totalScanned }`.
+ */
 function buildDayPartSlotPlan(profile, slot, seed, excludePaths) {
   const seeds = slotThemeSeeds(profile, slot);
   const candidates = poolScope(profile).filter((f) => !excludePaths.has(f.path));
@@ -147,11 +184,17 @@ function buildDayPartSlotPlan(profile, slot, seed, excludePaths) {
   return { slot, files, matchedCount: matched.length, totalScanned: candidates.length };
 }
 
-// Builds one plan per dayPartTemplate slot in order, each excluding every
-// path already claimed by an earlier slot or the flat plan (`baseExclude`)
-// so a curated channel doesn't repeat the same file across its own
-// dayparts. Returns [] when the profile has no dayPartTemplate — the
-// engine's original flat-only behavior.
+/**
+ * Builds one plan per dayPartTemplate slot in order, each excluding every
+ * path already claimed by an earlier slot or the flat plan (`baseExclude`)
+ * so a curated channel doesn't repeat the same file across its own
+ * dayparts. Returns [] when the profile has no dayPartTemplate — the
+ * engine's original flat-only behavior.
+ * @param {object} profile The curation profile.
+ * @param {string|number} seed The shuffle seed.
+ * @param {?Iterable<string>} baseExclude Paths already claimed.
+ * @returns {Array<object>} One plan per slot.
+ */
 export function buildDayPartPlan(profile, seed, baseExclude) {
   if (!profile.dayPartTemplate || !profile.dayPartTemplate.length) return [];
   const claimed = new Set(baseExclude || []);
@@ -164,15 +207,25 @@ export function buildDayPartPlan(profile, seed, baseExclude) {
   return plans;
 }
 
+/**
+ * Finds the cadence preset a profile's ad density names.
+ * @param {object} profile The curation profile.
+ * @returns {?object} The interstitial preset, or `null`.
+ */
 export function resolveAdPreset(profile) {
   if (!profile.adDensity) return null;
   return (S.config.interstitials.presets || []).find((p) => p.id === profile.adDensity) || null;
 }
 
-// Proposes new bumper/station-ID/ad-pod-bump interstitial pool entries
-// scoped to this channel, tagged with the profile's bumperStyleTags — but
-// only for a type nothing in the existing pool already covers for this
-// theme, so re-running a profile doesn't pile up duplicate bumpers.
+/**
+ * Proposes new bumper/station-ID/ad-pod-bump interstitial pool entries
+ * scoped to this channel, tagged with the profile's bumperStyleTags — but
+ * only for a type nothing in the existing pool already covers for this
+ * theme, so re-running a profile doesn't pile up duplicate bumpers.
+ * @param {object} profile The curation profile.
+ * @param {number} channelNumber The channel the entries are aimed at.
+ * @returns {Array<object>} New interstitial pool entries.
+ */
 export function buildInterstitialPlan(profile, channelNumber) {
   if (!profile.bumperStyleTags || !profile.bumperStyleTags.length) return [];
   const seedTags = profile.bumperStyleTags.map((t) => String(t).toLowerCase());
@@ -191,15 +244,20 @@ export function buildInterstitialPlan(profile, channelNumber) {
     }));
 }
 
-// Orchestrates the above into a read-only proposal — nothing is written to
-// S.config. `seed` is caller-controlled (a wizard "Reshuffle"/"RE-PREVIEW"
-// just passes a new one) so the same profile+seed pair always reproduces
-// the same result. When the profile targets an existing channel (a
-// "re-curate" run), the plan is built to exclude what's already there
-// (buildProgrammingPlan's excludePaths) so the diff reflects only what this
-// run would actually *add* — merge is always additive, see
-// applyCurationProposal below, so anything already present is a no-op and
-// shouldn't eat into the preview's file cap or be reported as "new".
+/**
+ * Orchestrates the above into a read-only proposal — nothing is written to
+ * S.config. `seed` is caller-controlled (a wizard "Reshuffle"/"RE-PREVIEW"
+ * just passes a new one) so the same profile+seed pair always reproduces
+ * the same result. When the profile targets an existing channel (a
+ * "re-curate" run), the plan is built to exclude what's already there
+ * (buildProgrammingPlan's excludePaths) so the diff reflects only what this
+ * run would actually *add* — merge is always additive, see
+ * applyCurationProposal below, so anything already present is a no-op and
+ * shouldn't eat into the preview's file cap or be reported as "new".
+ * @param {object} profile The curation profile.
+ * @param {string|number} seed The shuffle seed.
+ * @returns {object} The proposal, including a `diffSummary` for the preview.
+ */
 export function curateChannel(profile, seed) {
   const isNewChannel = profile.targetChannel == null;
   const targetChannel = isNewChannel ? null : S.config.channels.find((c) => c.number === profile.targetChannel);
@@ -243,12 +301,16 @@ export function curateChannel(profile, seed) {
   };
 }
 
-// A day-part block patch (curateChannel's blockPatches) as a real
-// ch.blocks[] entry — freshBlock's dayOfWeek shape (every day, since
-// `days` stays empty) with the slot's hour range and curated files.
-// curationSlotId is an extra marker field (harmless — nothing else reads or
-// validates against a fixed block schema) so a later re-curate can find
-// this exact slot's block again instead of creating a duplicate.
+/**
+ * A day-part block patch (curateChannel's blockPatches) as a real
+ * ch.blocks[] entry — freshBlock's dayOfWeek shape (every day, since
+ * `days` stays empty) with the slot's hour range and curated files.
+ * curationSlotId is an extra marker field (harmless — nothing else reads or
+ * validates against a fixed block schema) so a later re-curate can find
+ * this exact slot's block again instead of creating a duplicate.
+ * @param {object} patch A block patch from `curateChannel`.
+ * @returns {object} The block config.
+ */
 function buildBlockFromPatch(patch) {
   const block = freshBlock('dayOfWeek');
   block.name = patch.label || '';
@@ -259,9 +321,13 @@ function buildBlockFromPatch(patch) {
   return block;
 }
 
-// Writes a proposal into S.config in place. The caller records it with
-// commitConfigPatch('…') (one labelled, undoable structural patch, state.js)
-// and refreshes the CHANNELS/BUMPER & AD POOL UI itself.
+/**
+ * Writes a proposal into S.config in place. The caller records it with
+ * commitConfigPatch('…') (one labelled, undoable structural patch, state.js)
+ * and refreshes the CHANNELS/BUMPER & AD POOL UI itself.
+ * @param {object} proposal A `curateChannel` proposal.
+ * @returns {?object} The new or updated channel, or `null` when the target channel is gone.
+ */
 export function applyCurationProposal(proposal) {
   let ch;
   if (proposal.isNewChannel) {

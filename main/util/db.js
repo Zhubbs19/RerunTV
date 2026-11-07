@@ -84,13 +84,24 @@ try {
 // SQLite is unavailable or the file couldn't be used.
 const handles = new Map();
 
+/**
+ * The error raised when the file was written by a newer schema than this build knows.
+ * @param {number} version The schema version found in the file.
+ * @returns {Error} An error with code `DB_SCHEMA_TOO_NEW`.
+ */
 function tooNewError(version) {
   const error = new Error(`${DB_FILE} is schema ${version}, newer than this build understands (${SCHEMA_VERSION})`);
   error.code = 'DB_SCHEMA_TOO_NEW';
   return error;
 }
 
-// Runs fn inside one transaction.
+/**
+ * Runs fn inside one transaction.
+ * @param {object} db The open `DatabaseSync`.
+ * @param {Function} fn The work to run; its return value is passed through.
+ * @returns {*} What `fn` returned.
+ * @throws {Error} Whatever `fn` threw, after rolling back.
+ */
 function transaction(db, fn) {
   db.exec('BEGIN');
   try {
@@ -103,6 +114,11 @@ function transaction(db, fn) {
   }
 }
 
+/**
+ * Sets the connection pragmas and runs any pending `MIGRATIONS` steps.
+ * @param {object} db The open `DatabaseSync`.
+ * @throws {Error} When the file is newer than this build (`DB_SCHEMA_TOO_NEW`) or a step fails.
+ */
 function applySchema(db) {
   db.exec('PRAGMA busy_timeout = 2000');
   // Checked before anything writes: even switching the journal mode rewrites
@@ -121,6 +137,12 @@ function applySchema(db) {
   }
 }
 
+/**
+ * Opens `file` and brings its schema up to date, closing it again on failure.
+ * @param {string} file The database file path.
+ * @returns {object} The open `DatabaseSync`.
+ * @throws {Error} When the file cannot be opened or migrated.
+ */
 function openFile(file) {
   const db = new sqlite.DatabaseSync(file);
   try {
@@ -132,13 +154,23 @@ function openFile(file) {
   }
 }
 
+/**
+ * True when a SQLite error means the file itself is corrupt or not a database.
+ * @param {?Error} error The error caught while opening.
+ * @returns {boolean} Whether the file is damaged.
+ */
 function isDamaged(error) {
   return !!error && (error.errcode === SQLITE_CORRUPT || error.errcode === SQLITE_NOTADB);
 }
 
-// Only a damaged file is moved aside (never deleted) for a fresh one. It can
-// hold the library, so a lock, a permissions problem or a file from a newer
-// build is left exactly where it is.
+/**
+ * Only a damaged file is moved aside (never deleted) for a fresh one. It can
+ * hold the library, so a lock, a permissions problem or a file from a newer
+ * build is left exactly where it is.
+ * @param {string} dir The resolved directory holding rerun.db.
+ * @returns {object} The open `DatabaseSync`.
+ * @throws {Error} When opening fails for a reason other than damage.
+ */
 function openOrReplace(dir) {
   const file = path.join(dir, DB_FILE);
   try {
@@ -154,6 +186,12 @@ function openOrReplace(dir) {
   }
 }
 
+/**
+ * The cached handle for `dir`, opening the database on first use.
+ * Never throws: a failure leaves `db` null for the rest of the session.
+ * @param {string} dir The directory holding rerun.db.
+ * @returns {object} `{ dir, db, tooNew, tables }`.
+ */
 function getHandle(dir) {
   const key = path.resolve(dir);
   let handle = handles.get(key);
@@ -176,25 +214,45 @@ function getHandle(dir) {
   return handle;
 }
 
-// The open database for <dir>/rerun.db, for modules with their own tables
-// (history, library). { db: null } when SQLite can't be used this session;
-// tooNew is true when that's because a newer build wrote the file.
+/**
+ * The open database for <dir>/rerun.db, for modules with their own tables
+ * (history, library). { db: null } when SQLite can't be used this session;
+ * tooNew is true when that's because a newer build wrote the file.
+ * @param {string} dir The directory holding rerun.db.
+ * @returns {object} `{ db, tooNew }`.
+ */
 function getDatabase(dir) {
   const handle = getHandle(dir);
   return { db: handle.db, tooNew: handle.tooNew };
 }
 
+/**
+ * Parses a stored JSON value, or `undefined` when it does not parse.
+ * @param {string} text The stored text.
+ * @returns {*} The parsed value, or undefined.
+ */
 function parseValue(text) {
   try { return JSON.parse(text); } catch (e) { return undefined; }
 }
 
+/**
+ * True when `field` is a plain identifier, safe to splice into a JSON path.
+ * @param {*} field The field name to check.
+ * @returns {boolean} Whether it is safe.
+ */
 function isSafeField(field) {
   return typeof field === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(field);
 }
 
-// One namespace of the cache table, keyed by string. Values are anything
-// JSON.stringify accepts; `at` (ms) is when the entry was written and is what
-// the oldest-first cap uses.
+/**
+ * One namespace of the cache table, keyed by string. Values are anything
+ * JSON.stringify accepts; `at` (ms) is when the entry was written and is what
+ * the oldest-first cap uses.
+ * @param {object} db The open `DatabaseSync`.
+ * @param {string} ns The namespace.
+ * @param {number} maxEntries The oldest-first cap; 0 for none.
+ * @returns {object} The table API: `get`, `set`, `count`, `countWithField`, `merge`, `prune`, `pruneSoon`, `dispose`.
+ */
 function sqlTable(db, ns, maxEntries) {
   const getStmt = db.prepare('SELECT at, value FROM cache WHERE ns = ? AND key = ?');
   const setStmt = db.prepare(`INSERT INTO cache (ns, key, at, value) VALUES (?, ?, ?, ?)
@@ -271,7 +329,11 @@ function sqlTable(db, ns, maxEntries) {
   return table;
 }
 
-// Same API, kept in memory: the fallback when SQLite isn't available.
+/**
+ * Same API, kept in memory: the fallback when SQLite isn't available.
+ * @param {number} maxEntries The oldest-first cap; 0 for none.
+ * @returns {object} The same table API as `sqlTable`.
+ */
 function memoryTable(maxEntries) {
   const rows = new Map();
   const table = {
@@ -312,10 +374,16 @@ function memoryTable(maxEntries) {
   return table;
 }
 
-// Brings a pre-SQLite JSON cache file in once, then removes it. `toEntries`
-// turns the parsed file into [key, value, at] triples (or returns null for a
-// file it doesn't recognise, which is then just removed). A file that won't
-// parse is removed too — it was only ever a cache.
+/**
+ * Brings a pre-SQLite JSON cache file in once, then removes it. `toEntries`
+ * turns the parsed file into [key, value, at] triples (or returns null for a
+ * file it doesn't recognise, which is then just removed). A file that won't
+ * parse is removed too — it was only ever a cache.
+ * @param {object} table The cache table to merge into.
+ * @param {string} file The legacy JSON file path.
+ * @param {Function} toEntries Turns the parsed file into `[key, value, at]` triples, or null.
+ * @returns {number} How many entries were merged.
+ */
 function importJsonFile(table, file, toEntries) {
   if (!fs.existsSync(file)) return 0;
   let imported = 0;
@@ -330,10 +398,18 @@ function importJsonFile(table, file, toEntries) {
   return imported;
 }
 
-// The cache namespace `ns` in <dir>/rerun.db, created on first use and shared
-// by every later call for the same dir and ns.
-//   maxEntries   oldest-first cap (by `at`); 0 or absent for none
-//   importFrom   { file, toEntries } — a legacy JSON cache to bring in once
+/**
+ * The cache namespace `ns` in <dir>/rerun.db, created on first use and shared
+ * by every later call for the same dir and ns.
+ *   maxEntries   oldest-first cap (by `at`); 0 or absent for none
+ *   importFrom   { file, toEntries } — a legacy JSON cache to bring in once
+ * @param {string} dir The directory holding rerun.db.
+ * @param {string} ns The namespace.
+ * @param {object} [opts] Options.
+ * @param {number} [opts.maxEntries=0] Oldest-first cap.
+ * @param {?object} [opts.importFrom=null] `{ file, toEntries }` legacy JSON cache to import once.
+ * @returns {object} The table API.
+ */
 function cacheTable(dir, ns, { maxEntries = 0, importFrom = null } = {}) {
   const handle = getHandle(dir);
   let table = handle.tables.get(ns);
@@ -344,8 +420,13 @@ function cacheTable(dir, ns, { maxEntries = 0, importFrom = null } = {}) {
   return table;
 }
 
-// A consistent single-file copy of <dir>/rerun.db at `destFile`, safe to take
-// while the database is open and being written. False when there's no database.
+/**
+ * A consistent single-file copy of <dir>/rerun.db at `destFile`, safe to take
+ * while the database is open and being written. False when there's no database.
+ * @param {string} dir The directory holding rerun.db.
+ * @param {string} destFile Where to write the copy.
+ * @returns {boolean} True when a copy was written.
+ */
 function snapshotDb(dir, destFile) {
   const key = path.resolve(dir);
   const handle = handles.get(key);
@@ -364,8 +445,10 @@ function snapshotDb(dir, destFile) {
   return true;
 }
 
-// Closes every open database (a clean close folds the WAL back into the main
-// file). For app quit and tests; a later cacheTable() call reopens.
+/**
+ * Closes every open database (a clean close folds the WAL back into the main
+ * file). For app quit and tests; a later cacheTable() call reopens.
+ */
 function closeAll() {
   for (const handle of handles.values()) {
     handle.tables.forEach((table) => table.dispose());
@@ -384,6 +467,10 @@ module.exports = {
   closeAll,
   getDatabase,
   transaction,
+  /**
+   * Whether node:sqlite loaded this session (when it didn't, every table falls back).
+   * @returns {boolean} True when SQLite is available.
+   */
   isSqliteAvailable: () => !!sqlite,
   snapshotDb,
 };

@@ -11,43 +11,60 @@ import { normalizeTrackCard } from '../library/channel-builder.js';
 import { isFavorite, isHiddenForProfile } from '../personal/state.js';
 import { applyGuideView } from './guide-filter.js';
 
-// Block-level ad override — only present when a daypart block explicitly
-// opts out of the channel/flow default (block.commercials !== null).
-// Channel-level ad scheduling is now entirely controlled by the
-// Programming tab's flows and presets; the channel itself only carries
-// ch.adsEnabled (true/false) to suppress all breaks on that channel.
+/**
+ * Block-level ad override — only present when a daypart block explicitly
+ * opts out of the channel/flow default (block.commercials !== null).
+ * Channel-level ad scheduling is now entirely controlled by the
+ * Programming tab's flows and presets; the channel itself only carries
+ * ch.adsEnabled (true/false) to suppress all breaks on that channel.
+ * @returns {object} A block-level commercials override, `{ enabled: true }`.
+ */
 export function freshCommercialsConfig() {
   return { enabled: true };
 }
 
+/**
+ * Makes a new schedule block id.
+ * @returns {string} A random id with the 'blk' prefix.
+ */
 function randomBlockId() {
   return randomId('blk');
 }
 
 // ---------- Content facets (Tag System 2.0) ----------
-// A file's free-text `tags` (TITLES tab, setup-panels.js) stays the one list
-// every consumer (interstitial contentTags matching, ad presets, search)
-// reads — these structured facets are an optional, more curation-friendly
-// layer on top, not a replacement. Whenever a facet is set it's mirrored
-// into `tags` too (mirrorFacetsIntoTags below) so nothing that only knows
-// about `tags` needs to change.
+/**
+ * A file's free-text `tags` (TITLES tab, setup-panels.js) stays the one list
+ * every consumer (interstitial contentTags matching, ad presets, search)
+ * reads — these structured facets are an optional, more curation-friendly
+ * layer on top, not a replacement. Whenever a facet is set it's mirrored
+ * into `tags` too (mirrorFacetsIntoTags below) so nothing that only knows
+ * about `tags` needs to change.
+ * @returns {object} Empty facets: `genre`, `era`, `mood`, `contentType` and `dayPart`.
+ */
 export function freshFileFacets() {
   return { genre: [], era: null, mood: [], contentType: null, dayPart: [] };
 }
 
-// Idempotent — only fills in a missing facets object, never overwrites a
-// user's existing one. Called from normalizeChannel below; the TITLES panel
-// also defends against a pre-migration file (one added after boot, e.g. via
-// rescanAllFolders) by falling back to freshFileFacets() itself.
+/**
+ * Idempotent — only fills in a missing facets object, never overwrites a
+ * user's existing one. Called from normalizeChannel below; the TITLES panel
+ * also defends against a pre-migration file (one added after boot, e.g. via
+ * rescanAllFolders) by falling back to freshFileFacets() itself.
+ * @param {object} file A channel file entry, changed in place.
+ * @returns {object} The same file.
+ */
 export function normalizeFileFacets(file) {
   if (!file.facets) file.facets = freshFileFacets();
   return file;
 }
 
-// Folds a file's structured facet values into its flat `tags` array
-// (additively — never removes a tag, including one a facet used to
-// contribute and no longer does; the user's free tags field is the one
-// place tags get removed by hand). Called after any facet edit.
+/**
+ * Folds a file's structured facet values into its flat `tags` array
+ * (additively — never removes a tag, including one a facet used to
+ * contribute and no longer does; the user's free tags field is the one
+ * place tags get removed by hand). Called after any facet edit.
+ * @param {object} file A channel file entry, changed in place.
+ */
 export function mirrorFacetsIntoTags(file) {
   if (!file.facets) return;
   const derived = [
@@ -60,14 +77,21 @@ export function mirrorFacetsIntoTags(file) {
   file.tags = Array.from(existing);
 }
 
+/**
+ * Makes a new curation profile id.
+ * @returns {string} A random id with the 'curate' prefix.
+ */
 function randomProfileId() {
   return randomId('curate');
 }
 
-// A saved auto-curation profile (PROGRAMMING > AUTO-CURATE) — a reusable
-// spec for generating or refreshing a channel's programming/ad-tagging/
-// bumper set from tagged content, rather than a one-off action. See
-// renderer/js/curation.js for the engine that consumes these.
+/**
+ * A saved auto-curation profile (PROGRAMMING > AUTO-CURATE) — a reusable
+ * spec for generating or refreshing a channel's programming/ad-tagging/
+ * bumper set from tagged content, rather than a one-off action. See
+ * renderer/js/curation.js for the engine that consumes these.
+ * @returns {object} A new profile with default seeds, scope and schedule.
+ */
 export function freshCurationProfile() {
   return {
     id: randomProfileId(), name: '', targetChannel: null, // null = create a brand-new channel
@@ -89,27 +113,38 @@ export function freshCurationProfile() {
   };
 }
 
+/**
+ * Makes a new daypart slot id.
+ * @returns {string} A random id with the 'slot' prefix.
+ */
 function randomDayPartSlotId() {
   return randomId('slot');
 }
 
-// One row of a curation profile's optional dayPartTemplate — a themed hour
-// range (e.g. "6am-9am, cartoons") the curation engine fills independently
-// of the profile's flat whole-pool selection, layered on top of it as its
-// own ch.blocks[] entry (freshBlock's dayOfWeek shape, mode: 'loop', every
-// day since `days` stays empty). genre/contentType here narrow the profile's
-// own themeSeeds for just this slot — empty means "inherit the profile's
-// seeds unchanged".
+/**
+ * One row of a curation profile's optional dayPartTemplate — a themed hour
+ * range (e.g. "6am-9am, cartoons") the curation engine fills independently
+ * of the profile's flat whole-pool selection, layered on top of it as its
+ * own ch.blocks[] entry (freshBlock's dayOfWeek shape, mode: 'loop', every
+ * day since `days` stays empty). genre/contentType here narrow the profile's
+ * own themeSeeds for just this slot — empty means "inherit the profile's
+ * seeds unchanged".
+ * @returns {object} A new 6am-to-noon slot with no genre or content type.
+ */
 export function freshDayPartSlot() {
   return { id: randomDayPartSlotId(), label: '', startHour: 6, endHour: 12, genre: [], contentType: null };
 }
 
-// A fresh ch.blocks[] entry for the given trigger type — 'dayOfWeek' (an
-// hour/day-of-week daypart, e.g. Saturday mornings) or 'dateRange' (a fixed
-// calendar-date window, e.g. a holiday takeover). priority defaults mirror
-// normalizeChannel's migration defaults so a hand-added dateRange block
-// still pre-empts a dayOfWeek block by default, same as before blocks and
-// date overrides were unified into one array.
+/**
+ * A fresh ch.blocks[] entry for the given trigger type — 'dayOfWeek' (an
+ * hour/day-of-week daypart, e.g. Saturday mornings) or 'dateRange' (a fixed
+ * calendar-date window, e.g. a holiday takeover). priority defaults mirror
+ * normalizeChannel's migration defaults so a hand-added dateRange block
+ * still pre-empts a dayOfWeek block by default, same as before blocks and
+ * date overrides were unified into one array.
+ * @param {string} triggerType 'dateRange'; anything else makes a 'dayOfWeek' block.
+ * @returns {object} The new block.
+ */
 export function freshBlock(triggerType) {
   const trigger = triggerType === 'dateRange'
     ? { type: 'dateRange', startMonth: 12, startDay: 1, endMonth: 12, endDay: 25 }
@@ -120,9 +155,12 @@ export function freshBlock(triggerType) {
   };
 }
 
-// New channels start numbering at 5+, skipping whatever's currently
-// registered as a virtual channel (virtualChannelNumbers(), plugin-driven —
-// core has no fixed list of which numbers those are).
+/**
+ * New channels start numbering at 5+, skipping whatever's currently
+ * registered as a virtual channel (virtualChannelNumbers(), plugin-driven —
+ * core has no fixed list of which numbers those are).
+ * @returns {number} The lowest free channel number from 5 up.
+ */
 export function nextChannelNumber() {
   const floor = 5;
   const used = new Set([
@@ -136,16 +174,23 @@ export function nextChannelNumber() {
   return next;
 }
 
-// enabled: false (default) = broadcasts around the clock, same as every
-// channel before this existed. startHour/endHour use the same wrap-safe
-// hourInRange a dayOfWeek trigger already uses — endHour: 0 means "until
-// midnight" (hour>=6 || hour<0 reduces to hour>=6, since hour is never
-// negative), not "instant off at hour 0", so 6-0 reads as "6am-midnight"
-// while still using an hour the setup UI's 0-23 select can represent.
+/**
+ * enabled: false (default) = broadcasts around the clock, same as every
+ * channel before this existed. startHour/endHour use the same wrap-safe
+ * hourInRange a dayOfWeek trigger already uses — endHour: 0 means "until
+ * midnight" (hour>=6 || hour<0 reduces to hour>=6, since hour is never
+ * negative), not "instant off at hour 0", so 6-0 reads as "6am-midnight"
+ * while still using an hour the setup UI's 0-23 select can represent.
+ * @returns {object} Broadcast hours that are off (around the clock).
+ */
 export function freshBroadcastHours() {
   return { enabled: false, startHour: 6, endHour: 0 };
 }
 
+/**
+ * Builds an empty channel at the next free number, with every field defaulted.
+ * @returns {object} The new channel config, not yet added to the lineup.
+ */
 export function freshChannel() {
   return {
     number: nextChannelNumber(), name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
@@ -173,19 +218,28 @@ const LOGO_BUG_CORNER_XY = {
   'top-right': { x: 94, y: 6 }, 'top-left': { x: 4, y: 6 },
 };
 
-// One-time migration helper (app.js's applyConfigDefaults, and
-// normalizeChannel below) — folds the old corner-enum + size-px shape into
-// a single DEFAULT profile. Shared here so both call sites agree on exactly
-// the same corner-to-x/y mapping.
+/**
+ * One-time migration helper (app.js's applyConfigDefaults, and
+ * normalizeChannel below) — folds the old corner-enum + size-px shape into
+ * a single DEFAULT profile. Shared here so both call sites agree on exactly
+ * the same corner-to-x/y mapping.
+ * @param {?string} position The old corner name, such as 'bottom-right'.
+ * @param {?number} size The old square size in pixels.
+ * @returns {Array<object>} A one-item profile list holding the DEFAULT profile.
+ */
 export function foldLogoBugCorner(position, size) {
   const xy = LOGO_BUG_CORNER_XY[position] || LOGO_BUG_CORNER_XY['bottom-right'];
   return [{ id: 'default', aspect: null, resolution: null, size: size || 46, ...xy }];
 }
 
-// Migrates the former width-breakpoint shape and sanitizes hand-edited
-// configs. Old <=480 entries become SD 240 placements; wider finite
-// breakpoints become SD 480 placements. Duplicate combinations collapse
-// deterministically, and the DEFAULT is always present.
+/**
+ * Migrates the former width-breakpoint shape and sanitizes hand-edited
+ * configs. Old <=480 entries become SD 240 placements; wider finite
+ * breakpoints become SD 480 placements. Duplicate combinations collapse
+ * deterministically, and the DEFAULT is always present.
+ * @param {?Array<object>} profiles The stored logo bug profiles.
+ * @returns {Array<object>} Clean profiles, always including the DEFAULT.
+ */
 export function normalizeLogoBugProfiles(profiles) {
   const source = Array.isArray(profiles) && profiles.length ? profiles : foldLogoBugCorner(null, null);
   const seen = new Set();
@@ -223,10 +277,14 @@ export function normalizeLogoBugProfiles(profiles) {
   return normalized;
 }
 
-// Resolved pixel width/height for a profile — uses explicit width/height when
-// present, otherwise falls back to the square `size`. Consumers (playback.js,
-// setup-util.js) should call this instead of reading profile.size directly so
-// non-square images just work everywhere.
+/**
+ * Resolved pixel width/height for a profile — uses explicit width/height when
+ * present, otherwise falls back to the square `size`. Consumers (playback.js,
+ * setup-util.js) should call this instead of reading profile.size directly so
+ * non-square images just work everywhere.
+ * @param {object} profile A logo bug profile.
+ * @returns {{width: number, height: number}} The size in pixels.
+ */
 export function logoBugProfileDimensions(profile) {
   const size = profile.size || 46;
   return {
@@ -235,7 +293,12 @@ export function logoBugProfileDimensions(profile) {
   };
 }
 
-// Exact aspect+resolution wins, then a one-field match, then DEFAULT.
+/**
+ * Exact aspect+resolution wins, then a one-field match, then DEFAULT.
+ * @param {?Array<object>} profiles The logo bug profiles to pick from.
+ * @param {object} [context={}] The screen (`aspect`, `resolution`).
+ * @returns {?object} The best-matching profile, or null when there are none.
+ */
 export function pickLogoBugProfile(profiles, context = {}) {
   if (!profiles || !profiles.length) return null;
   const normalized = normalizeLogoBugProfiles(profiles);
@@ -255,6 +318,11 @@ export function pickLogoBugProfile(profiles, context = {}) {
 // <img> (updateLogoBug/renderDynamicOverlay, playback.js). Animated GIF/APNG
 // need no special-casing — an <img> already plays those natively.
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mpg', '.mpeg']);
+/**
+ * Tells whether a logo or overlay media path is a video file.
+ * @param {?string} mediaPath The file path.
+ * @returns {boolean} True for a known video extension.
+ */
 export function isVideoMediaPath(mediaPath) {
   if (!mediaPath) return false;
   const match = /\.[a-z0-9]+$/i.exec(mediaPath);
@@ -309,14 +377,18 @@ export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 
 export const DEFAULT_OVERLAY_DURATION_MS = 8000;
 
 // ---------- Generic x/y/width/height overlay-layout profiles (ticker bar) ----------
-// Shape shared with display-mode.js's OVERLAY_LAYOUT_TARGETS placement
-// system: a list of { id, aspect, resolution, x, y, width, height } — x/y are
-// 0-100 percentages of the screen (the element's top-left corner, same
-// convention as logoBugProfiles above); width/height are 0-100 percentages
-// of the screen rather than a fixed scale factor, since the ticker bar
-// (unlike the fixed-size HUD cards the scale-based targets are used for) has
-// no natural intrinsic size to scale from. null aspect/resolution are
-// wildcards, same matching precedence as pickLogoBugProfile.
+/**
+ * Shape shared with display-mode.js's OVERLAY_LAYOUT_TARGETS placement
+ * system: a list of { id, aspect, resolution, x, y, width, height } — x/y are
+ * 0-100 percentages of the screen (the element's top-left corner, same
+ * convention as logoBugProfiles above); width/height are 0-100 percentages
+ * of the screen rather than a fixed scale factor, since the ticker bar
+ * (unlike the fixed-size HUD cards the scale-based targets are used for) has
+ * no natural intrinsic size to scale from. null aspect/resolution are
+ * wildcards, same matching precedence as pickLogoBugProfile.
+ * @param {*} profiles The stored layout profiles.
+ * @returns {Array<object>} Clean profiles; an empty list when the input is not an array.
+ */
 export function normalizeOverlayLayoutProfiles(profiles) {
   if (!Array.isArray(profiles)) return [];
   return profiles.filter((p) => p && typeof p === 'object').map((p, index) => ({
@@ -330,12 +402,16 @@ export function normalizeOverlayLayoutProfiles(profiles) {
   }));
 }
 
-// Per-channel override for the ticker plugin's content (plugins/ticker) —
-// null = inherit the box-wide S.config.ticker (enabled/text/speed), same
-// inherit convention as tickerLayout/logoBugProfiles/dynamicOverlays above.
-// A present object overrides all three fields for this channel (e.g. a
-// channel that wants its own crawl text, or none at all, regardless of the
-// box-wide ticker).
+/**
+ * Per-channel override for the ticker plugin's content (plugins/ticker) —
+ * null = inherit the box-wide S.config.ticker (enabled/text/speed), same
+ * inherit convention as tickerLayout/logoBugProfiles/dynamicOverlays above.
+ * A present object overrides all three fields for this channel (e.g. a
+ * channel that wants its own crawl text, or none at all, regardless of the
+ * box-wide ticker).
+ * @param {*} content The stored per-channel ticker content.
+ * @returns {?object} `{ enabled, text, speed }`, or null to inherit the box-wide ticker.
+ */
 export function normalizeTickerContent(content) {
   if (!content || typeof content !== 'object') return null;
   return {
@@ -345,18 +421,28 @@ export function normalizeTickerContent(content) {
   };
 }
 
+// Counter that keeps ids made in the same millisecond distinct.
 let dynamicOverlayIdCounter = 0;
+/**
+ * Makes a new dynamic overlay rule id.
+ * @returns {string} An id unique within this session.
+ */
 export function newDynamicOverlayId() {
   return `ov${Date.now().toString(36)}${(dynamicOverlayIdCounter++).toString(36)}`;
 }
 
 // ---------- Seasonal/holiday logo bug icon overrides ----------
-// A ch.iconOverrides array (list of { id, startMonth, startDay, endMonth,
-// endDay, icon }) lets a channel's logo bug swap to a different icon during
-// a calendar date range (a snowflake variant in December, etc.) — resolved
-// purely from (ch, atMs), same "no separate state to maintain" shape as
-// everything else in this file. Empty/absent = today's unchanged behavior
-// (always ch.icon), same "empty array is off" convention as dynamicOverlays.
+/**
+ * A ch.iconOverrides array (list of { id, startMonth, startDay, endMonth,
+ * endDay, icon }) lets a channel's logo bug swap to a different icon during
+ * a calendar date range (a snowflake variant in December, etc.) — resolved
+ * purely from (ch, atMs), same "no separate state to maintain" shape as
+ * everything else in this file. Empty/absent = today's unchanged behavior
+ * (always ch.icon), same "empty array is off" convention as dynamicOverlays.
+ * @param {number} atMs The time to test, epoch milliseconds.
+ * @param {object} o An override with `startMonth`, `startDay`, `endMonth` and `endDay`.
+ * @returns {boolean} True when the date falls in the range.
+ */
 function inMonthDayRange(atMs, o) {
   const d = new Date(atMs);
   const md = (d.getMonth() + 1) * 100 + d.getDate();
@@ -368,6 +454,11 @@ function inMonthDayRange(atMs, o) {
   return md >= start || md <= end;
 }
 
+/**
+ * Cleans a channel's seasonal icon overrides, clamping each date and filling in ids.
+ * @param {*} overrides The stored overrides.
+ * @returns {Array<object>} Clean overrides; an empty list when the input is not an array.
+ */
 export function normalizeIconOverrides(overrides) {
   if (!Array.isArray(overrides)) return [];
   return overrides.filter((o) => o && typeof o === 'object').map((o) => ({
@@ -380,13 +471,18 @@ export function normalizeIconOverrides(overrides) {
   }));
 }
 
-// The logo bug's actual effective icon at a given instant — first matching
-// date-range override wins, falling back to the channel's plain ch.icon.
-// Both updateLogoBug and applyLogoBugGhost (playback.js) call this instead
-// of reading ch.icon directly, so the seasonal swap applies to the real bug
-// and its burn-in ghost alike. buildChannelBadge (below) deliberately does
-// NOT use this — the channel-list badge represents the channel's base
-// identity for editing, not whatever's seasonally active right now.
+/**
+ * The logo bug's actual effective icon at a given instant — first matching
+ * date-range override wins, falling back to the channel's plain ch.icon.
+ * Both updateLogoBug and applyLogoBugGhost (playback.js) call this instead
+ * of reading ch.icon directly, so the seasonal swap applies to the real bug
+ * and its burn-in ghost alike. buildChannelBadge (below) deliberately does
+ * NOT use this — the channel-list badge represents the channel's base
+ * identity for editing, not whatever's seasonally active right now.
+ * @param {?object} ch The channel config.
+ * @param {number} atMs The time to resolve at, epoch milliseconds.
+ * @returns {?string} The icon path, or null.
+ */
 export function resolveEffectiveIcon(ch, atMs) {
   if (!ch) return null;
   const overrides = ch.iconOverrides || [];
@@ -394,11 +490,15 @@ export function resolveEffectiveIcon(ch, atMs) {
   return (match && match.icon) || ch.icon || null;
 }
 
-// A rule with no mediaPath yet (just added, media not chosen) is still kept
-// — the setup-screen list needs it to survive re-render so the user has a
-// row to pick a file into (see buildDynamicOverlaysEditor, setup-util.js).
-// The runtime side (triggerDynamicOverlays, dynamic-overlays.js) is what
-// actually skips a mediaPath-less rule when deciding what to show.
+/**
+ * A rule with no mediaPath yet (just added, media not chosen) is still kept
+ * — the setup-screen list needs it to survive re-render so the user has a
+ * row to pick a file into (see buildDynamicOverlaysEditor, setup-util.js).
+ * The runtime side (triggerDynamicOverlays, dynamic-overlays.js) is what
+ * actually skips a mediaPath-less rule when deciding what to show.
+ * @param {*} rules The stored dynamic overlay rules.
+ * @returns {Array<object>} Clean rules with a known trigger.
+ */
 export function normalizeDynamicOverlays(rules) {
   if (!Array.isArray(rules)) return [];
   const triggerIds = new Set(DYNAMIC_OVERLAY_TRIGGERS.map((t) => t.id));
@@ -420,50 +520,70 @@ export function normalizeDynamicOverlays(rules) {
     }));
 }
 
-// A folder/file's `source` names which media-source provider it came from —
-// 'local' for the filesystem (the only provider that exists today; plugin
-// providers arrive in a later phase of the media-source abstraction work).
-// The id is deliberately content-derived (source+ref), not random, so the
-// same physical folder always resolves to the same ch.folders[] entry id
-// everywhere it's referenced — normalizeChannel's migration below depends on
-// this being idempotent across every boot, and curation.js depends on it to
-// resolve a copied file's `folder` id back to a real entry on another
-// channel (findFolderEntry).
+/**
+ * A folder/file's `source` names which media-source provider it came from —
+ * 'local' for the filesystem (the only provider that exists today; plugin
+ * providers arrive in a later phase of the media-source abstraction work).
+ * The id is deliberately content-derived (source+ref), not random, so the
+ * same physical folder always resolves to the same ch.folders[] entry id
+ * everywhere it's referenced — normalizeChannel's migration below depends on
+ * this being idempotent across every boot, and curation.js depends on it to
+ * resolve a copied file's `folder` id back to a real entry on another
+ * channel (findFolderEntry).
+ * @param {string} source The provider id, such as 'local'.
+ * @param {string} ref The provider's own reference, such as a folder path.
+ * @returns {string} The folder entry id.
+ */
 export function mediaRefId(source, ref) {
   return `src_${source}_${hashString(`${source}:${ref}`)}`;
 }
 
-// Renderer-side mirror of main-media-dispatch.js's parseMediaRef/
-// wrapMediaRef (main process) — small enough, and needed rarely enough
-// (unwrapping a freshly-scanned plugin ref back to its raw form before
-// probing — see rescanAllFolders, setup-channels.js), that duplicating the
-// pure logic here beats an IPC round-trip just to parse a string. Same
-// reasoning as setup-dragdrop.js's own small VIDEO_EXTENSIONS mirror of
-// main-media.js's. `ch.files[].path` for a plugin-sourced file is always
-// the WRAPPED form (mediasource:<source>:<ref>) — main.js's fs:scanFolder
-// handler applies wrapMediaRef once, at the point a ref first enters
-// config, so a provider's own list()/probe()/readRange() always work with
-// their own natural unprefixed refs and never need to know this scheme
-// exists.
+/**
+ * Renderer-side mirror of main-media-dispatch.js's parseMediaRef/
+ * wrapMediaRef (main process) — small enough, and needed rarely enough
+ * (unwrapping a freshly-scanned plugin ref back to its raw form before
+ * probing — see rescanAllFolders, setup-channels.js), that duplicating the
+ * pure logic here beats an IPC round-trip just to parse a string. Same
+ * reasoning as setup-dragdrop.js's own small VIDEO_EXTENSIONS mirror of
+ * main-media.js's. `ch.files[].path` for a plugin-sourced file is always
+ * the WRAPPED form (mediasource:<source>:<ref>) — main.js's fs:scanFolder
+ * handler applies wrapMediaRef once, at the point a ref first enters
+ * config, so a provider's own list()/probe()/readRange() always work with
+ * their own natural unprefixed refs and never need to know this scheme
+ * exists.
+ * @param {string} ref A file path or a wrapped `mediasource:` ref.
+ * @returns {{source: string, ref: string}} The provider id and its raw ref.
+ */
 export function parseMediaRef(ref) {
   const m = /^mediasource:([a-zA-Z0-9_-]+):([\s\S]*)$/.exec(ref);
   if (!m) return { source: 'local', ref };
   return { source: m[1], ref: m[2] };
 }
 
+/**
+ * Wraps a provider's raw ref as `mediasource:<source>:<ref>`.
+ * @param {string} source The provider id.
+ * @param {string} rawRef The provider's own ref.
+ * @returns {string} The wrapped ref stored in a file's `path`.
+ */
 export function wrapMediaRef(source, rawRef) {
   return `mediasource:${source}:${rawRef}`;
 }
 
-// Optional per-provider verb (PLUGIN_DEVELOPMENT.md's "Media sources"
-// section) — a plugin-sourced file's `path` is that provider's opaque ref
-// (e.g. a Drive file id), which has no meaningful basename the way a local
-// path's filename does, so without this any UI showing a file's name falls
-// back to the raw ref (getDisplayTitle, util.js). Lives here (not in
-// setup-channels.js, where it originated, or setup-interstitials.js, which
-// also needs it) specifically to avoid those two setup-screen modules
-// importing from each other — this file is pure logic both already depend
-// on either way.
+/**
+ * Optional per-provider verb (PLUGIN_DEVELOPMENT.md's "Media sources"
+ * section) — a plugin-sourced file's `path` is that provider's opaque ref
+ * (e.g. a Drive file id), which has no meaningful basename the way a local
+ * path's filename does, so without this any UI showing a file's name falls
+ * back to the raw ref (getDisplayTitle, util.js). Lives here (not in
+ * setup-channels.js, where it originated, or setup-interstitials.js, which
+ * also needs it) specifically to avoid those two setup-screen modules
+ * importing from each other — this file is pure logic both already depend
+ * on either way.
+ * @param {string} providerId The media-source provider id.
+ * @param {string} rawRef The provider's own ref.
+ * @returns {Promise<?string>} The display name, or null when the provider has none or fails.
+ */
 export async function tryGetDisplayName(providerId, rawRef) {
   try {
     return await window.api.callMediaSourceHook(providerId, 'getDisplayName', rawRef);
@@ -472,14 +592,19 @@ export async function tryGetDisplayName(providerId, rawRef) {
   }
 }
 
-// Optional per-provider verb, same shape as tryGetDisplayName above: a
-// provider that can identify real descriptive metadata for a specific file
-// (not just a cleaned-up name) can register `getMetadata(ref)` to return
-// `{ description?, facets?: { genre?, era?, contentType? } }` — merged into
-// the new file's own `description`/`facets` fields at scan time
-// (addPluginSourceToChannel below), same one-time-at-scan timing as
-// getDisplayName's title. Absent or throwing is a normal, silent no-op —
-// most providers won't implement this at all.
+/**
+ * Optional per-provider verb, same shape as tryGetDisplayName above: a
+ * provider that can identify real descriptive metadata for a specific file
+ * (not just a cleaned-up name) can register `getMetadata(ref)` to return
+ * `{ description?, facets?: { genre?, era?, contentType? } }` — merged into
+ * the new file's own `description`/`facets` fields at scan time
+ * (addPluginSourceToChannel below), same one-time-at-scan timing as
+ * getDisplayName's title. Absent or throwing is a normal, silent no-op —
+ * most providers won't implement this at all.
+ * @param {string} providerId The media-source provider id.
+ * @param {string} rawRef The provider's own ref.
+ * @returns {Promise<?object>} The metadata, or null when the provider has none or fails.
+ */
 export async function tryGetMetadata(providerId, rawRef) {
   try {
     return await window.api.callMediaSourceHook(providerId, 'getMetadata', rawRef);
@@ -488,13 +613,17 @@ export async function tryGetMetadata(providerId, rawRef) {
   }
 }
 
-// A saved curation profile's contentPoolScope.folders (setup-autocurate.js)
-// may still hold legacy raw path strings from before ch.folders[] entries
-// had ids — resolve each to its current entry id (matching by ref) so an
-// old profile's explicit folder subset keeps scoping correctly after the
-// shape change, without a separate one-time config migration pass. A value
-// that's already an id (or matches nothing at all — its folder was since
-// removed) passes through unchanged.
+/**
+ * A saved curation profile's contentPoolScope.folders (setup-autocurate.js)
+ * may still hold legacy raw path strings from before ch.folders[] entries
+ * had ids — resolve each to its current entry id (matching by ref) so an
+ * old profile's explicit folder subset keeps scoping correctly after the
+ * shape change, without a separate one-time config migration pass. A value
+ * that's already an id (or matches nothing at all — its folder was since
+ * removed) passes through unchanged.
+ * @param {Array<string>} scopeFolders Folder ids or legacy raw paths.
+ * @returns {Array<string>} The same list with paths swapped for entry ids where one matches.
+ */
 export function resolveScopeFolderIds(scopeFolders) {
   const allEntries = [];
   S.config.channels.forEach((c) => (c.folders || []).forEach((e) => allEntries.push(e)));
@@ -505,13 +634,17 @@ export function resolveScopeFolderIds(scopeFolders) {
   });
 }
 
-// Resolves a ch.files[]/block.files[] entry's `folder` id back to its
-// owning ch.folders[] entry — scans every channel, not just one, because a
-// curated channel's files can carry a folder id that originated on a
-// different channel than the one they were copied into (curation.js copies
-// files by reference-equal id, not by re-scanning). Returns null if no
-// channel's folders[] still has it (e.g. the source folder was later
-// removed from its original channel).
+/**
+ * Resolves a ch.files[]/block.files[] entry's `folder` id back to its
+ * owning ch.folders[] entry — scans every channel, not just one, because a
+ * curated channel's files can carry a folder id that originated on a
+ * different channel than the one they were copied into (curation.js copies
+ * files by reference-equal id, not by re-scanning). Returns null if no
+ * channel's folders[] still has it (e.g. the source folder was later
+ * removed from its original channel).
+ * @param {?string} folderId The folder entry id.
+ * @returns {?object} The folder entry, or null.
+ */
 export function findFolderEntry(folderId) {
   if (!folderId) return null;
   for (const c of S.config.channels) {
@@ -521,24 +654,33 @@ export function findFolderEntry(folderId) {
   return null;
 }
 
-// Merges a second list of ch.folders[] entries into an existing one,
-// de-duped by id (object identity/reference can't be relied on — the
-// incoming entries are usually freshly resolved copies, not the same
-// objects). Existing entries win on conflict (keeps any user-edited label).
+/**
+ * Merges a second list of ch.folders[] entries into an existing one,
+ * de-duped by id (object identity/reference can't be relied on — the
+ * incoming entries are usually freshly resolved copies, not the same
+ * objects). Existing entries win on conflict (keeps any user-edited label).
+ * @param {?Array<object>} existing The current folder entries.
+ * @param {?Array<object>} incoming The entries to add.
+ * @returns {Array<object>} The merged entries.
+ */
 export function mergeFolderEntries(existing, incoming) {
   const byId = new Map((existing || []).map((e) => [e.id, e]));
   (incoming || []).forEach((e) => { if (!byId.has(e.id)) byId.set(e.id, e); });
   return Array.from(byId.values());
 }
 
-// Migrates old single-folder configs (ch.folder + ch.files with no folder tag)
-// to the multi-folder shape (ch.folders[] + each file tagged with its source
-// folder), then further migrates bare-path ch.folders[] entries (pre-dating
-// the media-source abstraction) into { id, source, ref, label } objects —
-// see mediaRefId above for why the id is content-derived rather than random.
-// Also migrates the old ch.commercials/ch.commercialsEnabled to the new
-// ch.adsEnabled boolean — all break scheduling now lives in the Programming
-// tab's flows/presets, not on the channel object.
+/**
+ * Migrates old single-folder configs (ch.folder + ch.files with no folder tag)
+ * to the multi-folder shape (ch.folders[] + each file tagged with its source
+ * folder), then further migrates bare-path ch.folders[] entries (pre-dating
+ * the media-source abstraction) into { id, source, ref, label } objects —
+ * see mediaRefId above for why the id is content-derived rather than random.
+ * Also migrates the old ch.commercials/ch.commercialsEnabled to the new
+ * ch.adsEnabled boolean — all break scheduling now lives in the Programming
+ * tab's flows/presets, not on the channel object.
+ * @param {object} ch The channel config, changed in place.
+ * @returns {object} The same channel.
+ */
 export function normalizeChannel(ch) {
   if (!ch.folders) {
     ch.folders = ch.folder ? [ch.folder] : [];
@@ -653,26 +795,39 @@ export function normalizeChannel(ch) {
   return ch;
 }
 
-// A small set of on-brand accent colors (matching the design system's
-// palette family) rather than arbitrary hues, so placeholder badges look
-// chosen, not random. Picked deterministically per channel so a given
-// channel keeps the same color across re-renders.
-
+/**
+ * A small set of on-brand accent colors (matching the design system's
+ * palette family) rather than arbitrary hues, so placeholder badges look
+ * chosen, not random. Picked deterministically per channel so a given
+ * channel keeps the same color across re-renders.
+ * @param {object} ch The channel config.
+ * @returns {string} A CSS colour from `BADGE_COLORS`.
+ */
 export function badgeColor(ch) {
   const key = String(ch.number) + (ch.name || '');
   return BADGE_COLORS[hashString(key) % BADGE_COLORS.length];
 }
 
-// User-picked accent wins over the deterministic auto-assignment.
+/**
+ * User-picked accent wins over the deterministic auto-assignment.
+ * @param {object} ch The channel config.
+ * @returns {string} A CSS colour.
+ */
 export function channelColor(ch) {
   return ch.color || badgeColor(ch);
 }
 
-// Custom icon if set, otherwise a colored placeholder badge showing the
-// channel number. Editable (click to assign/change) on the setup screen;
-// read-only wherever it's just shown for reference, like the guide grid —
-// that's a browsing view, not a place to be editing channel config from.
-
+/**
+ * Custom icon if set, otherwise a colored placeholder badge showing the
+ * channel number. Editable (click to assign/change) on the setup screen;
+ * read-only wherever it's just shown for reference, like the guide grid —
+ * that's a browsing view, not a place to be editing channel config from.
+ * @param {object} ch The channel config; an edit sets its `icon` in place.
+ * @param {object} [opts] Badge options.
+ * @param {boolean} [opts.small] Use the small badge style.
+ * @param {boolean} [opts.editable=true] Let a click choose a new icon.
+ * @returns {HTMLElement} The badge element.
+ */
 export function buildChannelBadge(ch, opts) {
   opts = opts || {};
   const el = document.createElement('div');
@@ -710,6 +865,10 @@ export function buildChannelBadge(ch, opts) {
   return el;
 }
 
+/**
+ * Reads how many half-hour slots the guide shows across.
+ * @returns {number} The `display.guideSlots` setting, or 3.
+ */
 export function guideSlots() {
   return (S.config.display && S.config.display.guideSlots) || 3;
 }
@@ -723,6 +882,9 @@ let sortedChannelsCache = null;
 let sortedChannelsCacheGen = -1;
 let channelByNumberCache = null;
 
+/**
+ * Rebuilds the sorted list and the number lookup when the config generation has moved.
+ */
 function ensureChannelCaches() {
   if (S.configGeneration !== sortedChannelsCacheGen) {
     sortedChannelsCache = [...S.config.channels].sort((a, b) => a.number - b.number);
@@ -731,45 +893,60 @@ function ensureChannelCaches() {
   }
 }
 
+/**
+ * Lists every channel in number order, memoized on `S.configGeneration`.
+ * @returns {Array<object>} The shared sorted array; do not mutate it.
+ */
 export function sortedChannels() {
   ensureChannelCaches();
   return sortedChannelsCache;
 }
 
 // ---------- Channel numbering ----------
-// A channel number is a Number, and may carry one decimal place so a channel
-// can sit at 7.1 / 7.2 the way a digital broadcast sub-channel does. One
-// place only, and rounded on the way in: everything downstream keys channel
-// lookups on the raw Number (the Map in ensureChannelCaches above), so two
-// values that merely print the same but differ in the last bits of a double
-// would silently be two different channels. Rounding at every entry point is
-// what guarantees a config-loaded 7.1 and a typed 7.1 are the same key.
-//
-// Integers are untouched by all of this — they sort, compare and format
-// exactly as they always did, so a lineup with no sub-channels behaves
-// identically to before.
+/**
+ * A channel number is a Number, and may carry one decimal place so a channel
+ * can sit at 7.1 / 7.2 the way a digital broadcast sub-channel does. One
+ * place only, and rounded on the way in: everything downstream keys channel
+ * lookups on the raw Number (the Map in ensureChannelCaches above), so two
+ * values that merely print the same but differ in the last bits of a double
+ * would silently be two different channels. Rounding at every entry point is
+ * what guarantees a config-loaded 7.1 and a typed 7.1 are the same key.
+ *
+ * Integers are untouched by all of this — they sort, compare and format
+ * exactly as they always did, so a lineup with no sub-channels behaves
+ * identically to before.
+ * @param {number} number A channel number.
+ * @returns {boolean} True for a number with a decimal part.
+ */
 export function isSubChannel(number) {
   return Number.isFinite(number) && !Number.isInteger(number);
 }
 
-// Whether this box offers sub-channel numbering at all. Off by default:
-// most lineups are whole numbers throughout, and turning it on makes a
-// number box's up/down arrows step in tenths, which is a nuisance for
-// everyone who never wanted a 7.1.
-//
-// It gates the ways a sub-channel can be ENTERED (the setup screen's number
-// box, the keypad separator) and nothing else. Lookup, sorting, formatting
-// and tuning always handle a decimal number, so a lineup that already has
-// one keeps working — including on the remote, via the guide or a favorite —
-// if the option is later switched back off. Anything else would strand a
-// channel the user can see but cannot reach.
+/**
+ * Whether this box offers sub-channel numbering at all. Off by default:
+ * most lineups are whole numbers throughout, and turning it on makes a
+ * number box's up/down arrows step in tenths, which is a nuisance for
+ * everyone who never wanted a 7.1.
+ *
+ * It gates the ways a sub-channel can be ENTERED (the setup screen's number
+ * box, the keypad separator) and nothing else. Lookup, sorting, formatting
+ * and tuning always handle a decimal number, so a lineup that already has
+ * one keeps working — including on the remote, via the guide or a favorite —
+ * if the option is later switched back off. Anything else would strand a
+ * channel the user can see but cannot reach.
+ * @returns {boolean} True when sub-channel numbers may be entered.
+ */
 export function subChannelsEnabled() {
   return !!(S.config.subChannels && S.config.subChannels.enabled);
 }
 
-// "07" for a whole number, "07.1" for a sub-channel. The two-digit main part
-// is kept for both so badges, guide rows and the number entry overlay stay
-// visually aligned with every existing integer channel.
+/**
+ * "07" for a whole number, "07.1" for a sub-channel. The two-digit main part
+ * is kept for both so badges, guide rows and the number entry overlay stay
+ * visually aligned with every existing integer channel.
+ * @param {number} number A channel number.
+ * @returns {string} The display number, or '--' for a non-number.
+ */
 export function formatChannelNumber(number) {
   if (!Number.isFinite(number)) return '--';
   const main = String(Math.trunc(Math.abs(number))).padStart(2, '0');
@@ -778,23 +955,30 @@ export function formatChannelNumber(number) {
   return `${main}.${sub}`;
 }
 
-// Accepts "7", "7.1" and "7-1" (a dash is how a set-top box prints a
-// sub-channel, and how someone is likely to type one). Returns NaN for
-// anything else, including a second decimal place — callers treat NaN as
-// "not a channel number" rather than silently tuning somewhere unexpected.
+/**
+ * Accepts "7", "7.1" and "7-1" (a dash is how a set-top box prints a
+ * sub-channel, and how someone is likely to type one). Returns NaN for
+ * anything else, including a second decimal place — callers treat NaN as
+ * "not a channel number" rather than silently tuning somewhere unexpected.
+ * @param {*} text The typed channel number.
+ * @returns {number} The channel number, or NaN.
+ */
 export function parseChannelNumber(text) {
   const raw = String(text == null ? '' : text).trim().replace('-', '.').replace(/\.$/, '');
   if (!/^\d{1,3}(\.\d)?$/.test(raw)) return NaN;
   return Math.round(parseFloat(raw) * 10) / 10;
 }
 
-// Channels shown in the time-grid guide, narrowed by S.guideFilterQuery, and
-// always excluding ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) —
-// a hidden channel is meant to read as "not in the lineup," not just
-// filtered out of a search. Surfing (changeChannel) applies the same
-// ch.hidden exclusion itself (playback.js), but deliberately ignores
-// S.guideFilterQuery — a search filter in the guide shouldn't change what
-// channel-up/down cycles through.
+/**
+ * Channels shown in the time-grid guide, narrowed by S.guideFilterQuery, and
+ * always excluding ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) —
+ * a hidden channel is meant to read as "not in the lineup," not just
+ * filtered out of a search. Surfing (changeChannel) applies the same
+ * ch.hidden exclusion itself (playback.js), but deliberately ignores
+ * S.guideFilterQuery — a search filter in the guide shouldn't change what
+ * channel-up/down cycles through.
+ * @returns {Array<object>} The guide's channel list after the view and search filters.
+ */
 export function filteredChannels() {
   const q = S.guideFilterQuery.trim().toLowerCase();
   const list = applyGuideView(
@@ -806,23 +990,33 @@ export function filteredChannels() {
   return list.filter((ch) => (ch.name || '').toLowerCase().includes(q) || String(ch.number).includes(q));
 }
 
+/**
+ * Looks up a channel by number, memoized on `S.configGeneration`.
+ * @param {number} number The channel number.
+ * @returns {?object} The channel config, or null.
+ */
 export function getChannel(number) {
   ensureChannelCaches();
   return channelByNumberCache.get(number) || null;
 }
 
-// Appends already-probed files to a channel's playlist — dedupes by path
-// (so re-adding the same file is a silent no-op, not a duplicate playlist
-// entry), reshuffles if the channel is in shuffle mode, and anchors a
-// never-yet-played channel to "now" so it doesn't sit unanchored. `entries`
-// is [{path, duration, folder, source}] — folder is null for anything not
-// tied to a tracked ch.folders[] source (a one-off drag-drop, a plugin-added
-// file); source defaults to 'local' since every caller today (drag-drop,
-// plugins via ctx.addFilesToChannel) only ever adds local-filesystem files —
-// a future media-source plugin passing its own refs would set source itself.
-// Shared by setup-dragdrop.js and exposed to plugins via ctx.addFilesToChannel
-// (plugins.js) so a plugin can add channel content without knowing the
-// channel object's shape.
+/**
+ * Appends already-probed files to a channel's playlist — dedupes by path
+ * (so re-adding the same file is a silent no-op, not a duplicate playlist
+ * entry), reshuffles if the channel is in shuffle mode, and anchors a
+ * never-yet-played channel to "now" so it doesn't sit unanchored. `entries`
+ * is [{path, duration, folder, source}] — folder is null for anything not
+ * tied to a tracked ch.folders[] source (a one-off drag-drop, a plugin-added
+ * file); source defaults to 'local' since every caller today (drag-drop,
+ * plugins via ctx.addFilesToChannel) only ever adds local-filesystem files —
+ * a future media-source plugin passing its own refs would set source itself.
+ * Shared by setup-dragdrop.js and exposed to plugins via ctx.addFilesToChannel
+ * (plugins.js) so a plugin can add channel content without knowing the
+ * channel object's shape.
+ * @param {object} ch The channel config, changed in place.
+ * @param {Array<object>} entries Probed files (`path`, `duration`, `folder`, `source`).
+ * @returns {Array<object>} The entries that were actually added.
+ */
 export function addFilesToChannel(ch, entries) {
   const existing = new Set(ch.files.map((f) => f.path));
   const added = [];
@@ -840,13 +1034,12 @@ export function addFilesToChannel(ch, entries) {
   return added;
 }
 
-// Pushes one interstitials-pool entry, filling in the same defaults every
-// pool-add call site already used by hand (id/type/channelAffinity/
-// blockAffinity/weight) — `fields` overrides any of those plus file/text.
-// Shared by setup-interstitials.js and setup-dragdrop.js, and exposed to
-// plugins via ctx.addInterstitialPoolEntry.
-// A pool entry with defaults, not yet in config — for callers that add it
-// through a command (item.insert) so the add is undoable.
+/**
+ * A pool entry with defaults, not yet in config — for callers that add it
+ * through a command (item.insert) so the add is undoable.
+ * @param {object} fields Values that override the defaults (`type`, `file`, `text`, affinities, weight).
+ * @returns {object} The new pool entry.
+ */
 export function newInterstitialPoolEntry(fields) {
   return {
     id: randomInterstitialId(), type: 'commercial', channelAffinity: 'any', blockAffinity: null, weight: 1,
@@ -854,6 +1047,15 @@ export function newInterstitialPoolEntry(fields) {
   };
 }
 
+/**
+ * Pushes one interstitials-pool entry, filling in the same defaults every
+ * pool-add call site already used by hand (id/type/channelAffinity/
+ * blockAffinity/weight) — `fields` overrides any of those plus file/text.
+ * Shared by setup-interstitials.js and setup-dragdrop.js, and exposed to
+ * plugins via ctx.addInterstitialPoolEntry.
+ * @param {object} fields Values that override the defaults.
+ * @returns {object} The entry, now in `S.config.interstitials.pool`.
+ */
 export function addInterstitialPoolEntry(fields) {
   const entry = newInterstitialPoolEntry(fields);
   S.config.interstitials.pool.push(entry);

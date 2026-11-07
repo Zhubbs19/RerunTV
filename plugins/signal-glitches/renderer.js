@@ -33,6 +33,9 @@ const ctx2d = canvas.getContext('2d');
 let drawTimer = null;
 let scheduleTimer = null;
 
+/**
+ * Draws one frame of grey static with one or two torn bands.
+ */
 function drawNoise() {
   const w = canvas.width, h = canvas.height;
   const imgData = ctx2d.createImageData(w, h);
@@ -53,13 +56,20 @@ function drawNoise() {
   }
 }
 
-// "Glitch length" (settings): every effect's duration is its base length times
-// this, so a glitch can be a flicker or a proper dropout.
+/**
+ * "Glitch length" (settings): every effect's duration is its base length times
+ * this, so a glitch can be a flicker or a proper dropout.
+ * @returns {number} The length multiplier, 0.25 to 4; 1 by default.
+ */
 function lengthScale() {
   const n = Number((window.RCBPlugins.ctx.getPluginSettings('signal-glitches') || {}).lengthScale);
   return Number.isFinite(n) ? Math.min(4, Math.max(0.25, n)) : 1;
 }
 
+/**
+ * Reads this plugin's settings with defaults applied.
+ * @returns {object} `{ enabled, minIntervalMin, maxIntervalMin, intensity, effectStatic, effectRoll, effectDropout }`.
+ */
 function cfg() {
   const settings = window.RCBPlugins.ctx.getPluginSettings('signal-glitches');
   const effects = settings.effects || {};
@@ -77,6 +87,10 @@ function cfg() {
   };
 }
 
+/**
+ * Whether a glitch may fire now: the box is on and no alert, credits speed-up, guide or full page is up.
+ * @returns {boolean} True when a glitch may fire.
+ */
 function isEligibleNow() {
   const S = window.RCBPlugins.ctx.S;
   if (!S.isPoweredOn || S.easActive || S.creditsSpeedupActive) return false;
@@ -89,6 +103,10 @@ function isEligibleNow() {
   return true;
 }
 
+/**
+ * Shows a short static-and-tear burst with a noise sound, then schedules the next glitch.
+ * @param {number} intensity Strength in percent, 0 to 100.
+ */
 function fireStaticGlitch(intensity) {
   rootEl.classList.remove('hidden');
   canvas.style.setProperty('--glitch-opacity', String(Math.max(0, Math.min(1, intensity / 100)) * 0.7));
@@ -104,6 +122,10 @@ function fireStaticGlitch(intensity) {
   }, GLITCH_DURATION_MS * lengthScale());
 }
 
+/**
+ * Rolls the picture briefly with a CSS transform, then schedules the next glitch.
+ * @param {number} intensity Strength in percent, 0 to 100.
+ */
 function firePictureRoll(intensity) {
   const crt = document.querySelector('.crt');
   if (!crt) { scheduleNext(); return; }
@@ -118,14 +140,17 @@ function firePictureRoll(intensity) {
   }, ROLL_DURATION_MS * lengthScale());
 }
 
-// Directly modulates the real <video> element's own playbackRate/volume —
-// affects whatever's actually playing (content or a bumper), not a
-// synthesized SFX layered on top. Restores both to whatever they were
-// immediately before this fired; a real volume/rate change made by the
-// user mid-wobble (rare, ~1.2s window) could get momentarily overwritten by
-// that restore, same acceptable trade-off scheduleCreditsSpeedup already
-// makes with playbackRate — isEligibleNow's creditsSpeedupActive check
-// keeps the two features from ever fighting over it at the same time.
+/**
+ * Directly modulates the real <video> element's own playbackRate/volume —
+ * affects whatever's actually playing (content or a bumper), not a
+ * synthesized SFX layered on top. Restores both to whatever they were
+ * immediately before this fired; a real volume/rate change made by the
+ * user mid-wobble (rare, ~1.2s window) could get momentarily overwritten by
+ * that restore, same acceptable trade-off scheduleCreditsSpeedup already
+ * makes with playbackRate — isEligibleNow's creditsSpeedupActive check
+ * keeps the two features from ever fighting over it at the same time.
+ * @param {number} intensity Strength in percent, 0 to 100.
+ */
 function fireAudioDropout(intensity) {
   const { player } = window.RCBPlugins.ctx;
   if (!player) { scheduleNext(); return; }
@@ -146,6 +171,9 @@ function fireAudioDropout(intensity) {
   }, DROPOUT_STEP_MS);
 }
 
+/**
+ * Fires one randomly chosen enabled glitch effect, or reschedules when none may run now.
+ */
 function fireGlitch() {
   const c = cfg();
   if (!isEligibleNow()) { scheduleNext(); return; }
@@ -157,6 +185,9 @@ function fireGlitch() {
   available[Math.floor(Math.random() * available.length)]();
 }
 
+/**
+ * Arms the next glitch at a random time between the minimum and maximum interval; does nothing while off.
+ */
 function scheduleNext() {
   clearTimeout(scheduleTimer);
   const { enabled, minIntervalMin, maxIntervalMin } = cfg();
@@ -167,9 +198,11 @@ function scheduleNext() {
   scheduleTimer = setTimeout(fireGlitch, delayMs);
 }
 
-// Exported so the settings panel can re-arm the timer immediately after the
-// enabled/interval/effect fields change, instead of waiting for whatever
-// delay was already in flight from before the edit.
+/**
+ * Exported so the settings panel can re-arm the timer immediately after the
+ * enabled/interval/effect fields change, instead of waiting for whatever
+ * delay was already in flight from before the edit.
+ */
 export function rearmSignalGlitches() {
   scheduleNext();
 }

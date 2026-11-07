@@ -47,12 +47,15 @@ const sliderReadouts = [
   .concat([guideAnimSpeedSlider, guideCardDurationSlider, upNextDurationSlider].map((s) => attachSliderReadout(s, { suffix: 'ms' })))
   .concat([reminderLeadMinutesSlider].map((s) => attachSliderReadout(s, { suffix: ' MIN' })));
 
-// Mirrors guide.js's own guideLivePreviewEnabled() (not exported/shared —
-// this one only needs the box-wide default, not the per-channel theme
-// override guide.js also has to account for) so the checkbox reflects the
-// theme-provided default until the user explicitly sets a value of their
-// own, at which point that explicit choice always wins. See
-// registerThemePack's guidePreviewDefault field (plugins.js).
+/**
+ * Mirrors guide.js's own guideLivePreviewEnabled() (not exported/shared —
+ * this one only needs the box-wide default, not the per-channel theme
+ * override guide.js also has to account for) so the checkbox reflects the
+ * theme-provided default until the user explicitly sets a value of their
+ * own, at which point that explicit choice always wins. See
+ * registerThemePack's guidePreviewDefault field (plugins.js).
+ * @returns {boolean} Whether the guide's live preview is on, from the explicit setting or else the active theme pack's default.
+ */
 function effectiveGuideLivePreview() {
   const display = S.config.display || {};
   if (Object.prototype.hasOwnProperty.call(display, 'guideLivePreview')) return !!display.guideLivePreview;
@@ -73,6 +76,9 @@ function effectiveGuideLivePreview() {
 // already invisible because the plugin is off isn't mistaken for broken.
 const PLUGIN_DEPENDENT_HINT_NAMES = { 'alert-test': 'EAS Alerts', 'news-alert': 'Breaking News Alerts', 'sap-audio': 'SAP / Alternate Audio' };
 
+/**
+ * Rebuilds the hint bar item checkboxes from the live `#hint-bar` spans, skipping TV-mode hints, and adds the plugin-dependent note when needed.
+ */
 function renderHintBarItemsList() {
   if (!hintBarItemsListEl || !hintBarEl) return;
   hintBarItemsListEl.innerHTML = '';
@@ -109,6 +115,9 @@ function renderHintBarItemsList() {
   }
 }
 
+/**
+ * Rebuilds the theme select from the installed theme packs, grouped in `THEME_GROUP_ORDER`, keeping the current choice listed even when its pack is missing.
+ */
 function renderThemeSelectOptions() {
   const current = themeSelect.value;
   themeSelect.innerHTML = '';
@@ -149,10 +158,12 @@ function renderThemeSelectOptions() {
   }
 }
 
-// Box-wide default logo bug placement — rebuilt each time the settings
-// screen is (re)shown, same as renderHintBarItemsList above, since the
-// editor's own DOM isn't kept in sync with S.config any other way (it only
-// mutates the array it was handed, it doesn't re-read S.config on its own).
+/**
+ * Box-wide default logo bug placement — rebuilt each time the settings
+ * screen is (re)shown, same as renderHintBarItemsList above, since the
+ * editor's own DOM isn't kept in sync with S.config any other way (it only
+ * mutates the array it was handed, it doesn't re-read S.config on its own).
+ */
 function renderLogoBugEditor() {
   logoBugEditorEl.innerHTML = '';
   logoBugEditorEl.appendChild(buildLogoBugProfileEditor(
@@ -165,8 +176,10 @@ function renderLogoBugEditor() {
   ));
 }
 
-// Box-wide default dynamic-overlay rules — same rebuild-on-show reasoning as
-// renderLogoBugEditor above.
+/**
+ * Box-wide default dynamic-overlay rules — same rebuild-on-show reasoning as
+ * renderLogoBugEditor above.
+ */
 function renderDynamicOverlaysEditor() {
   dynamicOverlaysEditorEl.innerHTML = '';
   dynamicOverlaysEditorEl.appendChild(buildDynamicOverlaysEditor(
@@ -178,6 +191,9 @@ function renderDynamicOverlaysEditor() {
   ));
 }
 
+/**
+ * Builds one row per custom sound slot with CHOOSE, BUILT-IN and SILENT buttons and the slot's current source.
+ */
 function renderCustomSoundSettings() {
   const root = document.getElementById('custom-sounds-list');
   if (!root) return;
@@ -215,6 +231,9 @@ function renderCustomSoundSettings() {
   });
 }
 
+/**
+ * Copies the loaded config into every box-wide settings control and re-renders the panels that build their own lists. Called each time the setup screen is shown and after config is replaced.
+ */
 export function renderSettingsPanels() {
   const ci = S.config.crtIntensity;
   crtEnabledEl.checked = S.config.crtEnabled !== false;

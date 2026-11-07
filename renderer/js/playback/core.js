@@ -61,24 +61,41 @@ import { resolveBreakAt } from '../core/interstitials.js';
 // card until the next program) or 'error'. A channel's ADVANCED page can set
 // its own (ch.onUnplayable).
 const UNPLAYABLE_POLICIES = ['fix', 'standby', 'error'];
+/**
+ * What happens when a file won't play on a channel: its own choice (ch.onUnplayable), else the
+ * box's (playback.onUnplayable), else 'fix'.
+ * @param {?object} ch The channel config.
+ * @returns {string} 'fix', 'standby' or 'error'.
+ */
 export function unplayablePolicyFor(ch) {
   if (ch && UNPLAYABLE_POLICIES.includes(ch.onUnplayable)) return ch.onUnplayable;
   const box = S.config.playback && S.config.playback.onUnplayable;
   return UNPLAYABLE_POLICIES.includes(box) ? box : 'fix';
 }
 
+/**
+ * How many times a file that won't play is retried before the policy applies
+ * (playback.retries, 0-3, default 1).
+ * @returns {number} The retry count.
+ */
 function unplayableRetries() {
   const n = Number(S.config.playback && S.config.playback.retries);
   return Number.isFinite(n) && n >= 0 ? Math.min(3, Math.round(n)) : 1;
 }
 
-// Same shape as computeLivePosition, but content playback lags real time by
-// however many ms it's been paused through breaks on this source so far
-// (S.contentLostMs) — this is what makes a show resume where it left off
-// after a commercial instead of skipping ahead by the break's length. Only
-// used for the actual live tune-in position; break *timing* itself
-// (resolveBreakAt/nextBreakBoundary) deliberately keeps using real wall
-// time, so ad cadence doesn't drift.
+/**
+ * Resolves where live content on a channel should be right now, resetting the break lag on a source change.
+ *
+ * Same shape as computeLivePosition, but content playback lags real time by
+ * however many ms it's been paused through breaks on this source so far
+ * (S.contentLostMs) — this is what makes a show resume where it left off
+ * after a commercial instead of skipping ahead by the break's length. Only
+ * used for the actual live tune-in position; break *timing* itself
+ * (resolveBreakAt/nextBreakBoundary) deliberately keeps using real wall
+ * time, so ad cadence doesn't drift.
+ * @param {object} ch The channel config.
+ * @returns {?object} The schedule position (`computeSourcePosition` result) at `viewNow()`.
+ */
 function computeLiveContentPosition(ch) {
   const source = resolveActiveSource(ch, viewNow());
   const key = `${ch.number}:${source.key}`;
@@ -138,6 +155,7 @@ const CORRECTION_LEAD_MAX_MS = 600;
 // estimate. Under 1 so a single unusually slow seek nudges rather than
 // redefines it.
 const CORRECTION_LEAD_DAMPING = 0.6;
+// The learned lead (ms) the next corrective seek aims past its target.
 let correctionLeadMs = 120;
 // A corrective seek that never produces a frame must not hold the reveal.
 const CATCH_UP_FRAME_TIMEOUT_MS = 2000;
@@ -145,6 +163,11 @@ const CATCH_UP_FRAME_TIMEOUT_MS = 2000;
 // Consecutive ticks the player has claimed to be playing without any data (see decideDriftAction).
 let driftStallTicks = 0;
 
+/**
+ * One drift-watchdog tick: compares the player with the schedule at `viewNow()` and resumes,
+ * nudges or re-seeks it as `decideDriftAction` says. Does nothing during breaks, shuttles,
+ * scrubs, alerts or within the seek cooldown.
+ */
 export function checkScheduleDrift() {
   if (!canPlay()) { driftStallTicks = 0; return; }
   if (S.activeBreakKey || S.creditsSpeedupActive) { driftStallTicks = 0; return; }
@@ -219,6 +242,9 @@ onSchedulingConfigChange(() => {
   scheduleBlockBoundaryRetune(ch);
 });
 
+/**
+ * Starts (or restarts) the periodic drift check; each tick is skipped while `playbackResync` is off.
+ */
 export function startScheduleDriftWatchdog() {
   clearInterval(S.driftCheckTimer);
   S.driftCheckTimer = setInterval(() => {
@@ -227,13 +253,15 @@ export function startScheduleDriftWatchdog() {
   }, DRIFT_CHECK_MS);
 }
 
-// Stops and blanks the player element: pause, drop the src, force a real
-// reload (removeAttribute alone doesn't make Chromium actually drop its
-// last painted frame — found live via the "COMING SOON shows the previous
-// channel's frozen frame" bug), and reset loop. Extracted here after the
-// same four lines with an identical inline comment turned up copy-pasted
-// across five call sites (found in review) — every "nothing to show right
-// now" branch in tuneToChannel plus waitForMediaSourceReady.
+/**
+ * Stops and blanks the player element: pause, drop the src, force a real
+ * reload (removeAttribute alone doesn't make Chromium actually drop its
+ * last painted frame — found live via the "COMING SOON shows the previous
+ * channel's frozen frame" bug), and reset loop. Extracted here after the
+ * same four lines with an identical inline comment turned up copy-pasted
+ * across five call sites (found in review) — every "nothing to show right
+ * now" branch in tuneToChannel plus waitForMediaSourceReady.
+ */
 function clearPlayerToBlank() {
   player.pause();
   player.removeAttribute('src');
@@ -241,33 +269,40 @@ function clearPlayerToBlank() {
   player.loop = false;
 }
 
-// Optional, provider-defined verb (mediaSource:<id>:getFetchProgress, called
-// via the same generic callMediaSourceHook passthrough CHOOSE SOURCE's
-// pickFolder/a plugin's own settings panel already use) — lets a provider
-// whose readRange can genuinely take a long time (e.g. a provider that
-// lazily caches to local disk before it can serve anything) report a real
-// progress fraction instead of the tune just sitting there with no visible
-// feedback while readRange blocks underneath. Returns
-// { ok:false } for a provider that doesn't implement this, or on any error
-// calling it — the caller decides what that means (see waitForMediaSourceReady:
-// "not implemented" on the very first call means proceed straight to
-// playback, same as always; a transient failure mid-poll must NOT be read
-// the same way, or one flaky RPC call turns a file that's still genuinely
-// downloading into a premature, wrong failure).
-// Called from handleUnplayable below, as a plugin-sourced file's own
-// recovery path once a genuine live playback attempt has already failed to
-// decode a frame — not an eager pre-check (a live attempt is always tried
-// first for every file, local or plugin-sourced, same as any other
-// channel). Polls the provider's fetch progress (if it reports any) and
-// shows a visible "please wait" card — same cyan, same visual language as
-// the local TRANSCODING… card — instead of leaving the screen on static/a
-// stale frame with zero explanation for however long caching takes. Clears
-// the player first (pause/removeAttribute/load) for the same reason the
-// COMING SOON and sign-off/blocked cards do: without it, whatever the
-// previous channel was showing sits frozen underneath this card's
-// transparent background. Returns false if the tune was abandoned (channel
-// changed / powered off) while waiting, so the caller knows not to proceed
-// with this now-stale playback attempt.
+/**
+ * Waits for a plugin-sourced file's provider to finish fetching it, showing a progress card.
+ *
+ * Optional, provider-defined verb (mediaSource:<id>:getFetchProgress, called
+ * via the same generic callMediaSourceHook passthrough CHOOSE SOURCE's
+ * pickFolder/a plugin's own settings panel already use) — lets a provider
+ * whose readRange can genuinely take a long time (e.g. a provider that
+ * lazily caches to local disk before it can serve anything) report a real
+ * progress fraction instead of the tune just sitting there with no visible
+ * feedback while readRange blocks underneath. Returns
+ * { ok:false } for a provider that doesn't implement this, or on any error
+ * calling it — the caller decides what that means (see waitForMediaSourceReady:
+ * "not implemented" on the very first call means proceed straight to
+ * playback, same as always; a transient failure mid-poll must NOT be read
+ * the same way, or one flaky RPC call turns a file that's still genuinely
+ * downloading into a premature, wrong failure).
+ * Called from handleUnplayable below, as a plugin-sourced file's own
+ * recovery path once a genuine live playback attempt has already failed to
+ * decode a frame — not an eager pre-check (a live attempt is always tried
+ * first for every file, local or plugin-sourced, same as any other
+ * channel). Polls the provider's fetch progress (if it reports any) and
+ * shows a visible "please wait" card — same cyan, same visual language as
+ * the local TRANSCODING… card — instead of leaving the screen on static/a
+ * stale frame with zero explanation for however long caching takes. Clears
+ * the player first (pause/removeAttribute/load) for the same reason the
+ * COMING SOON and sign-off/blocked cards do: without it, whatever the
+ * previous channel was showing sits frozen underneath this card's
+ * transparent background. Returns false if the tune was abandoned (channel
+ * changed / powered off) while waiting, so the caller knows not to proceed
+ * with this now-stale playback attempt.
+ * @param {object} ch The channel config being tuned.
+ * @param {object} file The plugin-sourced channel file entry.
+ * @returns {Promise<boolean>} True when ready, false if the tune was abandoned.
+ */
 async function waitForMediaSourceReady(ch, file) {
   return waitForProviderMediaSource(ch, file, {
     clearPlayer: clearPlayerToBlank,
@@ -278,6 +313,18 @@ async function waitForMediaSourceReady(ch, file) {
   });
 }
 
+/**
+ * Starts real content on a tuned channel at its live schedule position, with the
+ * unplayable-file recovery ladder (provider caching, one plain retry, transcode).
+ * Returns early if the channel is no longer tuned or a newer tune has started.
+ * @param {object} ch The channel config (must already be `S.currentNumber`).
+ * @param {object} [opts] Playback options.
+ * @param {boolean} [opts.fadeInOnReady] Fade the picture in once it is ready.
+ * @param {boolean} [opts.reuseLoaded] Keep an already-loaded matching source and only seek (time machine commit).
+ * @param {boolean} [opts.cacheRetried] Internal: the provider-cache retry already ran.
+ * @param {boolean} [opts.playRetried] Internal: the plain retry already ran.
+ * @returns {Promise<void>}
+ */
 export async function playChannelLive(ch, opts) {
   opts = opts || {};
   // Every legitimate caller has already tuned to ch (tuneToChannel sets
@@ -898,10 +945,15 @@ export async function playChannelLive(ch, opts) {
   player.addEventListener('ended', S.endedHandler);
 }
 
-// A show just ended — re-check break state (a pre/post/both-timed break, or
-// any other type whose window happens to start right here) before falling
-// through to the next piece of content. Routed through the same
-// checkBreakState() the boundary timer uses so both triggers agree.
+/**
+ * Handles a file's own 'ended' event by finishing any credits squeeze and re-checking break state.
+ *
+ * A show just ended — re-check break state (a pre/post/both-timed break, or
+ * any other type whose window happens to start right here) before falling
+ * through to the next piece of content. Routed through the same
+ * checkBreakState() the boundary timer uses so both triggers agree.
+ * @param {object} ch The channel config whose content ended.
+ */
 function handleContentEnded(ch) {
   if (!S.isPoweredOn) return;
   // Before anything else - if credits speedup was running for the file that
@@ -913,6 +965,17 @@ function handleContentEnded(ch) {
   checkBreakState(ch, { contentJustEnded: true });
 }
 
+/**
+ * Runs the full tune sequence for a channel number: tune gates, resetting the previous
+ * channel's timers and overlays, plugin channels, broadcast hours, then break state or
+ * content and the channel banner. Does nothing while Setup is open.
+ * @param {number} number The channel number to tune.
+ * @param {object} [opts] Tune options.
+ * @param {boolean} [opts.silent] Skip the channel-change static burst (used for re-tunes).
+ * @param {string[]} [opts.bypassGateIds] Tune gate ids to skip, such as 'pin-lock' after a correct PIN.
+ * @param {boolean} [opts.sharedSync] The tune came from a shared session, so it is not re-broadcast.
+ * @returns {Promise<void>}
+ */
 export async function tuneToChannel(number, opts) {
   opts = opts || {};
   window.tuneToChannel = tuneToChannel;
@@ -1156,10 +1219,13 @@ export async function tuneToChannel(number, opts) {
   updateTimeShiftBadge();
 }
 
-// Re-tunes exactly when the broadcast-hours gate flips — sign-off (going
-// off the air mid-content) and sign-on (coming back) are both just "run
-// tuneToChannel again," so one retune driven by nextBroadcastHoursBoundary
-// handles both directions instead of needing separate mechanisms.
+/**
+ * Re-tunes exactly when the broadcast-hours gate flips — sign-off (going
+ * off the air mid-content) and sign-on (coming back) are both just "run
+ * tuneToChannel again," so one retune driven by nextBroadcastHoursBoundary
+ * handles both directions instead of needing separate mechanisms.
+ * @param {object} ch The channel config on screen.
+ */
 export function scheduleBroadcastHoursRetune(ch) {
   clearTimeout(S.broadcastHoursTimer);
   if (!ch.broadcastHours || !ch.broadcastHours.enabled) return;
@@ -1171,6 +1237,11 @@ export function scheduleBroadcastHoursRetune(ch) {
   }, Math.max(0, boundary - viewNow()) + 500);
 }
 
+/**
+ * Arms a timer for the channel's next schedule-source boundary (a block starting or ending)
+ * that re-checks break state there and re-arms itself.
+ * @param {object} ch The channel config on screen.
+ */
 export function scheduleBlockBoundaryRetune(ch) {
   clearTimeout(S.blockBoundaryTimer);
   const boundary = nextSourceBoundary(ch, viewNow());
@@ -1225,6 +1296,10 @@ export function scheduleBlockBoundaryRetune(ch) {
   }, delayMs);
 }
 
+/**
+ * Tunes to the next or previous channel in the surfable lineup (plugin channels plus visible channels).
+ * @param {number} direction +1 for up, -1 for down.
+ */
 export function changeChannel(direction) {
   const numbers = virtualChannelNumbers()
     .concat(sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number))
@@ -1249,15 +1324,29 @@ export function changeChannel(direction) {
 // faster than they could load. Stopped by literally any other input, which
 // app.js arranges by calling stopChannelScan() from the keydown handler.
 const DEFAULT_SCAN_DWELL_S = 8;
+/**
+ * Returns how long SCAN stays on each channel, from `controls.scanDwellSec` clamped to 2-60 s.
+ * @returns {number} Dwell time in milliseconds.
+ */
 function scanDwellMs() {
   const s = settingNumber(S.config.controls && S.config.controls.scanDwellSec);
   return (s != null ? Math.min(60, Math.max(2, s)) : DEFAULT_SCAN_DWELL_S) * 1000;
 }
 
+/**
+ * Reports whether a channel scan is running.
+ * @returns {boolean} True while SCAN is active.
+ */
 export function isChannelScanning() {
   return S.scanTimer != null;
 }
 
+/**
+ * Stops a running channel scan.
+ * @param {object} [opts={}] Stop options.
+ * @param {boolean} [opts.silent=false] Skip showing the channel banner.
+ * @returns {boolean} True if a scan was running.
+ */
 export function stopChannelScan({ silent = false } = {}) {
   if (S.scanTimer == null) return false;
   clearInterval(S.scanTimer);
@@ -1266,6 +1355,10 @@ export function stopChannelScan({ silent = false } = {}) {
   return true;
 }
 
+/**
+ * Starts SCAN (moving one channel up at once, then every dwell) or stops it if it is running.
+ * @returns {boolean} True when a scan started, false when one was stopped.
+ */
 export function toggleChannelScan() {
   if (stopChannelScan()) return false;
   // Moving immediately makes the key feel like it did something; waiting a
@@ -1280,9 +1373,12 @@ export function toggleChannelScan() {
   return true;
 }
 
-// Jumps between only the channels marked as favorites — a no-op (not a
-// fallback to the full channel list) when none are set, since silently
-// surfing everything would defeat the point of a dedicated favorites key.
+/**
+ * Jumps between only the channels marked as favorites — a no-op (not a
+ * fallback to the full channel list) when none are set, since silently
+ * surfing everything would defeat the point of a dedicated favorites key.
+ * @param {number} direction +1 for the next favorite, -1 for the previous one.
+ */
 export function changeFavoriteChannel(direction) {
   const favs = sortedChannels().filter((c) => isFavorite(c.number) && !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number);
   if (favs.length === 0) return;
@@ -1292,9 +1388,11 @@ export function changeFavoriteChannel(direction) {
   tuneToChannel(favs[idx]);
 }
 
-// Real-remote-style "LAST" button: jumps back to whatever channel you were
-// on before the current one. Pressing it twice returns you to where you
-// started, same as a real cable box.
+/**
+ * Real-remote-style "LAST" button: jumps back to whatever channel you were
+ * on before the current one. Pressing it twice returns you to where you
+ * started, same as a real cable box.
+ */
 export function jumpToLastChannel() {
   if (S.previousNumber == null) return;
   tuneToChannel(S.previousNumber);

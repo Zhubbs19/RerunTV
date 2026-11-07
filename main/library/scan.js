@@ -16,9 +16,14 @@
 // test's fixture. No Electron, no fs of its own.
 const identity = require('./identity');
 
-// Incremental means: only files whose cheap stat moved get their first
-// megabyte read again. On a library of tens of thousands of items that is the
-// difference between a scan you can run on a timer and one you cannot.
+/**
+ * Incremental means: only files whose cheap stat moved get their first
+ * megabyte read again. On a library of tens of thousands of items that is the
+ * difference between a scan you can run on a timer and one you cannot.
+ * @param {?object} item The catalogued item.
+ * @param {object} entry The listing entry `{ size, mtimeMs }`.
+ * @returns {boolean} True when the stored fingerprint can be trusted without re-reading.
+ */
 function unchangedSince(item, entry) {
   if (!item || !item.fingerprint) return false;
   return !identity.needsRehash(item.fingerprint, { size: entry.size, mtimeMs: entry.mtimeMs });
@@ -34,6 +39,15 @@ function unchangedSince(item, entry) {
  *
  * The report buckets by verdict so the caller can apply `same`/`moved`
  * unattended and put `ambiguous`/`replaced` in front of a person.
+ * @param {object} opts Scan inputs.
+ * @param {object} opts.store The library store (store.js).
+ * @param {object} opts.root The root being scanned `{ id, ref }`.
+ * @param {Function} opts.list Lists the root's files.
+ * @param {Function} opts.fingerprint Fingerprints one ref.
+ * @param {?Function} [opts.probeDuration=null] Probes a new file's duration in seconds.
+ * @param {?Function} [opts.onProgress=null] Called with `{ done, total, ref, action }` per file.
+ * @param {?object} [opts.signal=null] Cancellation flag `{ aborted }`.
+ * @returns {Promise<object>} The report: verdict buckets (`same`, `moved`, `ambiguous`, `replaced`, `added`, `missing`), counters and errors.
  */
 async function scanRoot({ store, root, list, fingerprint, probeDuration = null, onProgress = null, signal = null }) {
   // A detached item gave up its file after a review decision; it keeps its
@@ -137,6 +151,11 @@ async function scanRoot({ store, root, list, fingerprint, probeDuration = null, 
  * `missing` is reported, never acted on. A drive that is unplugged, a network
  * share that is slow to mount and a folder somebody really did delete look
  * identical from here, and the first two are far more common.
+ * @param {object} store The library store (store.js).
+ * @param {object} report A `scanRoot` report; `added` entries gain their new `item` id.
+ * @param {object} [opts] Options.
+ * @param {Function} [opts.now] Clock in ms, for `movedAt`.
+ * @returns {object} `{ added, moved, refreshed, needsReview, missing }` counts.
  */
 function applyScan(store, report, { now = () => Date.now() } = {}) {
   const applied = { added: 0, moved: 0, refreshed: 0 };
@@ -175,7 +194,11 @@ function applyScan(store, report, { now = () => Date.now() } = {}) {
   };
 }
 
-// A one-line summary for the setup screen and the scan log.
+/**
+ * A one-line summary for the setup screen and the scan log.
+ * @param {object} report A `scanRoot` report.
+ * @returns {string} The summary text.
+ */
 function describeScan(report) {
   const parts = [];
   if (report.added.length) parts.push(`${report.added.length} new`);

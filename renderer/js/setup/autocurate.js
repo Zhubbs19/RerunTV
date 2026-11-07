@@ -26,8 +26,14 @@ let previewProposal = null; // last curateChannel() result for editingProfile, o
 let previewSeed = 0;
 let editingProfileBaseline = ''; // JSON of editingProfile as opened/last saved — CLOSE compares against it to spot unsaved edits
 
-// Profiles saved by an older build can lack whole sub-objects the editor reads
-// unguarded (themeSeeds.genre, contentPoolScope.folders, dayPartTemplate.length).
+/**
+ * Fills in any sub-objects a curation profile is missing, so the editor can read them.
+ *
+ * Profiles saved by an older build can lack whole sub-objects the editor reads
+ * unguarded (themeSeeds.genre, contentPoolScope.folders, dayPartTemplate.length).
+ * @param {object} profile A curation profile; filled in place.
+ * @returns {object} The same profile.
+ */
 function withProfileDefaults(profile) {
   const defaults = freshCurationProfile();
   profile.themeSeeds = { ...defaults.themeSeeds, ...(profile.themeSeeds || {}) };
@@ -37,20 +43,31 @@ function withProfileDefaults(profile) {
   return profile;
 }
 
-// De-duped by id (a folder scanned into more than one channel — same
-// physical path, same content-derived id, see mediaRefId in channels.js —
-// only needs to appear once in the scope picker).
+/**
+ * Lists every folder scanned into any channel, for the profile's scope picker.
+ *
+ * De-duped by id (a folder scanned into more than one channel — same
+ * physical path, same content-derived id, see mediaRefId in channels.js —
+ * only needs to appear once in the scope picker).
+ * @returns {Array<object>} Folder entries sorted by label.
+ */
 function allKnownFolders() {
   const byId = new Map();
   sortedChannels().forEach((ch) => (ch.folders || []).forEach((e) => { if (!byId.has(e.id)) byId.set(e.id, e); }));
   return Array.from(byId.values()).sort((a, b) => (a.label || a.ref).localeCompare(b.label || b.ref));
 }
 
-// A comma-separated tag-style input wired to autocomplete, wrapping an
-// array field on the given object — same shape as the TITLES tab's own tag
-// inputs (setup-panels.js), just generalized to any array field here since
-// a profile has four of them (genre/era/mood/contentType theme seeds, plus
-// bumper style tags).
+/**
+ * A comma-separated tag-style input wired to autocomplete, wrapping an
+ * array field on the given object — same shape as the TITLES tab's own tag
+ * inputs (setup-panels.js), just generalized to any array field here since
+ * a profile has four of them (genre/era/mood/contentType theme seeds, plus
+ * bumper style tags).
+ * @param {string} placeholder Placeholder text.
+ * @param {?string[]} initial The tags to show at first.
+ * @param {(tags: string[]) => void} onChange Called with the trimmed, lower-cased tags on change.
+ * @returns {HTMLElement} The input wrapped for autocomplete.
+ */
 function tagListInput(placeholder, initial, onChange) {
   const input = document.createElement('input');
   input.type = 'text';
@@ -63,18 +80,21 @@ function tagListInput(placeholder, initial, onChange) {
   return attachTagAutocomplete(input);
 }
 
-// Writes a snapshot of the (working-clone) profile into S.config, either as
-// a new entry or replacing the entry it was opened from — the only point
-// where an edit actually reaches S.config, matching this file's header
-// comment. Every field handler in buildProfileEditor() mutates `profile`
-// (editingProfile, a clone made when the editor was opened — see the EDIT
-// button and "+ NEW PROFILE" handlers below) directly and immediately, but
-// that clone is never the object stored in S.config.curationProfiles, so
-// those in-progress edits are invisible to the rest of the app — including
-// this function's own caller, still holding a live reference to
-// editingProfile — until SAVE PROFILE/APPLY calls this. Stores a fresh
-// clone rather than `profile` itself so continuing to edit afterward keeps
-// mutating only the open working copy, not the just-saved config entry.
+/**
+ * Writes a snapshot of the (working-clone) profile into S.config, either as
+ * a new entry or replacing the entry it was opened from — the only point
+ * where an edit actually reaches S.config, matching this file's header
+ * comment. Every field handler in buildProfileEditor() mutates `profile`
+ * (editingProfile, a clone made when the editor was opened — see the EDIT
+ * button and "+ NEW PROFILE" handlers below) directly and immediately, but
+ * that clone is never the object stored in S.config.curationProfiles, so
+ * those in-progress edits are invisible to the rest of the app — including
+ * this function's own caller, still holding a live reference to
+ * editingProfile — until SAVE PROFILE/APPLY calls this. Stores a fresh
+ * clone rather than `profile` itself so continuing to edit afterward keeps
+ * mutating only the open working copy, not the just-saved config entry.
+ * @param {object} profile The working-clone curation profile.
+ */
 function ensureSaved(profile) {
   const stored = deepClone(profile);
   if (isNewProfile) {
@@ -88,6 +108,12 @@ function ensureSaved(profile) {
   editingProfileBaseline = JSON.stringify(profile);
 }
 
+/**
+ * Builds the folder checkboxes that limit which folders the profile draws from.
+ * All checked is stored as 'all'; otherwise `contentPoolScope.folders` is the checked ids.
+ * @param {object} profile The working-clone curation profile; edited in place.
+ * @returns {HTMLElement} The checkbox group, or a note when no folders are scanned yet.
+ */
 function buildFolderScopeEditor(profile) {
   const allFolders = allKnownFolders();
   const wrap = document.createElement('div');
@@ -123,9 +149,15 @@ function buildFolderScopeEditor(profile) {
   return wrap;
 }
 
-// contentPoolScope.tags is 'any' (unscoped, the default) or an explicit
-// array a file must carry at least one of (curation.js's poolScope) — same
-// shape as contentPoolScope.folders' 'all'/array pair just above.
+/**
+ * Builds the tag input that limits which content the profile draws from.
+ *
+ * contentPoolScope.tags is 'any' (unscoped, the default) or an explicit
+ * array a file must carry at least one of (curation.js's poolScope) — same
+ * shape as contentPoolScope.folders' 'all'/array pair just above.
+ * @param {object} profile The working-clone curation profile; edited in place.
+ * @returns {HTMLElement} The tag input (wrapped for autocomplete).
+ */
 function buildTagScopeInput(profile) {
   return tagListInput(
     'CONTENT MUST CARRY ONE OF THESE TAGS (BLANK = ANY)',
@@ -134,6 +166,12 @@ function buildTagScopeInput(profile) {
   );
 }
 
+/**
+ * Builds a 00:00-23:00 hour picker.
+ * @param {number} value The hour to select.
+ * @param {(hour: number) => void} onChange Called with the new hour.
+ * @returns {HTMLSelectElement} The select element.
+ */
 function buildHourSelect(value, onChange) {
   const select = document.createElement('select');
   select.className = 'block-hour-select';
@@ -148,10 +186,16 @@ function buildHourSelect(value, onChange) {
   return select;
 }
 
-// The optional dayPartTemplate — a list of themed hour ranges the engine
-// carves out as their own ch.blocks[] on top of the profile's flat
-// whole-channel pool (curateChannel/buildDayPartPlan, curation.js). Empty
-// by default: the profile behaves exactly as before until a slot is added.
+/**
+ * Builds the editor for the profile's day-part slots (add, edit, remove).
+ *
+ * The optional dayPartTemplate — a list of themed hour ranges the engine
+ * carves out as their own ch.blocks[] on top of the profile's flat
+ * whole-channel pool (curateChannel/buildDayPartPlan, curation.js). Empty
+ * by default: the profile behaves exactly as before until a slot is added.
+ * @param {object} profile The working-clone curation profile; edited in place.
+ * @returns {HTMLElement} The slot list element.
+ */
 function buildDayPartEditor(profile) {
   const wrap = document.createElement('div');
   wrap.className = 'daypart-slot-list';
@@ -228,10 +272,14 @@ function buildDayPartEditor(profile) {
   return wrap;
 }
 
-// A full-width divider/heading between groups of fields — plain
-// .interstitial-card/.interstitial-card-body has no such convention since a
-// pool/preset card is small enough not to need one; this editor grew past
-// that size across three phases.
+/**
+ * A full-width divider/heading between groups of fields — plain
+ * .interstitial-card/.interstitial-card-body has no such convention since a
+ * pool/preset card is small enough not to need one; this editor grew past
+ * that size across three phases.
+ * @param {string} text The heading text.
+ * @returns {HTMLElement} The label element.
+ */
 function sectionLabel(text) {
   const el = document.createElement('div');
   el.className = 'autocurate-section-label';
@@ -239,6 +287,12 @@ function sectionLabel(text) {
   return el;
 }
 
+/**
+ * Builds the inline editor for a profile, with PREVIEW, SAVE PROFILE and CLOSE.
+ * Field edits change the working clone only; SAVE PROFILE writes it to config via `ensureSaved`.
+ * @param {object} profile The working-clone curation profile (`editingProfile`).
+ * @returns {HTMLElement} The editor card.
+ */
 function buildProfileEditor(profile) {
   const wrap = document.createElement('div');
   wrap.className = 'interstitial-card open autocurate-card-body';
@@ -439,6 +493,12 @@ function buildProfileEditor(profile) {
   return wrap;
 }
 
+/**
+ * Builds the preview card for the current proposal, with RESHUFFLE and APPLY.
+ * APPLY re-curates with the same seed and only writes if the result still matches what was confirmed.
+ * @param {object} profile The working-clone curation profile the preview was made from.
+ * @returns {HTMLElement} The preview card.
+ */
 function buildPreviewCard(profile) {
   const summary = previewProposal.diffSummary;
   const card = document.createElement('div');
@@ -551,6 +611,11 @@ function buildPreviewCard(profile) {
   return card;
 }
 
+/**
+ * Builds a saved profile's list row with its target channel and EDIT / PREVIEW and DELETE buttons.
+ * @param {object} profile A saved curation profile from `S.config.curationProfiles`.
+ * @returns {HTMLElement} The row card.
+ */
 function buildProfileRow(profile) {
   const card = document.createElement('div');
   card.className = 'interstitial-card';
@@ -625,6 +690,9 @@ function buildProfileRow(profile) {
   return card;
 }
 
+/**
+ * Redraws the AUTO-CURATE tab: the profile list, + NEW PROFILE, and the open editor and preview.
+ */
 export function renderAutoCurateList() {
   if (!autocurateRootEl) return;
   autocurateRootEl.innerHTML = '';

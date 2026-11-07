@@ -12,6 +12,10 @@ document.querySelector('.crt').appendChild(dotEl);
 let lastFilePath = null;
 let intervalTimer = null;
 
+/**
+ * Reads this plugin's settings with defaults applied.
+ * @returns {object} `{ enabled, intervalMin, dotSeconds, corner, channelOverrides }`.
+ */
 function cfg() {
   const settings = window.RCBPlugins.ctx.getPluginSettings('film-reel-marks');
   return {
@@ -23,15 +27,22 @@ function cfg() {
   };
 }
 
-// A per-channel override (true/false) beats the global default; unset
-// (no key in channelOverrides) inherits it. Same shape as sponsor-
-// billboard's sponsorsByChannel map, just booleans instead of names.
+/**
+ * A per-channel override (true/false) beats the global default; unset
+ * (no key in channelOverrides) inherits it. Same shape as sponsor-
+ * billboard's sponsorsByChannel map, just booleans instead of names.
+ * @param {object} ch The channel config.
+ * @returns {boolean} Whether reel marks show on this channel.
+ */
 function enabledForChannel(ch) {
   const { enabled, channelOverrides } = cfg();
   const override = channelOverrides[String(ch.number)];
   return override != null ? override : enabled;
 }
 
+/**
+ * Flashes the cue dot once in the configured corner for `dotSeconds`.
+ */
 function flashDot() {
   dotEl.classList.toggle('film-reel-left', cfg().corner === 'left');
   dotEl.classList.remove('hidden');
@@ -41,6 +52,9 @@ function flashDot() {
   setTimeout(() => dotEl.classList.remove('show'), cfg().dotSeconds * 1000);
 }
 
+/**
+ * Stops the repeating cue-dot timer.
+ */
 function stopChain() {
   clearInterval(intervalTimer);
   intervalTimer = null;

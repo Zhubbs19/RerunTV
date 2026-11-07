@@ -10,10 +10,24 @@
 // into a URL (window.api.toFileUrl).
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/**
+ * Tells whether a value is a non-blank string.
+ * @param {*} value The value.
+ * @returns {boolean} True for a string with non-space text.
+ */
 const hasText = (value) => typeof value === 'string' && value.trim() !== '';
+/**
+ * Returns the first integer among the values.
+ * @param {...*} values Candidates in order of preference.
+ * @returns {?number} The first integer, or `null`.
+ */
 const intOr = (...values) => values.find((v) => Number.isInteger(v)) ?? null;
 
-/** "2005-09-20" -> "September 20, 2005"; a bare year stays a year. */
+/**
+ * "2005-09-20" -> "September 20, 2005"; a bare year stays a year.
+ * @param {?string} iso An ISO date or a year.
+ * @returns {string} The formatted date; empty when unreadable.
+ */
 export function formatAirDate(iso) {
   const match = /^(\d{4})(?:-(\d{2})-(\d{2}))?/.exec(String(iso || ''));
   if (!match) return '';
@@ -22,6 +36,11 @@ export function formatAirDate(iso) {
   return month ? `${month} ${Number(match[3])}, ${match[1]}` : match[1];
 }
 
+/**
+ * Merges what every source knows about a program.
+ * @param {?object} file The playlist entry.
+ * @returns {object} Series name, episode title, season and episode, first airing, cast, image, poster path and schedule.
+ */
 export function programDetails(file) {
   const f = file || {};
   const tmdb = f.tmdb || {};
@@ -46,7 +65,11 @@ export function programDetails(file) {
   };
 }
 
-/** "S2 E1", or '' when the season or episode is unknown. */
+/**
+ * "S2 E1", or '' when the season or episode is unknown.
+ * @param {?object} details A `programDetails` result.
+ * @returns {string} The label.
+ */
 export function episodeLabel(details) {
   return details && details.season != null && details.episode != null ? `S${details.season} E${details.episode}` : '';
 }
@@ -54,6 +77,8 @@ export function episodeLabel(details) {
 /**
  * The closing sentences the real boxes ran after a description:
  * "Starring A, B and C. First aired September 20, 2005 on A Network."
+ * @param {?object} details A `programDetails` result.
+ * @returns {string} The sentences, or an empty string.
  */
 export function creditSentences(details) {
   const out = [];

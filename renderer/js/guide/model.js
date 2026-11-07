@@ -4,14 +4,22 @@
 // and handles input; everything here is plain data so node:test covers it.
 
 // ---------- Rows ----------
-// One ordered list. A special (plugin/virtual) channel is a normal row in its
-// numeric place — it used to sit pinned above the lineup, outside arrow-key
-// selection, which left it unreachable with a remote. `specialsAtTop` keeps
-// the old placement for people who liked it; the rows stay selectable either
-// way.
-//
-// channels: real channel records, already filtered and sorted.
-// specials: [{ number, name, nowText }] from virtual.js.
+/**
+ * One ordered list. A special (plugin/virtual) channel is a normal row in its
+ * numeric place — it used to sit pinned above the lineup, outside arrow-key
+ * selection, which left it unreachable with a remote. `specialsAtTop` keeps
+ * the old placement for people who liked it; the rows stay selectable either
+ * way.
+ *
+ * channels: real channel records, already filtered and sorted.
+ * specials: [{ number, name, nowText }] from virtual.js.
+ * @param {Array<object>} channels Channel configs, already filtered and sorted.
+ * @param {Array<object>} specials Special channel info, `{ number, name, nowText }`.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.specialsAtTop=false] Put the specials above the lineup.
+ * @param {string} [opts.query=''] Text a special's name or number must contain.
+ * @returns {Array<object>} Rows: `{ kind: 'special', number, info }` or `{ kind: 'channel', number, ch }`.
+ */
 export function guideRows(channels, specials, { specialsAtTop = false, query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   const specialRows = (specials || [])
@@ -35,19 +43,39 @@ export function guideRows(channels, specials, { specialsAtTop = false, query = '
 // appearing, or the specials moving would otherwise silently move the
 // highlight onto a different channel.
 
+/**
+ * Finds the row for a channel number.
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} number The channel number.
+ * @returns {number} The row index, or -1.
+ */
 export function indexOfNumber(rows, number) {
   return rows.findIndex((row) => row.number === number);
 }
 
-// The selected row's index, falling back to the first row when the selected
-// channel isn't in this list (filtered out, removed).
+/**
+ * The selected row's index, falling back to the first row when the selected
+ * channel isn't in this list (filtered out, removed).
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} number The selected channel number.
+ * @returns {number} The row index, or -1 when there are no rows.
+ */
 export function selectedIndex(rows, number) {
   if (!rows.length) return -1;
   const idx = indexOfNumber(rows, number);
   return idx === -1 ? 0 : idx;
 }
 
-// ▲▼ wrap round the list; a page (CH±) stops at the ends.
+/**
+ * ▲▼ wrap round the list; a page (CH±) stops at the ends.
+ * Moves the selection by some rows.
+ * @param {Array<object>} rows Guide rows.
+ * @param {number} number The selected channel number.
+ * @param {number} delta Rows to move; negative moves up.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.wrap=true] Wrap at the ends instead of stopping.
+ * @returns {?number} The newly selected channel number, or `null` when there are no rows.
+ */
 export function moveSelection(rows, number, delta, { wrap = true } = {}) {
   if (!rows.length) return null;
   const from = selectedIndex(rows, number);
@@ -58,16 +86,26 @@ export function moveSelection(rows, number, delta, { wrap = true } = {}) {
 }
 
 // ---------- Scrolling ----------
-// Where the rows container should scroll so the selected row is fully
-// visible. Rows have min-height (a wrapped title makes one taller), so this
-// takes real offsets rather than assuming a fixed step.
-//
-// docked: the selected row keeps one neighbouring row of margin above and
-//         below when there's room, scrolling only as far as needed, and the
-//         result never leaves a row cut through at the top edge.
-// full:   the selected row is centred.
-//
-// rows: [{ top, height }] in scroll-content coordinates. Returns a scrollTop.
+/**
+ * Where the rows container should scroll so the selected row is fully
+ * visible. Rows have min-height (a wrapped title makes one taller), so this
+ * takes real offsets rather than assuming a fixed step.
+ *
+ * docked: the selected row keeps one neighbouring row of margin above and
+ *         below when there's room, scrolling only as far as needed, and the
+ *         result never leaves a row cut through at the top edge.
+ * full:   the selected row is centred.
+ *
+ * rows: [{ top, height }] in scroll-content coordinates. Returns a scrollTop.
+ * @param {object} opts Layout measurements.
+ * @param {Array<object>} opts.rows Row `{ top, height }` offsets.
+ * @param {number} opts.selIdx The selected row index.
+ * @param {number} opts.viewportH The visible height of the rows container.
+ * @param {number} [opts.scrollTop=0] The current scroll position.
+ * @param {?number} [opts.contentH] The full content height; defaults to the last row's bottom.
+ * @param {string} [opts.mode='docked'] `'docked'` or `'full'`.
+ * @returns {number} The scrollTop to use.
+ */
 export function rowScrollTop({ rows, selIdx, viewportH, scrollTop = 0, contentH = null, mode = 'docked' }) {
   if (!rows || !rows.length || selIdx < 0 || selIdx >= rows.length || !(viewportH > 0)) return scrollTop;
   const last = rows[rows.length - 1];
@@ -125,6 +163,13 @@ export function rowScrollTop({ rows, selIdx, viewportH, scrollTop = 0, contentH 
 // each other without a gap; a lone short stays a program.
 export const RUN_GAP_TOLERANCE_MS = 1000;
 
+/**
+ * Merges runs of very short entries into single run cells.
+ * See the section comment above for the rules.
+ * @param {Array<object>} entries Schedule entries `{ file, start, end }`, in order.
+ * @param {number} minMs Entries shorter than this are micro; 0 turns merging off.
+ * @returns {Array<object>} Program and run cells.
+ */
 export function mergeMicroPrograms(entries, minMs) {
   const cells = [];
   let run = [];
@@ -156,6 +201,13 @@ export function mergeMicroPrograms(entries, minMs) {
 // reads as one show. Bumpers and promos between them don't count either way.
 // seriesOf(file) gives a file's series or null; returns null for a mix.
 const RUN_FILLER = new Set(['bumper', 'promo']);
+/**
+ * Names a merged run after the one series all its episodes share.
+ * Bumpers and promos are skipped.
+ * @param {Array<object>} items The run's schedule entries.
+ * @param {(file: object) => ?string} seriesOf Gives a file's series name or null.
+ * @returns {?string} The series name, or `null` for a mix.
+ */
 export function runSeriesName(items, seriesOf) {
   let name = null;
   for (const entry of items || []) {
@@ -169,7 +221,12 @@ export function runSeriesName(items, seriesOf) {
   return name;
 }
 
-// The cell containing an instant, or -1.
+/**
+ * The cell containing an instant, or -1.
+ * @param {Array<object>} cells Guide cells with `start` and `end`.
+ * @param {number} atMs The instant, epoch ms.
+ * @returns {number} The cell index, or -1.
+ */
 export function cellIndexAt(cells, atMs) {
   return cells.findIndex((cell) => atMs >= cell.start && atMs < cell.end);
 }
@@ -185,6 +242,11 @@ export function cellIndexAt(cells, atMs) {
 // "The" only counts when initials would otherwise be under 3 letters.
 export const CALL_LETTERS_MAX = 6;
 
+/**
+ * Derives call letters from a channel name, following the rules above.
+ * @param {string} name The channel name.
+ * @returns {string} Up to `CALL_LETTERS_MAX` capital letters or digits; empty for a blank name.
+ */
 export function abbreviateChannelName(name) {
   const words = String(name || '').toUpperCase().match(/[A-Z0-9]+/g) || [];
   if (!words.length) return '';
@@ -205,6 +267,11 @@ export function abbreviateChannelName(name) {
   return initials.slice(0, CALL_LETTERS_MAX);
 }
 
+/**
+ * Returns a channel's call letters: its own `callLetters` if set, else derived from its name.
+ * @param {object} ch The channel config.
+ * @returns {string} Up to `CALL_LETTERS_MAX` characters.
+ */
 export function channelCallLetters(ch) {
   const own = ch && typeof ch.callLetters === 'string' ? ch.callLetters.trim().toUpperCase() : '';
   return own ? own.slice(0, CALL_LETTERS_MAX) : abbreviateChannelName(ch && ch.name);

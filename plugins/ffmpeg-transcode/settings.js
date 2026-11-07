@@ -5,6 +5,11 @@
 // whichever status <span> is live now; a stale one (redrawn away) is simply
 // never targeted again.
 let currentInstallStatus = null;
+/**
+ * Formats a byte count as megabytes with one decimal place.
+ * @param {number} bytes Byte count.
+ * @returns {string} Text such as `12.3 MB`.
+ */
 function formatMb(bytes) { return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 window.api.onFfmpegInstallProgress((data) => {
   if (!currentInstallStatus) return;

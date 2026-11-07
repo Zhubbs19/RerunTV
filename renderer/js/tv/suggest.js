@@ -11,7 +11,19 @@ export const SUGGEST_MIN_KEYS = 3;
 const DISMISS_KEY = 'reruntv.tvSuggestDismissed';
 const REMOTE_LIKE = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape']);
 
-// state: { mode, fullscreen, dismissed, pointerAt, remoteKeys, firstRemoteAt, now }
+/**
+ * Decides whether this session looks like a remote across the room and the offer should show.
+ * state: { mode, fullscreen, dismissed, pointerAt, remoteKeys, firstRemoteAt, now }
+ * @param {?object} state What the session has seen so far.
+ * @param {string} state.mode The current usage mode (`'desktop'` or `'tv'`).
+ * @param {boolean} state.fullscreen Whether the window fills the screen.
+ * @param {boolean} state.dismissed Whether the offer was declined on this device.
+ * @param {boolean} state.pointerAt Whether a pointer has been used.
+ * @param {number} state.remoteKeys How many remote-like keys were pressed.
+ * @param {?number} state.firstRemoteAt Timestamp (ms) of the first remote-like key.
+ * @param {number} state.now The current timestamp (ms).
+ * @returns {boolean} True when the suggestion should be shown.
+ */
 export function shouldSuggestTvMode(state) {
   if (!state || state.mode !== 'desktop' || state.dismissed) return false;
   if (!state.fullscreen) return false;
@@ -20,24 +32,43 @@ export function shouldSuggestTvMode(state) {
   return state.firstRemoteAt != null && state.now - state.firstRemoteAt >= SUGGEST_AFTER_MS;
 }
 
+/**
+ * Whether a key is one a plain remote could send (arrows, Enter, Escape).
+ * @param {string} key A `KeyboardEvent.key` value.
+ * @returns {boolean} True for a remote-like key.
+ */
 export function isRemoteLikeKey(key) {
   return REMOTE_LIKE.has(key);
 }
 
+/**
+ * Whether the offer was declined on this device; true when storage is unavailable.
+ * @returns {boolean} True if the suggestion should stay hidden.
+ */
 function dismissed() {
   try { return window.localStorage.getItem(DISMISS_KEY) === '1'; } catch (e) { return true; }
 }
 
+/**
+ * Records in local storage that the offer was answered, so it is not shown again.
+ */
 function rememberDismissed() {
   try { window.localStorage.setItem(DISMISS_KEY, '1'); } catch (e) { /* storage unavailable */ }
 }
 
+// The suggestion toast while it is on screen.
 let toastEl = null;
 
+/**
+ * Removes the suggestion toast if it is showing.
+ */
 function hideToast() {
   if (toastEl) { toastEl.remove(); toastEl = null; }
 }
 
+/**
+ * Builds and shows the "Switch to TV mode?" toast with its two buttons, focusing the first.
+ */
 function showToast() {
   if (toastEl) return;
   toastEl = document.createElement('div');
@@ -72,7 +103,10 @@ function showToast() {
   yes.focus({ preventScroll: true });
 }
 
-// Watches this session and offers once. Installed from app.js.
+/**
+ * Watches this session and offers once. Installed from app.js.
+ * @param {() => string} getMode Returns the current usage mode.
+ */
 export function installTvSuggestion(getMode) {
   const state = { remoteKeys: 0, firstRemoteAt: null, pointerAt: false };
   let offered = false;

@@ -25,8 +25,18 @@ import { materializeItems, runQuery } from './query.js';
 const WEEKDAYS = [1, 2, 3, 4, 5];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 let idCounter = 0;
+/**
+ * Makes a unique id for a compiled block.
+ * @param {string} prefix The id prefix.
+ * @returns {string} The id.
+ */
 const planId = (prefix) => `${prefix}-${++idCounter}`;
 
+/**
+ * Returns a new channel with every field at its default.
+ * @param {number} number The channel number.
+ * @returns {object} The channel config.
+ */
 function blankChannel(number) {
   return {
     number, name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
@@ -36,6 +46,11 @@ function blankChannel(number) {
   };
 }
 
+/**
+ * Returns a new schedule block with every field at its default.
+ * @param {string} type The trigger type; `dateRange` blocks get a higher priority.
+ * @returns {object} The block config.
+ */
 function blankBlock(type) {
   return { id: planId('blk'), name: '', priority: type === 'dateRange' ? 10 : 0, mode: 'loop', folder: null, files: [], anchor: null, commercials: null, dayOverrides: {}, finale: null, theme: null };
 }
@@ -80,23 +95,42 @@ export const BUILTIN_TEMPLATES = Object.freeze([
 // point itself (validated the same way a saved/imported template file is).
 const pluginTemplates = new Map();
 
+/**
+ * Registers a plugin-provided preset.
+ * @param {object} template The preset.
+ * @throws {Error} When the preset is invalid.
+ */
 export function registerTemplate(template) {
   validateTemplate(template);
   pluginTemplates.set(template.id, template);
 }
 
+/**
+ * Lists every preset: the built-ins, then plugin presets.
+ * @returns {Array<object>} Presets.
+ */
 export function listTemplates() {
   return [...BUILTIN_TEMPLATES, ...pluginTemplates.values()];
 }
 
-// Where a preset came from, for the PRESETS screen: built-ins and plugin
-// presets are read-only (CUSTOMIZE copies one), saved presets are editable.
+/**
+ * Where a preset came from, for the PRESETS screen: built-ins and plugin
+ * presets are read-only (CUSTOMIZE copies one), saved presets are editable.
+ * @param {object} template The preset.
+ * @returns {string} `'builtin'`, `'plugin'` or `'saved'`.
+ */
 export function templateSource(template) {
   if (BUILTIN_TEMPLATES.some((entry) => entry.id === template.id)) return 'builtin';
   if (pluginTemplates.has(template.id)) return 'plugin';
   return 'saved';
 }
 
+/**
+ * Checks that a preset is well-formed.
+ * @param {object} template The preset.
+ * @returns {object} The same preset.
+ * @throws {Error} When a required field is missing or a block or the breaks pool names an unknown slot.
+ */
 export function validateTemplate(template) {
   if (!template || template.templateVersion !== 1) throw new Error('This template version is not supported.');
   if (!template.id || !template.name || !template.slots || !template.channel) throw new Error('The template is missing required fields.');
@@ -118,6 +152,12 @@ export function validateTemplate(template) {
   return template;
 }
 
+/**
+ * Converts an hour and optional am/pm to a 24-hour hour.
+ * @param {string} raw The hour as written.
+ * @param {?string} meridiem `'am'`, `'pm'` or nothing.
+ * @returns {number} The hour, 0..23 (or as written when no meridiem is given).
+ */
 function parseHour(raw, meridiem) {
   let hour = Number(raw);
   if (meridiem === 'pm' && hour < 12) hour += 12;
@@ -125,6 +165,12 @@ function parseHour(raw, meridiem) {
   return hour;
 }
 
+/**
+ * Turns a content phrase into a library query.
+ * Known words map to a genre or kind; anything else is a text search. A decade adds an era.
+ * @param {string} phrase The content part of a described clause.
+ * @returns {object} A query `where` object.
+ */
 function phraseMatch(phrase) {
   const lower = phrase.toLowerCase();
   const where = {};
@@ -138,8 +184,13 @@ function phraseMatch(phrase) {
   return where;
 }
 
-// Published offline grammar: "<content> Saturday mornings 7 to 11" and
-// "<content> weeknights 8 to 10". Clauses may be separated with commas.
+/**
+ * Published offline grammar: "<content> Saturday mornings 7 to 11" and
+ * "<content> weeknights 8 to 10". Clauses may be separated with commas.
+ * @param {string} text The description.
+ * @returns {object} A validated preset.
+ * @throws {Error} When a clause has no readable schedule or no content.
+ */
 export function describeChannel(text) {
   const clauses = String(text || '').split(/\s*,\s*/).filter(Boolean);
   if (!clauses.length) throw new Error('Describe at least one programming block.');
@@ -162,6 +213,13 @@ export function describeChannel(text) {
   return validateTemplate({ templateVersion: 1, id: 'described-channel', name: 'Described channel', slots, channel: { name: 'My Channel' }, programming });
 }
 
+/**
+ * Matches each of a preset's slots against the library.
+ * @param {object} template The preset.
+ * @param {object} library The library index (`items` keyed by id).
+ * @returns {object} `{ template, slots, missing, ready }`.
+ * @throws {Error} When the preset is invalid.
+ */
 export function resolveTemplate(template, library) {
   validateTemplate(template);
   const items = Object.values((library && library.items) || {}).filter((item) => !item.detached);
@@ -175,11 +233,19 @@ export function resolveTemplate(template, library) {
   return { template, slots, missing, ready: missing.length === 0 };
 }
 
-// A preset's break slot is fed to the box-wide ad pool as ordinary entries,
-// each aimed at this channel by a content tag the channel carries
-// (`effectiveContentTags`, core/interstitials.js). Nothing else on the box
-// matches that tag, so these ads play only here, and a second channel built
-// from the same preset reuses them rather than adding duplicates.
+/**
+ * A preset's break slot is fed to the box-wide ad pool as ordinary entries,
+ * each aimed at this channel by a content tag the channel carries
+ * (`effectiveContentTags`, core/interstitials.js). Nothing else on the box
+ * matches that tag, so these ads play only here, and a second channel built
+ * from the same preset reuses them rather than adding duplicates.
+ * @param {object} resolved A `resolveTemplate` result.
+ * @param {object} channel The channel being compiled.
+ * @param {object} opts Options.
+ * @param {Array<object>} [opts.existingPool] The box's current ad pool.
+ * @param {?Function} opts.newId Makes an entry id; a stable id is used without it.
+ * @returns {object} `{ entries, contentTag }`.
+ */
 function poolEntriesFor(resolved, channel, { existingPool = [], newId }) {
   const breaks = resolved.template.breaks;
   if (!breaks || !breaks.pool || !resolved.slots[breaks.pool.slot]) return { entries: [], contentTag: null };
@@ -203,8 +269,12 @@ function poolEntriesFor(resolved, channel, { existingPool = [], newId }) {
   return { entries, contentTag };
 }
 
-// The slots that actually loop on the channel: every slot a programming
-// block plays, or, with no programming, every slot but the breaks pool.
+/**
+ * The slots that actually loop on the channel: every slot a programming
+ * block plays, or, with no programming, every slot but the breaks pool.
+ * @param {object} resolved A `resolveTemplate` result.
+ * @returns {string[]} Slot ids.
+ */
 function contentSlotIds(resolved) {
   const programming = resolved.template.programming || [];
   if (programming.length) return [...new Set(programming.map(({ block }) => block.play.slot))];
@@ -216,6 +286,14 @@ function contentSlotIds(resolved) {
  * Everything applying a preset produces: the channel, and any ad-pool entries
  * its breaks slot adds. `existingPool` lets a re-apply skip files already in
  * the pool under this preset's tag. Pure; the caller dispatches.
+ * @param {object} resolved A `resolveTemplate` result.
+ * @param {object} opts Options.
+ * @param {number} opts.number The channel number.
+ * @param {number} opts.atMs The channel and block anchor, epoch ms.
+ * @param {Array<object>} [opts.existingPool] The box's current ad pool.
+ * @param {?Function} [opts.newId] Makes ad-pool entry ids.
+ * @returns {object} `{ channel, poolEntries, contentTag }`.
+ * @throws {Error} When a required slot is not filled.
  */
 export function compilePreset(resolved, { number, atMs, existingPool = [], newId = null }) {
   if (!resolved || !resolved.ready) throw new Error('Fill every required slot before applying this preset.');
@@ -254,12 +332,21 @@ export function compilePreset(resolved, { number, atMs, existingPool = [], newId
   return { channel, poolEntries: entries, contentTag };
 }
 
-// The channel alone — what the first version of this module returned.
+/**
+ * The channel alone — what the first version of this module returned.
+ * @param {object} resolved A `resolveTemplate` result.
+ * @param {object} opts The `compilePreset` options.
+ * @returns {object} The compiled channel config.
+ */
 export function compileTemplate(resolved, opts) {
   return compilePreset(resolved, opts).channel;
 }
 
-// A channel's per-track card ("artist / song" lower third): null is off.
+/**
+ * A channel's per-track card ("artist / song" lower third): null is off.
+ * @param {*} raw A track card setting.
+ * @returns {?object} `{ enabled, atStart, atEnd, seconds }`, or `null` when off.
+ */
 export function normalizeTrackCard(raw) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.enabled === false) return null;
@@ -272,9 +359,14 @@ export function normalizeTrackCard(raw) {
   };
 }
 
-// The match a set of files has in common, for a preset made from a channel
-// that was built by hand: the tags every file shares, else a kind they all
-// share, else the block or channel name as a text search.
+/**
+ * The match a set of files has in common, for a preset made from a channel
+ * that was built by hand: the tags every file shares, else a kind they all
+ * share, else the block or channel name as a text search.
+ * @param {Array<object>} files Channel or block files.
+ * @param {string} fallbackText Text to search for when nothing is shared.
+ * @returns {object} A query `where` object.
+ */
 function matchFromFiles(files, fallbackText) {
   const list = files || [];
   const tagSets = list.map((file) => new Set(file.tags || []));
@@ -287,6 +379,16 @@ function matchFromFiles(files, fallbackText) {
   return { text: fallbackText || '' };
 }
 
+/**
+ * Builds a preset from an existing channel.
+ * Each block becomes a slot matched on what its files share; a channel with no blocks
+ * becomes one 24/7 slot. A content tag adds an ads slot.
+ * @param {object} channel The channel config.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.id='saved-channel'] The preset id.
+ * @param {string} [opts.name] The preset name; defaults to the channel name.
+ * @returns {object} A validated preset.
+ */
 export function templateFromChannel(channel, { id = 'saved-channel', name = channel.name || 'Saved channel' } = {}) {
   const slots = {};
   const blocks = channel.blocks || [];
@@ -319,7 +421,13 @@ export function templateFromChannel(channel, { id = 'saved-channel', name = chan
   return validateTemplate(out);
 }
 
-// A fresh, editable preset for the creator: one 24/7 slot, nothing matched yet.
+/**
+ * A fresh, editable preset for the creator: one 24/7 slot, nothing matched yet.
+ * @param {object} [opts] Options.
+ * @param {string} [opts.id] The preset id; one is made from the time without it.
+ * @param {string} [opts.name='New preset'] The preset name.
+ * @returns {object} The preset.
+ */
 export function blankTemplate({ id, name = 'New preset' } = {}) {
   return {
     templateVersion: 1, id: id || `preset-${Date.now().toString(36)}`, name, description: '',
@@ -329,7 +437,12 @@ export function blankTemplate({ id, name = 'New preset' } = {}) {
   };
 }
 
-// An id a saved preset can use, from its name.
+/**
+ * An id a saved preset can use, from its name.
+ * @param {string} text The preset name.
+ * @param {string} [fallback='preset'] Used when the name has no letters or digits.
+ * @returns {string} A lower-case, dash-separated id.
+ */
 export function slugify(text, fallback = 'preset') {
   return String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || fallback;
 }

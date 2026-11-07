@@ -7,9 +7,15 @@ import { applyBreakPlan } from './interstitials.js';
 const DAY_MS = 86400000;
 const DAILY_SAFETY_CAP = 400;
 
-// Exported for the setup screen's broadcast-hours UI/preview and for
-// isWithinBroadcastHours below — same wrap-safe (s > e means "wraps
-// midnight") hour-range check every trigger already uses internally.
+/**
+ * Whether an hour of the day falls in a trigger's [startHour, endHour) range.
+ * Exported for the setup screen's broadcast-hours UI/preview and for
+ * isWithinBroadcastHours below — same wrap-safe (s > e means "wraps
+ * midnight") hour-range check every trigger already uses internally.
+ * @param {number} hour The hour, 0-23.
+ * @param {object} t Any object with `startHour` and `endHour`.
+ * @returns {boolean} True inside the range (start === end means all day).
+ */
 export function hourInRange(hour, t) {
   const s = t.startHour, e = t.endHour;
   if (s === e) return true; // full-day block
@@ -17,21 +23,31 @@ export function hourInRange(hour, t) {
   return hour >= s || hour < e; // wraps midnight
 }
 
-// A dayOfWeek trigger matches a moment if its hour range matches AND (when
-// it carries a day-of-week filter) today is one of those days. `t.days`
-// unset/empty means "every day" — the backward-compatible default so every
-// block saved before the weekly grid existed keeps behaving exactly as it did.
+/**
+ * A dayOfWeek trigger matches a moment if its hour range matches AND (when
+ * it carries a day-of-week filter) today is one of those days. `t.days`
+ * unset/empty means "every day" — the backward-compatible default so every
+ * block saved before the weekly grid existed keeps behaving exactly as it did.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} t The trigger ({ startHour, endHour, days?, ... }).
+ * @returns {boolean} True when the trigger matches.
+ */
 function matchesDayOfWeek(atMs, t) {
   const d = new Date(atMs);
   if (t.days && t.days.length && !t.days.includes(new Date(ownerInstant(atMs, t)).getDay())) return false;
   return hourInRange(d.getHours(), t);
 }
 
-// An hour range that wraps midnight (e.g. 22-2) belongs, in its post-midnight tail, to the day
-// it STARTED on: Friday 22-2 airs through Saturday 01:59, and a day filter / date range naming
-// Friday must cover that tail while excluding Friday 00:00-01:59 (which is Thursday's tail).
-// Returns an instant on the day that owns atMs under trigger t (atMs's own day for anything
-// that isn't a wrapped tail). Midday, so DST edges can't roll it onto a neighbouring date.
+/**
+ * An hour range that wraps midnight (e.g. 22-2) belongs, in its post-midnight tail, to the day
+ * it STARTED on: Friday 22-2 airs through Saturday 01:59, and a day filter / date range naming
+ * Friday must cover that tail while excluding Friday 00:00-01:59 (which is Thursday's tail).
+ * Returns an instant on the day that owns atMs under trigger t (atMs's own day for anything
+ * that isn't a wrapped tail). Midday, so DST edges can't roll it onto a neighbouring date.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} t The trigger ({ startHour, endHour, days?, ... }).
+ * @returns {number} An instant on the owning day, in ms.
+ */
 export function ownerInstant(atMs, t) {
   const d = new Date(atMs);
   const wraps = t && t.startHour != null && t.endHour != null && t.startHour > t.endHour;
@@ -39,33 +55,54 @@ export function ownerInstant(atMs, t) {
   return atMs;
 }
 
-// Calendar-date range check (month/day only, year-independent), mirroring
-// hourInRange's midnight-wrap trick but across the calendar year — so a
-// range like Dec 20 -> Jan 5 works. 2000 is a fixed reference year used
-// purely for ordering month/day pairs — must be a leap year (2000 is,
-// divisible by 400) since this is also fed Feb 29 as a real calendar date
-// (both `d` above, on an actual leap-year Feb 29, and any block's own
-// startDay/endDay of 29). A non-leap reference year silently overflows
-// `new Date(year, 1, 29)` to March 1, throwing off every date-range
-// comparison on the one real day it matters.
+/**
+ * Calendar-date range check (month/day only, year-independent), mirroring
+ * hourInRange's midnight-wrap trick but across the calendar year — so a
+ * range like Dec 20 -> Jan 5 works. 2000 is a fixed reference year used
+ * purely for ordering month/day pairs — must be a leap year (2000 is,
+ * divisible by 400) since this is also fed Feb 29 as a real calendar date
+ * (both `d` above, on an actual leap-year Feb 29, and any block's own
+ * startDay/endDay of 29). A non-leap reference year silently overflows
+ * `new Date(year, 1, 29)` to March 1, throwing off every date-range
+ * comparison on the one real day it matters.
+ * @param {number} month The month, 1-12.
+ * @param {number} day The day of the month.
+ * @returns {number} A sortable value for that month and day.
+ */
 function dateKey(month, day) {
   return new Date(2000, month - 1, day).getTime();
 }
-// The 4th Thursday of November — a start date that moves from year to year.
+/**
+ * The 4th Thursday of November — a start date that moves from year to year.
+ * @param {number} year The full year.
+ * @returns {number} The day of November.
+ */
 export function thanksgivingDay(year) {
   const firstThursday = 1 + ((4 - new Date(year, 10, 1).getDay() + 7) % 7);
   return firstThursday + 21;
 }
 
-// A dateRange trigger with `startRule: 'thanksgiving'` starts on Thanksgiving of
-// atMs's year instead of on its own startMonth/startDay (which only hold the date
-// to show when no year is in play). Everything that reads a trigger's start date
-// goes through this so the rule is honoured the same way everywhere.
+/**
+ * A dateRange trigger with `startRule: 'thanksgiving'` starts on Thanksgiving of
+ * atMs's year instead of on its own startMonth/startDay (which only hold the date
+ * to show when no year is in play). Everything that reads a trigger's start date
+ * goes through this so the rule is honoured the same way everywhere.
+ * @param {object} t The dateRange trigger.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {object} The trigger, or a copy with its start moved to Thanksgiving.
+ */
 export function effectiveTrigger(t, atMs) {
   if (!t || t.startRule !== 'thanksgiving') return t;
   return { ...t, startMonth: 11, startDay: thanksgivingDay(new Date(atMs).getFullYear()) };
 }
 
+/**
+ * Whether an instant's month/day falls inside a dateRange trigger's inclusive range, which may wrap
+ * New Year.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} t The dateRange trigger.
+ * @returns {boolean} True inside the range.
+ */
 function inDateRange(atMs, t) {
   const d = new Date(atMs);
   const cur = dateKey(d.getMonth() + 1, d.getDate());
@@ -74,14 +111,19 @@ function inDateRange(atMs, t) {
   return start <= end ? (cur >= start && cur <= end) : (cur >= start || cur <= end);
 }
 
-// A dateRange trigger can optionally *also* narrow to specific hours and/or
-// days of week — layered on top of the date match as an AND, e.g. "a December
-// countdown, but only 6-10pm" or "every Friday in October" (a Halloween
-// movie night). Reuses the exact same `days`/`startHour`/`endHour` fields
-// and hourInRange/day-filter logic dayOfWeek triggers already use — this
-// isn't a new trigger shape, just those fields being optionally present on
-// a dateRange trigger too. Unset (the default, and every block saved before
-// this existed) means "no narrowing," so this is purely additive.
+/**
+ * A dateRange trigger can optionally *also* narrow to specific hours and/or
+ * days of week — layered on top of the date match as an AND, e.g. "a December
+ * countdown, but only 6-10pm" or "every Friday in October" (a Halloween
+ * movie night). Reuses the exact same `days`/`startHour`/`endHour` fields
+ * and hourInRange/day-filter logic dayOfWeek triggers already use — this
+ * isn't a new trigger shape, just those fields being optionally present on
+ * a dateRange trigger too. Unset (the default, and every block saved before
+ * this existed) means "no narrowing," so this is purely additive.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} t The dateRange trigger.
+ * @returns {boolean} True when the optional hours/days narrowing matches (or there is none).
+ */
 function matchesDateRangeNarrowing(atMs, t) {
   const d = new Date(atMs);
   if (t.days && t.days.length && !t.days.includes(new Date(ownerInstant(atMs, t)).getDay())) return false;
@@ -89,18 +131,28 @@ function matchesDateRangeNarrowing(atMs, t) {
   return true;
 }
 
-// The channel's dateRange blocks (with content) that cover the calendar day atMs
-// falls on, whatever hours they are narrowed to — for marking days in a calendar.
+/**
+ * The channel's dateRange blocks (with content) that cover the calendar day atMs
+ * falls on, whatever hours they are narrowed to — for marking days in a calendar.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {Array<object>} The matching blocks.
+ */
 export function dateBlocksOn(ch, atMs) {
   return (ch.blocks || []).filter((b) => b.files && b.files.length && b.trigger && b.trigger.type === 'dateRange'
     && inDateRange(atMs, effectiveTrigger(b.trigger, atMs)));
 }
 
-// Exported so the setup screen can flag a block that matches its trigger
-// right now but has no content (see blockHasContent/matchingBlocksIncludingEmpty
-// in setup-schedule.js) — matchingBlocks below filters those out entirely,
-// which is correct for playback but would hide the "this block exists but
-// will never air" case from the calendar/timeline views too.
+/**
+ * Exported so the setup screen can flag a block that matches its trigger
+ * right now but has no content (see blockHasContent/matchingBlocksIncludingEmpty
+ * in setup-schedule.js) — matchingBlocks below filters those out entirely,
+ * which is correct for playback but would hide the "this block exists but
+ * will never air" case from the calendar/timeline views too.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} block The schedule block.
+ * @returns {boolean} True when the block's trigger matches.
+ */
 export function matchesTrigger(atMs, block) {
   const t = block.trigger;
   if (!t) return false;
@@ -113,12 +165,17 @@ export function matchesTrigger(atMs, block) {
   return matchesDayOfWeek(atMs, t);
 }
 
-// ch.blocks[] entries whose trigger matches `atMs` and which actually carry
-// content, ranked highest-priority-first (ties broken by array order) —
-// the candidate order resolveActiveSource walks looking for a usable source.
-// Exported (in addition to being used internally) so the setup screen's
-// per-channel calendar can flag days where more than one block's trigger
-// overlaps, not just show the single winner resolveActiveSource picks.
+/**
+ * ch.blocks[] entries whose trigger matches `atMs` and which actually carry
+ * content, ranked highest-priority-first (ties broken by array order) —
+ * the candidate order resolveActiveSource walks looking for a usable source.
+ * Exported (in addition to being used internally) so the setup screen's
+ * per-channel calendar can flag days where more than one block's trigger
+ * overlaps, not just show the single winner resolveActiveSource picks.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {Array<object>} The matching blocks, highest priority first.
+ */
 export function matchingBlocks(ch, atMs) {
   return (ch.blocks || [])
     .map((b, idx) => ({ b, idx }))
@@ -127,15 +184,24 @@ export function matchingBlocks(ch, atMs) {
     .map(({ b }) => b);
 }
 
-// Exported so the setup screen's calendar can read/write the same
-// per-day dayOverrides key a daily/weekly block already uses internally,
-// without duplicating the "MM-DD" formatting rule in two places.
+/**
+ * Exported so the setup screen's calendar can read/write the same
+ * per-day dayOverrides key a daily/weekly block already uses internally,
+ * without duplicating the "MM-DD" formatting rule in two places.
+ * @param {number} dateMs An instant on the day, in ms.
+ * @returns {string} The 'MM-DD' key.
+ */
 export function mdKey(dateMs) {
   const d = new Date(dateMs);
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Calendar-day step (not +/-24h): a DST day is 23 or 25 hours long.
+/**
+ * Calendar-day step (not +/-24h): a DST day is 23 or 25 hours long.
+ * @param {number} dayStartMs A local midnight, in ms.
+ * @param {number} n Days to add; may be negative.
+ * @returns {number} The resulting instant, in ms.
+ */
 function addLocalDays(dayStartMs, n) {
   const d = new Date(dayStartMs);
   d.setDate(d.getDate() + n);
@@ -143,15 +209,25 @@ function addLocalDays(dayStartMs, n) {
   return d.getTime();
 }
 
+/**
+ * Local midnight of the day containing `dateMs`.
+ * @param {number} dateMs An instant, in ms.
+ * @returns {number} Local midnight, in ms.
+ */
 function startOfLocalDay(dateMs) {
   const d = new Date(dateMs);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 }
 
-// Local timestamp of the actual calendar date (this cycle, handling a range
-// that wraps New Year like Dec 20 -> Jan 5) that a dateRange trigger's
-// `start` falls on — i.e. "day 0" for daily/weekly mode's day-index.
+/**
+ * Local timestamp of the actual calendar date (this cycle, handling a range
+ * that wraps New Year like Dec 20 -> Jan 5) that a dateRange trigger's
+ * `start` falls on — i.e. "day 0" for daily/weekly mode's day-index.
+ * @param {number} dayStartMs Local midnight of a day in the cycle, in ms.
+ * @param {object} t The dateRange trigger.
+ * @returns {number} Local midnight of the cycle's start day, in ms.
+ */
 function cycleStartMs(dayStartMs, t) {
   const d = new Date(dayStartMs);
   const year = d.getFullYear();
@@ -163,14 +239,20 @@ function cycleStartMs(dayStartMs, t) {
   return curKey >= startKey ? startThisYear : new Date(year - 1, t.startMonth - 1, t.startDay, 0, 0, 0, 0).getTime();
 }
 
-// Exported for the promo/leadDays bumper (interstitials.js's
-// eligiblePromoEntries) — the next upcoming instant a dateRange block's own
-// range begins, purely forward-looking (unlike cycleStartMs above, which
-// finds the cycle *containing* a given day, including a cycle that already
-// started). If fromMs is already inside or past this year's occurrence,
-// rolls to next year's — a promo naturally shouldn't fire once the thing
-// it's promoting has already started airing (resolveActiveSource would
-// already be showing the block itself by then).
+/**
+ * Exported for the promo/leadDays bumper (interstitials.js's
+ * eligiblePromoEntries) — the next upcoming instant a dateRange block's own
+ * range begins, purely forward-looking (unlike cycleStartMs above, which
+ * finds the cycle *containing* a given day, including a cycle that already
+ * started). If fromMs is already inside or past this year's occurrence,
+ * rolls to next year's — a promo naturally shouldn't fire once the thing
+ * it's promoting has already started airing (resolveActiveSource would
+ * already be showing the block itself by then).
+ * @param {object} block The schedule block.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {number} The next range start in ms, or Infinity for a block without a dateRange
+ *   trigger.
+ */
 export function nextBlockStartMs(block, fromMs) {
   if (block.trigger.type !== 'dateRange') return Infinity;
   const year = new Date(fromMs).getFullYear();
@@ -183,11 +265,16 @@ export function nextBlockStartMs(block, fromMs) {
   return startIn(year + 1);
 }
 
-// For a block marked `anchorToRange`: the anchor is its date range's own start in
-// the year being viewed (plus the block's start hour), not one fixed timestamp, so
-// a daily block begins with its first title every year and a Thanksgiving weekend
-// begins at midnight on Thanksgiving whatever the date is. Without the flag the
-// block's stored anchor is used as before.
+/**
+ * For a block marked `anchorToRange`: the anchor is its date range's own start in
+ * the year being viewed (plus the block's start hour), not one fixed timestamp, so
+ * a daily block begins with its first title every year and a Thanksgiving weekend
+ * begins at midnight on Thanksgiving whatever the date is. Without the flag the
+ * block's stored anchor is used as before.
+ * @param {object} block The schedule block.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {number} The anchor, in ms.
+ */
 function rangeAnchorMs(block, atMs) {
   const t = effectiveTrigger(block.trigger, atMs);
   const start = new Date(cycleStartMs(startOfLocalDay(atMs), t));
@@ -195,20 +282,32 @@ function rangeAnchorMs(block, atMs) {
   return start.getTime();
 }
 
-// Whole local calendar days since a fixed epoch, so a difference between two of
-// these is a day count that a 23- or 25-hour DST day cannot throw off.
+/**
+ * Whole local calendar days since a fixed epoch, so a difference between two of
+ * these is a day count that a 23- or 25-hour DST day cannot throw off.
+ * @param {number} ms An instant, in ms.
+ * @returns {number} The local day number.
+ */
 function localDayNumber(ms) {
   const d = new Date(ms);
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS;
 }
 
-// Counters for dynamic bumper text ({dayNumber}, {daysLeft} — playback/breaks.js),
-// e.g. "DAY 7 OF 25". `month`/`day` name a calendar date in atMs's own year:
-//   dayNumber  1 on that date, 2 the next day, …; null before it
-//   daysLeft   days remaining until that date (0 on it); null after it
-// With no date they use the active dateRange block's own range instead (a daily
-// block run, or any multi-day block) — which is useless for a run of one-day
-// blocks, hence the explicit date. Pure: depends only on (ch, atMs).
+/**
+ * Counters for dynamic bumper text ({dayNumber}, {daysLeft} — playback/breaks.js),
+ * e.g. "DAY 7 OF 25". `month`/`day` name a calendar date in atMs's own year:
+ *   dayNumber  1 on that date, 2 the next day, …; null before it
+ *   daysLeft   days remaining until that date (0 on it); null after it
+ * With no date they use the active dateRange block's own range instead (a daily
+ * block run, or any multi-day block) — which is useless for a run of one-day
+ * blocks, hence the explicit date. Pure: depends only on (ch, atMs).
+ * @param {string} kind `dayNumber` or `daysLeft`.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {number} [month] The target date's month, 1-12.
+ * @param {number} [day] The target date's day.
+ * @returns {?number} The counter, or null when it does not apply.
+ */
 export function dayCounter(kind, ch, atMs, month, day) {
   let startMs = null;
   let endMs = null;
@@ -235,8 +334,14 @@ export function dayCounter(kind, ch, atMs, month, day) {
   return left >= 0 ? left : null;
 }
 
-// Fills {dayNumber[:M/D]} and {daysLeft[:M/D]} in a bumper template; a counter
-// that does not apply right now becomes empty text rather than a wrong number.
+/**
+ * Fills {dayNumber[:M/D]} and {daysLeft[:M/D]} in a bumper template; a counter
+ * that does not apply right now becomes empty text rather than a wrong number.
+ * @param {string} template The bumper text template.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {string} The filled text.
+ */
 export function fillDayCounters(template, ch, atMs) {
   const fill = (kind) => (_m, month, day) => {
     const n = dayCounter(kind, ch, atMs, month ? Number(month) : null, day ? Number(day) : null);
@@ -247,13 +352,24 @@ export function fillDayCounters(template, ch, atMs) {
     .replace(/\{daysLeft(?::(\d{1,2})\/(\d{1,2}))?\}/g, fill('daysLeft'));
 }
 
+/**
+ * Whether a day is the last day of a dateRange trigger's range.
+ * @param {number} dayStartMs Local midnight of the day, in ms.
+ * @param {object} t The dateRange trigger.
+ * @returns {boolean} True on the range's end date.
+ */
 function isLastDayOfRange(dayStartMs, t) {
   const d = new Date(dayStartMs);
   return dateKey(d.getMonth() + 1, d.getDate()) === dateKey(t.endMonth, t.endDay);
 }
 
-// Local timestamp a given day unlocks at — that day's own
-// dayOverrides[key].unlockTime ("HH:MM") if set, else midnight.
+/**
+ * Local timestamp a given day unlocks at — that day's own
+ * dayOverrides[key].unlockTime ("HH:MM") if set, else midnight.
+ * @param {object} block The schedule block.
+ * @param {number} dayStartMs Local midnight of the day, in ms.
+ * @returns {number} The unlock instant, in ms.
+ */
 function unlockMsFor(block, dayStartMs) {
   const ov = block.dayOverrides && block.dayOverrides[mdKey(dayStartMs)];
   if (!ov || !ov.unlockTime) return dayStartMs;
@@ -263,11 +379,17 @@ function unlockMsFor(block, dayStartMs) {
   return d.getTime();
 }
 
-// Which single file (or, on the block's finale day, a signal to marathon
-// the whole folder) is "current" for a given local day within a
-// daily/weekly block — walking backward through `skip` blackout days so the
-// previous day's item stays current. Returns null once it walks back before
-// the block's own start (caller falls through to the next candidate/default).
+/**
+ * Which single file (or, on the block's finale day, a signal to marathon
+ * the whole folder) is "current" for a given local day within a
+ * daily/weekly block — walking backward through `skip` blackout days so the
+ * previous day's item stays current. Returns null once it walks back before
+ * the block's own start (caller falls through to the next candidate/default).
+ * @param {object} block The schedule block.
+ * @param {number} dayStartMs Local midnight of the day, in ms.
+ * @param {number} safety How many more days it may walk back; null once it reaches 0.
+ * @returns {?object} { file } for the day's file, { finale: true } on the finale day, or null.
+ */
 function resolveDayContent(block, dayStartMs, safety) {
   if (safety <= 0) return null;
   const t = effectiveTrigger(block.trigger, dayStartMs);
@@ -287,12 +409,17 @@ function resolveDayContent(block, dayStartMs, safety) {
   return { file: ov && ov.title ? { ...base, title: ov.title } : base };
 }
 
-// Resolves a daily/weekly-mode block to the same {files, anchor, key} shape
-// computeSourcePosition already understands: a single "today's" file (or,
-// on a finale day, the whole block folder) looping against its unlock
-// instant — so no new position math is needed, only new source selection.
-// Returns null if there's nothing to show yet (walked back past the
-// block's own start), so resolveActiveSource tries the next candidate.
+/**
+ * Resolves a daily/weekly-mode block to the same {files, anchor, key} shape
+ * computeSourcePosition already understands: a single "today's" file (or,
+ * on a finale day, the whole block folder) looping against its unlock
+ * instant — so no new position math is needed, only new source selection.
+ * Returns null if there's nothing to show yet (walked back past the
+ * block's own start), so resolveActiveSource tries the next candidate.
+ * @param {object} block The schedule block.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The source ({ files, anchor, key, block }), or null.
+ */
 function resolveDailySource(block, atMs) {
   const today = startOfLocalDay(atMs);
   const effectiveDay = atMs < unlockMsFor(block, today) ? addLocalDays(today, -1) : today;
@@ -307,19 +434,29 @@ function resolveDailySource(block, atMs) {
   };
 }
 
-// The calendar day a dayOfWeek trigger's current occurrence "belongs to" —
-// normally just atMs's own local day, but for a midnight-wrapping hour range
-// (e.g. 22-2) the post-midnight tail (hour < startHour) still belongs to the
-// occurrence that started the evening before, so weekly-occurrence counting
-// doesn't see it as a separate, discontinuous day.
+/**
+ * The calendar day a dayOfWeek trigger's current occurrence "belongs to" —
+ * normally just atMs's own local day, but for a midnight-wrapping hour range
+ * (e.g. 22-2) the post-midnight tail (hour < startHour) still belongs to the
+ * occurrence that started the evening before, so weekly-occurrence counting
+ * doesn't see it as a separate, discontinuous day.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} t The trigger ({ startHour, endHour, days?, ... }).
+ * @returns {number} Local midnight of the owning day, in ms.
+ */
 function occurrenceDayFor(atMs, t) {
   return startOfLocalDay(ownerInstant(atMs, t));
 }
 
-// Next (or same-day) local-midnight timestamp on which `weekday` (0=Sun..
-// 6=Sat) falls, on or after dateMs — so a block's first real occurrence
-// (the first time its day/hour trigger actually matches after creation)
-// lands at occurrence index 0, not some earlier date the block never aired.
+/**
+ * Next (or same-day) local-midnight timestamp on which `weekday` (0=Sun..
+ * 6=Sat) falls, on or after dateMs — so a block's first real occurrence
+ * (the first time its day/hour trigger actually matches after creation)
+ * lands at occurrence index 0, not some earlier date the block never aired.
+ * @param {number} dateMs The earliest allowed instant, in ms.
+ * @param {number} weekday The weekday, 0 (Sunday) to 6.
+ * @returns {number} Local midnight of that weekday, in ms.
+ */
 function alignToWeekday(dateMs, weekday) {
   const d = new Date(dateMs);
   const diff = (weekday - d.getDay() + 7) % 7;
@@ -328,20 +465,25 @@ function alignToWeekday(dateMs, weekday) {
   return d.getTime();
 }
 
-// Weekly-rotation mode for a standing dayOfWeek block (e.g. every Friday
-// 8-10pm) — a different file from the block's folder each week instead of
-// looping the whole folder, the weekly "movie premiere night" pattern. Mirrors
-// resolveDailySource's shape (one file, anchored to when this occurrence's
-// window opened) but keyed by weekly occurrence count instead of calendar
-// date, since a dayOfWeek trigger has no calendar "day 1" of its own — the
-// block's own `anchor` (set when its folder was assigned) stands in for
-// that, aligned to the trigger's weekday so occurrence counting starts from
-// a real occurrence of that day rather than an arbitrary scan date. Only
-// meaningful (and only offered in the setup UI) for a trigger with exactly
-// one day selected — a multi-day trigger has no single "once a week" cadence
-// to rotate against. Returns null if there's nothing to show yet (the
-// current occurrence is before the block's own first occurrence), mirroring
-// resolveDailySource's same null-on-not-started-yet contract.
+/**
+ * Weekly-rotation mode for a standing dayOfWeek block (e.g. every Friday
+ * 8-10pm) — a different file from the block's folder each week instead of
+ * looping the whole folder, the weekly "movie premiere night" pattern. Mirrors
+ * resolveDailySource's shape (one file, anchored to when this occurrence's
+ * window opened) but keyed by weekly occurrence count instead of calendar
+ * date, since a dayOfWeek trigger has no calendar "day 1" of its own — the
+ * block's own `anchor` (set when its folder was assigned) stands in for
+ * that, aligned to the trigger's weekday so occurrence counting starts from
+ * a real occurrence of that day rather than an arbitrary scan date. Only
+ * meaningful (and only offered in the setup UI) for a trigger with exactly
+ * one day selected — a multi-day trigger has no single "once a week" cadence
+ * to rotate against. Returns null if there's nothing to show yet (the
+ * current occurrence is before the block's own first occurrence), mirroring
+ * resolveDailySource's same null-on-not-started-yet contract.
+ * @param {object} block The schedule block.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The source ({ files, anchor, key, block }), or null.
+ */
 function resolveWeeklyOccurrenceSource(block, atMs) {
   const t = block.trigger;
   const weekday = t.days[0];
@@ -362,16 +504,21 @@ function resolveWeeklyOccurrenceSource(block, atMs) {
   return { files: [file], anchor: windowStart.getTime(), key: `${block.id}-w${occurrenceIndex}`, block };
 }
 
-// Which file list + anchor is broadcasting on this channel at a given
-// moment: highest-priority matching block wins (daily/weekly dateRange
-// blocks resolve via resolveDailySource, weekly-mode dayOfWeek blocks via
-// resolveWeeklyOccurrenceSource, instead of playing their folder straight
-// through), else the channel's default folder.
-// Fit to time slots (core/fit.js) is applied last, to whichever source won,
-// so every caller sees programs on the grid when the channel has it on. A
-// source that isn't fitted gets its break plan instead (interstitials.js
-// applyBreakPlan): each file's ad breaks laid into its own air time, so the
-// program pauses for them rather than running on underneath.
+/**
+ * Which file list + anchor is broadcasting on this channel at a given
+ * moment: highest-priority matching block wins (daily/weekly dateRange
+ * blocks resolve via resolveDailySource, weekly-mode dayOfWeek blocks via
+ * resolveWeeklyOccurrenceSource, instead of playing their folder straight
+ * through), else the channel's default folder.
+ * Fit to time slots (core/fit.js) is applied last, to whichever source won,
+ * so every caller sees programs on the grid when the channel has it on. A
+ * source that isn't fitted gets its break plan instead (interstitials.js
+ * applyBreakPlan): each file's ad breaks laid into its own air time, so the
+ * program pauses for them rather than running on underneath.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {object} The source ({ files, anchor, key, block }, plus `fit` or `breakPlan` when applied).
+ */
 export function resolveActiveSource(ch, atMs) {
   const candidates = matchingBlocks(ch, atMs);
   for (let i = 0; i < candidates.length; i++) {
@@ -381,10 +528,15 @@ export function resolveActiveSource(ch, atMs) {
   return applyBreakPlan(ch, applyFit(ch, { files: ch.files, anchor: ch.anchor, key: -1, block: null }));
 }
 
-// What one matching block airs at atMs, or null when it has nothing yet (a
-// daily/weekly run that hasn't started). The caller has already decided the
-// block matches and has content. Exported so the rule-stack resolver
-// (programming-rules.js) plays a block exactly the way this file does.
+/**
+ * What one matching block airs at atMs, or null when it has nothing yet (a
+ * daily/weekly run that hasn't started). The caller has already decided the
+ * block matches and has content. Exported so the rule-stack resolver
+ * (programming-rules.js) plays a block exactly the way this file does.
+ * @param {object} b The matching schedule block.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {?object} The source ({ files, anchor, key, block }), or null.
+ */
 export function sourceFromBlock(b, atMs) {
   if (b.trigger.type === 'dateRange' && (b.mode === 'daily' || b.mode === 'weekly')) {
     return resolveDailySource(b, atMs);
@@ -409,18 +561,25 @@ export function sourceFromBlock(b, atMs) {
 // next tune/retune brings it into this window.
 const BOUNDARY_SCAN_HOURS = 24 * 35;
 
-// capMs (optional): a caller that only cares whether a boundary falls
-// before some known instant — getChannelSchedule below is the main one,
-// which immediately clamps this function's return value to its own
-// windowEnd via Math.min() either way — can pass that instant here so the
-// scan itself stops there too, instead of always walking up to the full
-// 35-day/840-hour range only to have most of that precision thrown away by
-// the caller's own clamp a moment later. Returning Infinity for "nothing
-// found before capMs" produces the exact same Math.min(boundary, windowEnd)
-// result a full scan would have, since a true boundary beyond windowEnd
-// clamps to windowEnd either way — this is a pure performance change, the
-// visible result for that caller is identical. Omit capMs for the original
-// "give me the real next boundary" behavior (e.g. arming a retune timer).
+/**
+ * Next instant at or after `fromMs` where the channel's active source can change.
+ * capMs (optional): a caller that only cares whether a boundary falls
+ * before some known instant — getChannelSchedule below is the main one,
+ * which immediately clamps this function's return value to its own
+ * windowEnd via Math.min() either way — can pass that instant here so the
+ * scan itself stops there too, instead of always walking up to the full
+ * 35-day/840-hour range only to have most of that precision thrown away by
+ * the caller's own clamp a moment later. Returning Infinity for "nothing
+ * found before capMs" produces the exact same Math.min(boundary, windowEnd)
+ * result a full scan would have, since a true boundary beyond windowEnd
+ * clamps to windowEnd either way — this is a pure performance change, the
+ * visible result for that caller is identical. Omit capMs for the original
+ * "give me the real next boundary" behavior (e.g. arming a retune timer).
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @param {number} [capMs] Stop scanning at this instant.
+ * @returns {number} The boundary in ms, or Infinity when none is found.
+ */
 export function nextSourceBoundary(ch, fromMs, capMs) {
   if (!ch.blocks || ch.blocks.length === 0) return Infinity;
   const from = resolveActiveSource(ch, fromMs);
@@ -461,26 +620,37 @@ export function nextSourceBoundary(ch, fromMs, capMs) {
   return fast != null ? fast : Infinity;
 }
 
-// A channel's broadcast day — outside these hours it goes off the air
-// entirely (a sign-off card, see showSignOffCard in playback.js) rather
-// than playing content, independent of blocks/default folder. Disabled
-// (the default, and every channel before this existed) means "broadcasts
-// around the clock," so this is purely additive.
+/**
+ * A channel's broadcast day — outside these hours it goes off the air
+ * entirely (a sign-off card, see showSignOffCard in playback.js) rather
+ * than playing content, independent of blocks/default folder. Disabled
+ * (the default, and every channel before this existed) means "broadcasts
+ * around the clock," so this is purely additive.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {boolean} True when the channel is on the air.
+ */
 export function isWithinBroadcastHours(ch, atMs) {
   const bh = ch.broadcastHours;
   if (!bh || !bh.enabled) return true;
   return hourInRange(new Date(atMs).getHours(), bh);
 }
 
-// Next wall-clock instant the broadcast-hours gate flips (sign-on or
-// sign-off). Unlike nextSourceBoundary/nextCommercialsBoundary above, this
-// gate is a single flat hour-range check with no per-block priority
-// interactions to reconcile — it flips at exactly two local wall-clock
-// instants per day (startHour:00 and endHour:00), so the next flip is
-// computed directly instead of scanned, same "exact instant, not scanned"
-// treatment nextSourceBoundary already gives a daily/weekly block's unlock
-// time above. Using Date#setHours (not raw ms arithmetic) for the candidate
-// instants means this self-handles DST the same way that fast path does.
+/**
+ * Next wall-clock instant the broadcast-hours gate flips (sign-on or
+ * sign-off). Unlike nextSourceBoundary/nextCommercialsBoundary above, this
+ * gate is a single flat hour-range check with no per-block priority
+ * interactions to reconcile — it flips at exactly two local wall-clock
+ * instants per day (startHour:00 and endHour:00), so the next flip is
+ * computed directly instead of scanned, same "exact instant, not scanned"
+ * treatment nextSourceBoundary already gives a daily/weekly block's unlock
+ * time above. Using Date#setHours (not raw ms arithmetic) for the candidate
+ * instants means this self-handles DST the same way that fast path does.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {number} The next flip in ms, or Infinity when broadcast hours are off or cover the
+ *   whole day.
+ */
 export function nextBroadcastHoursBoundary(ch, fromMs) {
   const bh = ch.broadcastHours;
   if (!bh || !bh.enabled) return Infinity;
@@ -500,14 +670,19 @@ export function nextBroadcastHoursBoundary(ch, fromMs) {
   return Infinity; // unreachable in practice (a non-degenerate gate always flips within 24h) — same "never found" contract as the scan it replaces
 }
 
-// Backward counterpart of nextBroadcastHoursBoundary — the most recent
-// instant at/before fromMs where the gate flipped *into* fromMs's current
-// state. Needed for the sign-on bumper (interstitials.js): a few seconds
-// after sign-on, the channel is already back "within broadcast hours," so
-// the forward-only function above can't find the boundary just crossed —
-// this one looks the other direction for exactly that case. -Infinity (not
-// found within the scan window) mirrors nextBroadcastHoursBoundary's
-// Infinity sentinel, both meant to be checked with isFinite().
+/**
+ * Backward counterpart of nextBroadcastHoursBoundary — the most recent
+ * instant at/before fromMs where the gate flipped *into* fromMs's current
+ * state. Needed for the sign-on bumper (interstitials.js): a few seconds
+ * after sign-on, the channel is already back "within broadcast hours," so
+ * the forward-only function above can't find the boundary just crossed —
+ * this one looks the other direction for exactly that case. -Infinity (not
+ * found within the scan window) mirrors nextBroadcastHoursBoundary's
+ * Infinity sentinel, both meant to be checked with isFinite().
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {number} The last flip in ms, or -Infinity when broadcast hours are off.
+ */
 export function prevBroadcastHoursBoundary(ch, fromMs) {
   const bh = ch.broadcastHours;
   if (!bh || !bh.enabled) return -Infinity;
@@ -556,6 +731,15 @@ const RAC_CACHE_MAX = 2000;
 let racCaches = new WeakMap();
 let racCacheGen = -1;
 
+/**
+ * The ad policy in effect on a channel at an instant: flow, preset, block override or channel
+ * default. Memoized per channel object and keyed on `S.configGeneration`; see the comment above
+ * `RAC_CACHE_MAX`.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {string[]} [fileTags] The airing file's tags.
+ * @returns {{commercials: object, key: *}} The ad policy and a key naming where it came from.
+ */
 export function resolveActiveCommercials(ch, atMs, fileTags) {
   if (S.configGeneration !== racCacheGen) {
     racCaches = new WeakMap();
@@ -577,6 +761,15 @@ export function resolveActiveCommercials(ch, atMs, fileTags) {
   return result;
 }
 
+/**
+ * The uncached work behind `resolveActiveCommercials`.
+ * @param {object} ch The channel config.
+ * @param {?number} atMs The instant, in ms since the epoch (null from commercialsForPlan).
+ * @param {string[]} [fileTags] The airing file's tags.
+ * @param {?object} [planBlock] Set by commercialsForPlan: the source's own block (or null), the
+ *   only block whose ad override counts. Left undefined, the block is looked up by the clock.
+ * @returns {{commercials: object, key: *}} The ad policy and a key naming where it came from.
+ */
 function computeActiveCommercials(ch, atMs, fileTags, planBlock) {
   // ch.adsEnabled is the channel-level kill-switch — false means no breaks at
   // all on this channel regardless of flows, presets, or block overrides.
@@ -639,28 +832,44 @@ function computeActiveCommercials(ch, atMs, fileTags, planBlock) {
   return { commercials: channelDefaultCommercials(ch, S.config.commercials), key: -1 };
 }
 
-// The ad policy a channel falls back to when no flow, preset or block sets one:
-// its own legacy commercials object, else the box-wide cadence with the
-// channel's own "Ad break every" (BREAKS › ADS, ch.adIntervalMinutes) on top.
-// Exported for the rule-stack resolver (programming-rules.js).
+/**
+ * The ad policy a channel falls back to when no flow, preset or block sets one:
+ * its own legacy commercials object, else the box-wide cadence with the
+ * channel's own "Ad break every" (BREAKS › ADS, ch.adIntervalMinutes) on top.
+ * Exported for the rule-stack resolver (programming-rules.js).
+ * @param {object} ch The channel config.
+ * @param {?object} boxCommercials The box-wide cadence (`S.config.commercials`).
+ * @returns {object} The ad policy.
+ */
 export function channelDefaultCommercials(ch, boxCommercials) {
   if (ch.commercials) return ch.commercials;
   const own = Number(ch.adIntervalMinutes);
   return { ...(boxCommercials || {}), enabled: true, ...(own > 0 ? { intervalMinutes: own } : {}) };
 }
 
-// The ad policy for one file of a source whose breaks are planned into the
-// schedule (interstitials.js planBreaks): the same answer resolveActiveCommercials
-// gives while that source airs, but without a clock. The plan is only built when
-// no block other than the source's own carries an ad override, so the answer
-// can't depend on the time of day.
+/**
+ * The ad policy for one file of a source whose breaks are planned into the
+ * schedule (interstitials.js planBreaks): the same answer resolveActiveCommercials
+ * gives while that source airs, but without a clock. The plan is only built when
+ * no block other than the source's own carries an ad override, so the answer
+ * can't depend on the time of day.
+ * @param {object} ch The channel config.
+ * @param {?object} block The source's own schedule block, or null.
+ * @param {string[]} [fileTags] The file's tags.
+ * @returns {{commercials: object, key: *}} The ad policy and a key naming where it came from.
+ */
 export function commercialsForPlan(ch, block, fileTags) {
   return computeActiveCommercials(ch, null, fileTags, block || null);
 }
 
-// The ad policy a matching flow sets for content carrying fileTags — the flow
-// branch of resolveActiveCommercials, exported so the rule-stack resolver
-// (programming-rules.js) builds exactly the same object.
+/**
+ * The ad policy a matching flow sets for content carrying fileTags — the flow
+ * branch of resolveActiveCommercials, exported so the rule-stack resolver
+ * (programming-rules.js) builds exactly the same object.
+ * @param {object} flow The interstitial flow.
+ * @param {string[]} [fileTags] The airing file's tags.
+ * @returns {{commercials: object, key: string}} The ad policy and its key.
+ */
 export function flowCommercials(flow, fileTags) {
   const tags = fileTags || [];
   const steps = flow.steps || [];
@@ -779,11 +988,16 @@ export function flowCommercials(flow, fileTags) {
   };
 }
 
-// The ad layers resolveActiveCommercials walks, each in its own precedence
-// order, so the winner is always element 0. Exported for the schedule
-// explanation (schedule-query.js explainLayers), which lists the losers too.
-// See computeActiveCommercials above for why flows and presets treat an
-// untagged file differently.
+/**
+ * The ad layers resolveActiveCommercials walks, each in its own precedence
+ * order, so the winner is always element 0. Exported for the schedule
+ * explanation (schedule-query.js explainLayers), which lists the losers too.
+ * See computeActiveCommercials above for why flows and presets treat an
+ * untagged file differently.
+ * @param {object} ch The channel config.
+ * @param {string[]} [fileTags] The airing file's tags.
+ * @returns {Array<object>} The matching flows, winner first.
+ */
 export function matchingFlows(ch, fileTags) {
   const tags = fileTags || [];
   const flows = (S.config.interstitials && S.config.interstitials.flows) || [];
@@ -797,6 +1011,12 @@ export function matchingFlows(ch, fileTags) {
   });
 }
 
+/**
+ * The ad presets that apply to this channel and content, winner first.
+ * @param {object} ch The channel config.
+ * @param {string[]} [fileTags] The airing file's tags.
+ * @returns {Array<object>} The matching presets.
+ */
 export function matchingPresets(ch, fileTags) {
   const tags = fileTags || [];
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
@@ -811,8 +1031,13 @@ export function matchingPresets(ch, fileTags) {
   });
 }
 
-// Blocks carrying their own ad override whose trigger matches — content or
-// not, unlike matchingBlocks.
+/**
+ * Blocks carrying their own ad override whose trigger matches — content or
+ * not, unlike matchingBlocks.
+ * @param {object} ch The channel config.
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @returns {Array<object>} The matching blocks, highest priority first.
+ */
 export function matchingAdBlocks(ch, atMs) {
   return (ch.blocks || [])
     .map((b, idx) => ({ b, idx }))
@@ -821,11 +1046,16 @@ export function matchingAdBlocks(ch, atMs) {
     .map(({ b }) => b);
 }
 
-// Next wall-clock instant where the active commercials config changes —
-// mirrors nextSourceBoundary's hourly scan but keyed on
-// resolveActiveCommercials instead, since a block can change the ad
-// schedule at a boundary where the content itself doesn't change. Ad
-// overrides aren't day-indexed, so there's no daily/weekly fast path here.
+/**
+ * Next wall-clock instant where the active commercials config changes —
+ * mirrors nextSourceBoundary's hourly scan but keyed on
+ * resolveActiveCommercials instead, since a block can change the ad
+ * schedule at a boundary where the content itself doesn't change. Ad
+ * overrides aren't day-indexed, so there's no daily/weekly fast path here.
+ * @param {object} ch The channel config.
+ * @param {number} fromMs Where to search from, in ms.
+ * @returns {number} The boundary in ms, or Infinity.
+ */
 export function nextCommercialsBoundary(ch, fromMs) {
   if (!ch.blocks || ch.blocks.length === 0) return Infinity;
   const fromKey = resolveActiveCommercials(ch, fromMs).key;
@@ -838,7 +1068,16 @@ export function nextCommercialsBoundary(ch, fromMs) {
   return Infinity;
 }
 
-// Compute the live position within a specific source at a specific time.
+/**
+ * Compute the live position within a specific source at a specific time.
+ * @param {object} source A content source ({ files, anchor, key, block }).
+ * @param {number} atMs The instant, in ms since the epoch.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.ignoreContentLost] Skip the accumulated ad-break lag (required for a pure
+ *   result).
+ * @returns {?object} { fileIndex, offset, total, elapsed, loopCount, files, file }, or null when
+ *   the source has nothing to play.
+ */
 export function computeSourcePosition(source, atMs, opts) {
   opts = opts || {};
   const files = source && source.files;
@@ -884,29 +1123,37 @@ export function computeSourcePosition(source, atMs, opts) {
   return { fileIndex: 0, offset: 0, total, elapsed, loopCount, files, file: files[0] };
 }
 
-// Compute { file, fileIndex, offset, ... } for a channel at this instant,
-// as if it has been broadcasting continuously since its anchor — routed
-// through whichever block (or the default folder) is active now. Pure by
-// contract (per this comment) — ignoreContentLost is required to keep that
-// promise: without it, computeSourcePosition would silently subtract
-// S.contentLostMs/breakEnteredAtMs, a *global*, single-channel value that
-// playback.js's own computeLiveContentPosition owns and correctly key-scopes
-// to whichever channel/source is actually live-tuned right now. This
-// function is called for channels that AREN'T the tuned one (every row of
-// setup-channels.js's CHANNELS list) and for timestamps that AREN'T real
-// "now" (the time machine's VCR OSD readout and shuttle content-preview,
-// at whatever instant is being scrubbed to) — applying the tuned channel's
-// currently-accumulated ad-break lag to a different channel or a different
-// moment in time was wrong in both cases, and broke the "pure function of
-// (channel, timestamp)" contract every other schedule.js resolver relies on.
+/**
+ * Compute { file, fileIndex, offset, ... } for a channel at this instant,
+ * as if it has been broadcasting continuously since its anchor — routed
+ * through whichever block (or the default folder) is active now. Pure by
+ * contract (per this comment) — ignoreContentLost is required to keep that
+ * promise: without it, computeSourcePosition would silently subtract
+ * S.contentLostMs/breakEnteredAtMs, a *global*, single-channel value that
+ * playback.js's own computeLiveContentPosition owns and correctly key-scopes
+ * to whichever channel/source is actually live-tuned right now. This
+ * function is called for channels that AREN'T the tuned one (every row of
+ * setup-channels.js's CHANNELS list) and for timestamps that AREN'T real
+ * "now" (the time machine's VCR OSD readout and shuttle content-preview,
+ * at whatever instant is being scrubbed to) — applying the tuned channel's
+ * currently-accumulated ad-break lag to a different channel or a different
+ * moment in time was wrong in both cases, and broke the "pure function of
+ * (channel, timestamp)" contract every other schedule.js resolver relies on.
+ * @param {object} ch The channel config.
+ * @returns {?object} The position from `computeSourcePosition`, or null.
+ */
 export function computeLivePosition(ch) {
   return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow(), { ignoreContentLost: true });
 }
 
-// A usable duration in seconds: a finite positive number, else 0. A NaN, negative or missing
-// duration (a probe that failed, a hand-edited config) used to poison the playlist total (NaN
-// compares false against everything, so the `total <= 0` guard let it through) or, worse, walk the
-// cursor backwards.
+/**
+ * A usable duration in seconds: a finite positive number, else 0. A NaN, negative or missing
+ * duration (a probe that failed, a hand-edited config) used to poison the playlist total (NaN
+ * compares false against everything, so the `total <= 0` guard let it through) or, worse, walk the
+ * cursor backwards.
+ * @param {object} file A channel file entry.
+ * @returns {number} The duration in seconds, or 0.
+ */
 export function safeDurationS(file) {
   const d = Number(file && file.duration);
   return Number.isFinite(d) && d > 0 ? d : 0;
@@ -914,9 +1161,16 @@ export function safeDurationS(file) {
 
 const SAFETY_FILES_PER_SEGMENT = 1000;
 
-// Returns the entries; when the per-segment cap cut the walk short, the returned array also
-// carries `truncated: true` (additive: absent otherwise, so existing callers and deep-equals
-// are unaffected).
+/**
+ * Lists what one source airs over [segStart, segEnd), as { file, start, end, block } entries.
+ * Returns the entries; when the per-segment cap cut the walk short, the returned array also
+ * carries `truncated: true` (additive: absent otherwise, so existing callers and deep-equals
+ * are unaffected).
+ * @param {object} source A content source ({ files, anchor, key, block }).
+ * @param {number} segStart Segment start, in ms.
+ * @param {number} segEnd Segment end, in ms.
+ * @returns {Array<object>} The entries.
+ */
 export function walkSourceSchedule(source, segStart, segEnd) {
   const files = source.files;
   const durs = files.map(safeDurationS);
@@ -954,15 +1208,27 @@ export function walkSourceSchedule(source, segStart, segEnd) {
 }
 
 let warnedTruncation = false;
+/**
+ * Logs a one-time console warning that a schedule listing hit its safety cap.
+ * @param {string} what What was cut short.
+ * @param {number} cap The cap that was hit.
+ */
 function warnTruncatedOnce(what, cap) {
   if (warnedTruncation) return;
   warnedTruncation = true;
   console.warn(`[schedule] ${what} hit its safety cap of ${cap}; the listing is cut short (very short files or a very long window)`);
 }
 
-// Channel schedule across [windowStart, windowEnd), segmented wherever the
-// active source changes (a block starting/ending, or a daily/weekly block's
-// day rollover) so each stretch reads from its own source.
+/**
+ * Channel schedule across [windowStart, windowEnd), segmented wherever the
+ * active source changes (a block starting/ending, or a daily/weekly block's
+ * day rollover) so each stretch reads from its own source.
+ * @param {object} ch The channel config.
+ * @param {number} windowStart Window start, in ms.
+ * @param {number} windowEnd Window end, in ms.
+ * @returns {Array<object>} { file, start, end, block } entries; the array carries `truncated: true`
+ *   when a cap cut it short.
+ */
 export function getChannelSchedule(ch, windowStart, windowEnd) {
   const entries = [];
   let segStart = windowStart;

@@ -33,28 +33,52 @@ const METADATA_FIELDS = [
   'hasCC', 'hasSAP', 'hasStereo', 'creditsLeadS', 'creditsSqueezeBgImage',
 ];
 
-// Stable across re-runs of the same migration: the same path always plans the
-// same id, so running it twice produces the same library. After migration an
-// id never changes again, even when the file moves (store.js).
+/**
+ * Stable across re-runs of the same migration: the same path always plans the
+ * same id, so running it twice produces the same library. After migration an
+ * id never changes again, even when the file moves (store.js).
+ * @param {string} ref The file's path or provider ref.
+ * @returns {string} The planned item id (`itm_` plus a hash).
+ */
 function plannedItemId(ref) {
   return `itm_${crypto.createHash('sha1').update(String(ref)).digest('hex').slice(0, 16)}`;
 }
 
+/**
+ * Stable root id for a channel folder, derived from its source and ref.
+ * @param {object} folder A channel folder entry `{ source?, ref }`.
+ * @returns {string} The planned root id (`root_` plus a hash).
+ */
 function plannedRootId(folder) {
   return `root_${crypto.createHash('sha1').update(`${folder.source || 'local'}|${folder.ref}`).digest('hex').slice(0, 16)}`;
 }
 
+/**
+ * Deep copy through JSON.
+ * @param {*} value A JSON value, or undefined.
+ * @returns {*} The copy (undefined stays undefined).
+ */
 function cloneJson(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+/**
+ * Equality by JSON serialisation.
+ * @param {*} a One value.
+ * @param {*} b The other value.
+ * @returns {boolean} True when they serialise the same.
+ */
 function sameValue(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-// Every playlist a channel owns: its default files and each block's files.
-// Blocks carry their own `files` in the schema even though today's lineup has
-// none, and a migration that silently skipped them would leave items behind.
+/**
+ * Every playlist a channel owns: its default files and each block's files.
+ * Blocks carry their own `files` in the schema even though today's lineup has
+ * none, and a migration that silently skipped them would leave items behind.
+ * @param {object} channel A channel config.
+ * @returns {Array<object>} `{ owner, files }` per playlist (`channel` or `block:<id>`).
+ */
 function playlistsOf(channel) {
   const lists = [{ owner: 'channel', files: channel.files || [] }];
   (channel.blocks || []).forEach((block) => {
@@ -66,6 +90,10 @@ function playlistsOf(channel) {
 /**
  * Plans the migration. Pure — neither `config` nor anything in it is modified.
  * Returns { index, config, channels, conflicts }.
+ * @param {object} config The config to plan from.
+ * @param {object} [opts] Options.
+ * @param {Function} [opts.now] Clock in ms, for item timestamps.
+ * @returns {object} The plan.
  */
 function planMigration(config, { now = () => Date.now() } = {}) {
   const planned = cloneJson(config);
@@ -201,6 +229,10 @@ function planMigration(config, { now = () => Date.now() } = {}) {
  * `verdicts` maps channel number -> { identical: boolean, ... }.
  * A channel with no verdict is treated as failed: not having checked is not
  * the same as having checked and found nothing.
+ * @param {object} original The config the plan was made from.
+ * @param {object} plan The `planMigration` result.
+ * @param {object} verdicts Channel number to schedule-diff verdict.
+ * @returns {object} `{ index, config, accepted, rejected }`.
  */
 function finalizeMigration(original, plan, verdicts) {
   const accepted = new Set();

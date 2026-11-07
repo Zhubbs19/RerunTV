@@ -32,6 +32,11 @@ export const AIR_CHECK_MAX = 24;
 // management surface.
 export const AIR_CHECK_MENU_MAX = 6;
 
+/**
+ * Returns the live air-check list of the active profile, or the box's.
+ * Creates `S.config.airChecks` when it is missing.
+ * @returns {Array<object>} The stored marks, in stored order.
+ */
 function airCheckArray() {
   const profile = currentProfile();
   if (profile) return profile.state.airChecks;
@@ -39,6 +44,11 @@ function airCheckArray() {
   return S.config.airChecks;
 }
 
+/**
+ * Replaces the air-check list of the active profile, or the box's.
+ * @param {Array<object>} list The new list of marks.
+ * @param {object} [opts] Command options (`label`, `skipUndo`).
+ */
 function saveAirChecks(list, opts = {}) {
   const profile = currentProfile();
   if (profile) {
@@ -50,17 +60,30 @@ function saveAirChecks(list, opts = {}) {
   }
 }
 
-// Newest first — the one you just made is the one you are most likely to
-// want back.
+/**
+ * Newest first — the one you just made is the one you are most likely to
+ * want back.
+ * @returns {Array<object>} A sorted copy of the marks.
+ */
 export function airChecks() {
   return airCheckArray().slice().sort((a, b) => b.at - a.at);
 }
 
+/**
+ * Formats a mark for a list: time, channel and title.
+ * @param {object} mark An air-check mark.
+ * @returns {string} The label.
+ */
 export function airCheckLabel(mark) {
   const when = formatClock(new Date(mark.at));
   return `${when} · CH ${mark.channelNumber}${mark.title ? ` · ${mark.title}` : ''}`;
 }
 
+/**
+ * Marks the current moment on the tuned channel and flashes a confirmation.
+ * Uses the viewing clock, and keeps at most `AIR_CHECK_MAX` marks.
+ * @returns {?object} The new mark, or `null` when nothing is tuned.
+ */
 export function saveAirCheck() {
   const ch = getChannel(S.currentNumber);
   if (!ch) {
@@ -94,24 +117,35 @@ export function saveAirCheck() {
   return mark;
 }
 
+/**
+ * Removes an air-check mark.
+ * @param {string} id The mark id.
+ */
 export function removeAirCheck(id) {
   saveAirChecks(airCheckArray().filter((mark) => mark.id !== id), { label: 'Remove air check' });
 }
 
+/**
+ * Removes every air-check mark.
+ */
 export function clearAirChecks() {
   saveAirChecks([], { label: 'Clear air checks' });
 }
 
-// Shifts the viewing clock so that `viewNow()` reads the marked instant,
-// then tunes — the same two steps jumpToGuideEntry (guide.js) takes, for the
-// same reason: everything downstream reads viewNow(), so moving the offset
-// moves playback, the guide, dayparting, and the on-screen clocks together.
-//
-// Works whether or not the time machine is switched on. The mode gates
-// shuttling and the guide's own jump-to-programme, but recalling a mark is
-// an explicit, single destination the user picked by name, not open-ended
-// scrubbing, so gating it behind a setting would only make the feature
-// silently do nothing.
+/**
+ * Shifts the viewing clock so that `viewNow()` reads the marked instant,
+ * then tunes — the same two steps jumpToGuideEntry (guide.js) takes, for the
+ * same reason: everything downstream reads viewNow(), so moving the offset
+ * moves playback, the guide, dayparting, and the on-screen clocks together.
+ *
+ * Works whether or not the time machine is switched on. The mode gates
+ * shuttling and the guide's own jump-to-programme, but recalling a mark is
+ * an explicit, single destination the user picked by name, not open-ended
+ * scrubbing, so gating it behind a setting would only make the feature
+ * silently do nothing.
+ * @param {string} id The mark id.
+ * @returns {boolean} False when there is no mark with that id.
+ */
 export function recallAirCheck(id) {
   const mark = airCheckArray().find((entry) => entry.id === id);
   if (!mark) return false;

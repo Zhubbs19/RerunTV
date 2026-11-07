@@ -31,6 +31,12 @@ const os = require('os');
 const { runFfmpeg, runFfmpegWithProgress, runFfmpegCollectStdout } = require('./ffmpeg-runner');
 const { DEFAULT_VIDEO_EXTS, parseArgs } = require('./cuts');
 
+/**
+ * Resolves the input files from `--list`, `--dir` or the bare arguments, in that order of preference.
+ * @param {object} argv Parsed arguments from `parseArgs`.
+ * @returns {string[]} Absolute input paths in join order.
+ * @throws {Error} When the `--list` file or `--dir` folder does not exist.
+ */
 function collectInputs(argv) {
   if (argv.list) {
     const listPath = path.resolve(argv.list);
@@ -61,6 +67,11 @@ function collectInputs(argv) {
   return [];
 }
 
+/**
+ * Reads a file's duration and first video and audio stream details from ffmpeg's banner.
+ * @param {string} input The media file.
+ * @returns {Promise<object>} `{ duration, fps, videoCodec, width, height, audioCodec, audioRate, audioLayout, hasAudio }`, with null for anything not found.
+ */
 async function probeStream(input) {
   const { stderr } = await runFfmpeg(['-i', input]);
   const durMatch = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
@@ -84,7 +95,11 @@ async function probeStream(input) {
   };
 }
 
-// What differs between the clips, by name, or [] when stream-copy is safe.
+/**
+ * What differs between the clips, by name, or [] when stream-copy is safe.
+ * @param {Array<object>} probes Results of `probeStream`, one per clip.
+ * @returns {string[]} The names of the fields that differ.
+ */
 function mismatches(probes) {
   const first = probes[0];
   return ['videoCodec', 'width', 'height', 'fps', 'hasAudio', 'audioCodec', 'audioRate', 'audioLayout'].filter((key) => probes.some((p) => p[key] !== first[key]));
@@ -93,6 +108,11 @@ function mismatches(probes) {
 // ---------- Encoders ----------
 
 let encoderNames = null;
+/**
+ * Checks whether this ffmpeg lists an encoder; the list is read once and kept.
+ * @param {string} name The encoder name, such as `libx264`.
+ * @returns {Promise<boolean>} True when it is listed.
+ */
 async function hasEncoder(name) {
   if (!encoderNames) {
     try {
@@ -107,6 +127,10 @@ async function hasEncoder(name) {
 
 // An encoder that is listed can still fail (no NVIDIA card), so try it once.
 const workingEncoders = new Map();
+/**
+ * @param {string} name The encoder name.
+ * @returns {Promise<boolean>} True when a short test encode succeeds; the answer is kept.
+ */
 async function canEncode(name) {
   if (!workingEncoders.has(name)) {
     let ok = false;
@@ -119,8 +143,12 @@ async function canEncode(name) {
   return workingEncoders.get(name);
 }
 
-// Video encode arguments for a codec name as ffmpeg reports it, or null when
-// this ffmpeg can't write that codec.
+/**
+ * Video encode arguments for a codec name as ffmpeg reports it, or null when
+ * this ffmpeg can't write that codec.
+ * @param {string} codec The codec name, such as `h264` or `vp9`.
+ * @returns {Promise<?string[]>} ffmpeg arguments, preferring an NVIDIA encoder that works.
+ */
 async function videoEncoderFor(codec) {
   if (codec === 'h264') {
     if (await canEncode('h264_nvenc')) return ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '20', '-b:v', '0'];
@@ -137,6 +165,11 @@ async function videoEncoderFor(codec) {
   return null;
 }
 
+/**
+ * Returns audio encode arguments for a codec name as ffmpeg reports it.
+ * @param {string} codec The codec name, such as `aac`.
+ * @returns {Promise<?string[]>} ffmpeg arguments, or null when this ffmpeg can't write that codec.
+ */
 async function audioEncoderFor(codec) {
   const names = { aac: 'aac', opus: 'libopus', mp3: 'libmp3lame', vorbis: 'libvorbis', ac3: 'ac3' };
   return names[codec] && await hasEncoder(names[codec]) ? ['-c:a', names[codec], ...(codec === 'opus' ? ['-b:a', '128k'] : [])] : null;
@@ -146,6 +179,11 @@ const AUDIO_CHANNELS = { mono: 1, stereo: 2 };
 
 // ---------- Matching odd clips to the rest ----------
 
+/**
+ * Joins the fields that must match for a stream-copy join into one comparable string.
+ * @param {object} p A `probeStream` result.
+ * @returns {string} The format signature.
+ */
 const signature = (p) => [p.videoCodec, p.width, p.height, p.fps === null ? '' : p.fps.toFixed(2), p.hasAudio, p.audioCodec, p.audioRate, p.audioLayout].join('|');
 
 // Rough encode cost per second of footage, so the cheaper plan wins: VP9 on
@@ -153,11 +191,15 @@ const signature = (p) => [p.videoCodec, p.width, p.height, p.fps === null ? '' :
 // times faster.
 const ENCODER_COST = { h264_nvenc: 0.1, hevc_nvenc: 0.1, av1_nvenc: 0.1, libx264: 0.3, libsvtav1: 0.5, libx265: 0.8, 'libvpx-vp9': 1.2 };
 
-// Plans a join that converts as little as possible. Two candidates: convert the
-// clips that differ to the most common format (so the rest are copied), or
-// convert every clip that isn't already H.264 in that shape. Whichever costs
-// less encoding time wins. Returns null when neither can be done safely (audio
-// in only some clips, or no encoder this ffmpeg has).
+/**
+ * Plans a join that converts as little as possible. Two candidates: convert the
+ * clips that differ to the most common format (so the rest are copied), or
+ * convert every clip that isn't already H.264 in that shape. Whichever costs
+ * less encoding time wins. Returns null when neither can be done safely (audio
+ * in only some clips, or no encoder this ffmpeg has).
+ * @param {Array<object>} probes Results of `probeStream`, one per clip.
+ * @returns {Promise<?object>} `{ target, odd, video, audio, cost }`, where `odd` lists the clip indexes to convert, or null.
+ */
 async function planConversion(probes) {
   if (probes.some((p) => !p.videoCodec || p.hasAudio !== probes[0].hasAudio)) return null;
   const counts = new Map();
@@ -189,6 +231,16 @@ async function planConversion(probes) {
   return plans[0] || null;
 }
 
+/**
+ * Re-encodes one clip to the plan's target size, frame rate and codecs.
+ * @param {string} input The clip to convert.
+ * @param {string} outFile Where to write the converted clip.
+ * @param {object} plan The plan from `planConversion`.
+ * @param {?number} duration The clip's length in seconds, for progress.
+ * @param {Function} onPercent Called with a 0 to 100 progress value.
+ * @returns {Promise<void>} Resolves once written.
+ * @throws {Error} When ffmpeg fails.
+ */
 async function convertClip(input, outFile, plan, duration, onPercent) {
   const { target } = plan;
   const width = target.width & ~1;
@@ -204,7 +256,14 @@ async function convertClip(input, outFile, plan, duration, onPercent) {
   if (code !== 0) throw new Error(`converting ${path.basename(input)} failed:\n${stderr.slice(-800)}`);
 }
 
-// Converts the odd clips into a temp folder, then joins everything by copy.
+/**
+ * Converts the odd clips into a temp folder, then joins everything by copy.
+ * @param {string[]} inputs The clips in join order.
+ * @param {string} outFile The joined output file.
+ * @param {Array<object>} probes Results of `probeStream`, one per clip.
+ * @param {object} plan The plan from `planConversion`.
+ * @returns {Promise<void>} Resolves once joined.
+ */
 async function combineConverted(inputs, outFile, probes, plan) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reruntv-combine-'));
   try {
@@ -226,6 +285,13 @@ async function combineConverted(inputs, outFile, probes, plan) {
   }
 }
 
+/**
+ * Joins clips without re-encoding through ffmpeg's concat demuxer.
+ * @param {string[]} inputs The clips in join order.
+ * @param {string} outFile The joined output file.
+ * @returns {Promise<void>} Resolves once joined.
+ * @throws {Error} When ffmpeg fails.
+ */
 async function combineStreamCopy(inputs, outFile) {
   const listPath = path.join(os.tmpdir(), `combine_${Date.now()}.txt`);
   const listContent = inputs
@@ -240,9 +306,18 @@ async function combineStreamCopy(inputs, outFile) {
   }
 }
 
-// The concat filter needs every input to match, so each clip is first scaled
-// (letterboxed, never stretched) to the first clip's size and frame rate, and
-// its audio brought to one sample rate and layout.
+/**
+ * The concat filter needs every input to match, so each clip is first scaled
+ * (letterboxed, never stretched) to the first clip's size and frame rate, and
+ * its audio brought to one sample rate and layout.
+ * @param {string[]} inputs The clips in join order.
+ * @param {string} outFile The joined output file.
+ * @param {boolean} hasAudio Whether the clips carry audio.
+ * @param {object} [target={}] The size and frame rate to match (`width`, `height`, `fps`).
+ * @param {?number} [totalDuration=null] Total length in seconds, for progress.
+ * @returns {Promise<void>} Resolves once joined.
+ * @throws {Error} When ffmpeg fails.
+ */
 async function combineReencode(inputs, outFile, hasAudio, target = {}, totalDuration = null) {
   const width = (target.width || 1280) & ~1;
   const height = (target.height || 720) & ~1;
@@ -268,6 +343,10 @@ async function combineReencode(inputs, outFile, hasAudio, target = {}, totalDura
 ${stderr.slice(-800)}`);
 }
 
+/**
+ * Runs the combiner from the command line: resolves inputs, picks stream copy, a partial conversion or a full re-encode, and writes the output.
+ * @returns {Promise<void>} Resolves when done; exits the process on bad input.
+ */
 async function main() {
   const argv = parseArgs(process.argv.slice(2));
   if (argv.help || argv.h) {

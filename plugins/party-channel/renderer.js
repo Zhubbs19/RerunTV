@@ -98,6 +98,11 @@ const effectConfettiEl = document.getElementById('effect-confetti');
 const effectApplauseEl = document.getElementById('effect-applause');
 const crtContainer = document.querySelector('.crt');
 
+/**
+ * Pads a number to two digits with a leading zero.
+ * @param {number} n The number.
+ * @returns {string} The padded text.
+ */
 export function pad2(n) { return String(n).padStart(2, '0'); }
 
 // ---------- Visual effects (guest-triggered from the party page's EFFECTS
@@ -110,9 +115,15 @@ let confettiTimer = null;
 let flashTimer = null;
 let applauseTimer = null;
 
+/**
+ * Shows the effects overlay that sits over whatever is tuned.
+ */
 function showEffectOverlay() {
   effectOverlayEl.classList.remove('hidden');
 }
+/**
+ * Hides the effects overlay once no flash, confetti or applause effect is still showing.
+ */
 function hideEffectOverlayIfIdle() {
   if (effectFlashEl.classList.contains('hidden')
     && effectConfettiEl.classList.contains('hidden')
@@ -120,10 +131,18 @@ function hideEffectOverlayIfIdle() {
     effectOverlayEl.classList.add('hidden');
   }
 }
-// Shared by runFlash/runConfetti/runApplause below — all three follow the
-// same "clear any still-pending previous hide, show, run effect-specific
-// setup, auto-hide after durationMs" shape; only what setup() does, how
-// long it stays up, and any extra teardown on hide differ per effect.
+/**
+ * Shared by runFlash/runConfetti/runApplause below — all three follow the
+ * same "clear any still-pending previous hide, show, run effect-specific
+ * setup, auto-hide after durationMs" shape; only what setup() does, how
+ * long it stays up, and any extra teardown on hide differ per effect.
+ * @param {HTMLElement} el The effect's element.
+ * @param {?number} prevTimer The effect's pending hide timer, cleared first.
+ * @param {number} durationMs How long the effect stays up.
+ * @param {Function} setup Effect-specific start-up, run after the element is shown.
+ * @param {Function} [onHide] Extra teardown run when the effect hides.
+ * @returns {number} The new hide timer id.
+ */
 function runTimedEffect(el, prevTimer, durationMs, setup, onHide) {
   clearTimeout(prevTimer);
   el.classList.remove('hidden');
@@ -134,6 +153,9 @@ function runTimedEffect(el, prevTimer, durationMs, setup, onHide) {
     hideEffectOverlayIfIdle();
   }, durationMs);
 }
+/**
+ * Plays the white camera-flash effect.
+ */
 function runFlash() {
   flashTimer = runTimedEffect(effectFlashEl, flashTimer, 650, () => {
     effectFlashEl.style.animation = 'none';
@@ -141,6 +163,9 @@ function runFlash() {
     effectFlashEl.style.animation = '';
   });
 }
+/**
+ * Rains confetti pieces over the picture for about three seconds.
+ */
 function runConfetti() {
   confettiTimer = runTimedEffect(effectConfettiEl, confettiTimer, 3200, () => {
     effectConfettiEl.innerHTML = '';
@@ -155,6 +180,9 @@ function runConfetti() {
     }
   }, () => { effectConfettiEl.innerHTML = ''; });
 }
+/**
+ * Plays the applause effect.
+ */
 function runApplause() {
   applauseTimer = runTimedEffect(effectApplauseEl, applauseTimer, 2300, () => {
     effectApplauseEl.style.animation = 'none';
@@ -162,6 +190,10 @@ function runApplause() {
     effectApplauseEl.style.animation = '';
   });
 }
+/**
+ * Runs a guest-triggered visual effect over the picture.
+ * @param {string} type `confetti`, `flash` or `applause`; anything else is ignored.
+ */
 function triggerVisualEffect(type) {
   showEffectOverlay();
   if (type === 'confetti') runConfetti();
@@ -170,16 +202,22 @@ function triggerVisualEffect(type) {
 }
 
 // ---------- Vote-for-next-channel ----------
+/**
+ * Sends the current vote tally to the main process so guests can read it.
+ */
 function pushVoteState() {
   window.api.sendPartyVoteState(window.S.partyVoteTally);
 }
 
-// Any guest can vote any time; the tally only actually *does* something
-// (renders a leaderboard + eventually auto-tunes) while this channel is
-// showing idle — see renderVoteBoard/armVoteTimer below. Voting while
-// something else is on just banks votes quietly for whenever the party
-// channel is next idle, same "the party continues in the background"
-// spirit as the content queue itself.
+/**
+ * Any guest can vote any time; the tally only actually *does* something
+ * (renders a leaderboard + eventually auto-tunes) while this channel is
+ * showing idle — see renderVoteBoard/armVoteTimer below. Voting while
+ * something else is on just banks votes quietly for whenever the party
+ * channel is next idle, same "the party continues in the background"
+ * spirit as the content queue itself.
+ * @param {number} number The channel number voted for.
+ */
 function registerVote(number) {
   const S = window.S;
   S.partyVoteTally[number] = (S.partyVoteTally[number] || 0) + 1;
@@ -187,11 +225,17 @@ function registerVote(number) {
   if (S.currentNumber === PARTY_CH && !S.partyCurrentItem) renderVoteBoard();
 }
 
+/**
+ * Cancels the pending vote-window timer.
+ */
 function clearVoteTimer() {
   clearTimeout(window.S.partyVoteTimer);
   window.S.partyVoteTimer = null;
 }
 
+/**
+ * Starts the vote window if one is not already running; when it ends, resets the tally and tunes to the winner.
+ */
 function armVoteTimer() {
   const S = window.S;
   if (S.partyVoteTimer) return; // already counting down to this window's tally
@@ -210,6 +254,9 @@ function armVoteTimer() {
   }, windowMs);
 }
 
+/**
+ * Draws the vote leaderboard on the idle screen and arms the vote window, or hides it when voting is off or empty.
+ */
 function renderVoteBoard() {
   const S = window.S;
   if (!S.config.party.voteEnabled) {
@@ -247,6 +294,11 @@ function renderVoteBoard() {
 }
 
 // ---------- Countdown ----------
+/**
+ * Formats a countdown as `HH:MM:SS`, with a day count in front when a day or more remains.
+ * @param {number} remainingMs Time left in milliseconds.
+ * @returns {string} The countdown text.
+ */
 function formatCountdown(remainingMs) {
   const totalSec = Math.max(0, Math.floor(remainingMs / 1000));
   const days = Math.floor(totalSec / 86400);
@@ -262,11 +314,19 @@ function formatCountdown(remainingMs) {
 // (a page reload re-arming it once is harmless).
 let countdownFiredForTarget = null;
 
+/**
+ * Celebrates a finished countdown with confetti and a queued announcement.
+ * @param {string} [label] The countdown's label.
+ */
 function fireCountdownComplete(label) {
   triggerVisualEffect('confetti');
   enqueuePartyItem({ id: `countdown-${Date.now()}`, kind: 'announce', text: label ? `🎉 ${label}!` : '🎉 Time’s up!' });
 }
 
+/**
+ * Starts the once-a-second countdown on the idle screen, firing the celebration once when it reaches zero.
+ * The target is a wall-clock time, so this reads `Date.now()`.
+ */
 function renderCountdown() {
   const S = window.S;
   const cd = S.config.party.countdown;
@@ -298,6 +358,10 @@ function renderCountdown() {
 
 // ---------- Check-in wall ----------
 const CHECKIN_MAX = 24;
+/**
+ * Adds a guest to the check-in list, plays a chime and posts it to the ticker feed.
+ * @param {string} name The guest's name, trimmed to 24 characters.
+ */
 function addPartyCheckin(name) {
   const S = window.S;
   const clean = String(name || '').trim().slice(0, 24);
@@ -321,6 +385,9 @@ function addPartyCheckin(name) {
 // keeps the common case compact without losing anyone from the underlying
 // list guests actually see reflected in who's-arrived counts.
 const CHECKIN_WALL_VISIBLE = 10;
+/**
+ * Draws the check-in wall on the idle screen, showing the newest names and a `+N more` chip.
+ */
 function renderCheckinWall() {
   const S = window.S;
   if (!S.config.party.checkinEnabled || !S.partyCheckins.length) {
@@ -350,6 +417,10 @@ function renderCheckinWall() {
 // directly here). Capped so a busy party doesn't leave the ticker
 // scrolling through an ever-growing wall of stale text.
 const TICKER_FEED_MAX = 8;
+/**
+ * Adds a line to the ticker feed when the party ticker is on.
+ * @param {string} text The line, trimmed to 120 characters.
+ */
 function pushToTickerFeed(text) {
   const S = window.S;
   if (!S.config.party.feedTicker || !text) return;
@@ -365,6 +436,9 @@ function pushToTickerFeed(text) {
 // faster than that could otherwise grow this without bound. Capped the
 // same "keep the most recent, drop the oldest" way as its siblings.
 const PARTY_QUEUE_MAX = 40;
+/**
+ * Sends the current item and queue length to the main process for guests to poll.
+ */
 function pushPartyQueueState() {
   const S = window.S;
   window.api.sendPartyQueueState({
@@ -375,9 +449,12 @@ function pushPartyQueueState() {
   });
 }
 
-// Announcements jump to the front of the queue — a time-sensitive "pizza's
-// here!" shouldn't wait behind a long-running video someone posted earlier.
-// Everything else (images/videos) is FIFO, first posted first shown.
+/**
+ * Announcements jump to the front of the queue — a time-sensitive "pizza's
+ * here!" shouldn't wait behind a long-running video someone posted earlier.
+ * Everything else (images/videos) is FIFO, first posted first shown.
+ * @param {object} item The queue item (`kind` is `image`, `video` or `announce`).
+ */
 function enqueuePartyItem(item) {
   const S = window.S;
   if (item.kind === 'announce') S.partyQueue.unshift(item);
@@ -396,12 +473,19 @@ function enqueuePartyItem(item) {
   if (S.currentNumber === PARTY_CH && !S.partyCurrentItem) playNextPartyItem();
 }
 
+/**
+ * Reads an announcement aloud with speech synthesis when it is available.
+ * @param {string} text The announcement.
+ */
 function speakAnnouncement(text) {
   if (!window.speechSynthesis) return; // no TTS support — the on-screen card still shows the text
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
 }
 
+/**
+ * Shows `S.partyCurrentItem` (image, video, announcement or trivia) and arms the timer that advances the queue.
+ */
 function renderCurrentPartyItem() {
   const S = window.S;
   const player = window.RCBPlugins.ctx.player;
@@ -471,6 +555,9 @@ function renderCurrentPartyItem() {
 const TRIVIA_REVEAL_DWELL_MS = 6000;
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 
+/**
+ * Sends the trivia round to the main process; the correct answer is only included once revealed.
+ */
 function pushTriviaState() {
   const r = window.S.partyTriviaRound;
   window.api.sendPartyTriviaState(r ? {
@@ -479,6 +566,9 @@ function pushTriviaState() {
   } : { active: false });
 }
 
+/**
+ * Draws the trivia card with each option's share of the votes, or hides it when no round is live.
+ */
 function renderTriviaCard() {
   const r = window.S.partyTriviaRound;
   if (!r) { partyTriviaCardEl.classList.add('hidden'); return; }
@@ -512,6 +602,9 @@ function renderTriviaCard() {
   partyTriviaCardEl.classList.remove('hidden');
 }
 
+/**
+ * Locks the trivia round, shows the correct answer, then moves on after a short dwell.
+ */
 function revealTrivia() {
   const S = window.S;
   if (!S.partyTriviaRound || S.partyCurrentItem?.kind !== 'trivia') return;
@@ -525,10 +618,12 @@ function revealTrivia() {
   }, TRIVIA_REVEAL_DWELL_MS);
 }
 
-// Guests can only answer while a round is live and unrevealed — see
-// renderTriviaCard/revealTrivia above for the lifecycle. Picked randomly
-// rather than in bank order, so a repeated round doesn't always open with
-// the same question.
+/**
+ * Guests can only answer while a round is live and unrevealed — see
+ * renderTriviaCard/revealTrivia above for the lifecycle. Picked randomly
+ * rather than in bank order, so a repeated round doesn't always open with
+ * the same question.
+ */
 export function startTriviaRound() {
   const S = window.S;
   const bank = S.config.party.triviaQuestions || [];
@@ -544,6 +639,10 @@ export function startTriviaRound() {
   if (S.currentNumber === PARTY_CH && !S.partyCurrentItem) playNextPartyItem();
 }
 
+/**
+ * Counts a guest's answer to the live, unrevealed trivia round.
+ * @param {number} index The option picked, 0 to 3.
+ */
 function registerTriviaAnswer(index) {
   const S = window.S;
   const r = S.partyTriviaRound;
@@ -553,6 +652,9 @@ function registerTriviaAnswer(index) {
   if (S.currentNumber === PARTY_CH && S.partyCurrentItem && S.partyCurrentItem.kind === 'trivia') renderTriviaCard();
 }
 
+/**
+ * @param {string} emoji The reaction emoji to float up the picture.
+ */
 function renderFloatingReaction(emoji) {
   // .floating-reaction is position:absolute and needs a positioned ancestor
   // matching the TV picture itself, not the whole window — otherwise
@@ -568,6 +670,9 @@ function renderFloatingReaction(emoji) {
   setTimeout(() => el.remove(), 2500);
 }
 
+/**
+ * Advances to the next queued item, or the idle screen when the queue is empty.
+ */
 function playNextPartyItem() {
   const S = window.S;
   clearTimeout(S.partyItemTimer);
@@ -583,6 +688,9 @@ function playNextPartyItem() {
   renderCurrentPartyItem();
 }
 
+/**
+ * Shows the idle screen: check-in wall, countdown, vote board and the join QR code and pairing code.
+ */
 function renderPartyIdle() {
   const S = window.S;
   partyActiveEl.classList.add('hidden');
@@ -612,6 +720,10 @@ function renderPartyIdle() {
 // pipeline case allows. Respects the box's mute/volume state so a muted
 // box stays muted.
 let soundboardAudio = null;
+/**
+ * Plays a soundboard sting on the shared soundboard audio element, unless the box is muted.
+ * @param {string} fileUrl The sting's playable URL.
+ */
 function playSoundboardSting(fileUrl) {
   const S = window.S;
   if (S.config.muted) return;
@@ -623,6 +735,9 @@ function playSoundboardSting(fileUrl) {
 }
 
 // ---------- Channel lifecycle ----------
+/**
+ * Reveals the party channel and resumes the queue, the current item or the idle screen.
+ */
 function enterPartyChannel() {
   const S = window.S;
   partyChannelEl.classList.remove('hidden');
@@ -631,10 +746,12 @@ function enterPartyChannel() {
   else renderPartyIdle();
 }
 
-// The in-progress item is dropped rather than resumed on return — its
-// dwell/video timer is already cleared, and player.src will have been
-// overwritten by whatever's tuned next anyway, so there's nothing
-// meaningful left to resume mid-item.
+/**
+ * The in-progress item is dropped rather than resumed on return — its
+ * dwell/video timer is already cleared, and player.src will have been
+ * overwritten by whatever's tuned next anyway, so there's nothing
+ * meaningful left to resume mid-item.
+ */
 function exitPartyChannel() {
   const S = window.S;
   clearTimeout(S.partyItemTimer);

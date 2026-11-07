@@ -80,6 +80,14 @@ const RECORD_MODES = {
 const DEGRADE_STRENGTH = { off: 0, subtle: 0.5, true: 1 };
 const MAX_DEGRADE_GENERATIONS = 12;
 
+/**
+ * Builds the ffmpeg filters that bake one tape generation's wear into the picture.
+ * Discs, wear set to off, and first-generation tapes get none.
+ * @param {object} profile The recording profile from `modeProfile()`.
+ * @param {number} generation How many times this tape has been recorded over.
+ * @param {string} degradeMode `off`, `subtle` or `true` (the default strength).
+ * @returns {string[]} Filter expressions to append to the video filter chain.
+ */
 function degradeFilters(profile, generation, degradeMode) {
   const strength = DEGRADE_STRENGTH[degradeMode] != null ? DEGRADE_STRENGTH[degradeMode] : 1;
   if (profile.media === 'disc' || !strength || !(generation > 0)) return [];
@@ -94,8 +102,12 @@ function degradeFilters(profile, generation, degradeMode) {
   ];
 }
 
-// One place decides the geometry so the sidecar and the encoder can never
-// disagree about what a tape actually is.
+/**
+ * One place decides the geometry so the sidecar and the encoder can never
+ * disagree about what a tape actually is.
+ * @param {object} plan The recording plan from the renderer (`mode`, `quality`, `media`).
+ * @returns {object} `{ w, h, crf, media, mode }` for this recording.
+ */
 function modeProfile(plan) {
   const named = RECORD_MODES[plan.mode];
   if (named) return { ...named, mode: plan.mode };
@@ -106,8 +118,12 @@ function modeProfile(plan) {
   };
 }
 
-// A tape id is used verbatim as a filename and as a work-directory name, so
-// it has to survive that. Built here rather than trusted from the renderer.
+/**
+ * A tape id is used verbatim as a filename and as a work-directory name, so
+ * it has to survive that. Built here rather than trusted from the renderer.
+ * @param {object} plan The recording plan (`startMs`, `channelNumber`, `title`).
+ * @returns {string} A filesystem-safe id built from the start time, channel and title.
+ */
 function makeTapeId(plan) {
   const stamp = new Date(plan.startMs || Date.now()).toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const channel = String(plan.channelNumber == null ? 'x' : plan.channelNumber).replace(/[^0-9a-z]/gi, '');
@@ -115,10 +131,20 @@ function makeTapeId(plan) {
   return `${stamp}-ch${channel}-${slug}`;
 }
 
-// Runs ffmpeg to completion. `onProgress` receives seconds-of-output-written
-// as ffmpeg reports them through -progress, which is what drives the
-// on-screen percentage. Resolves rather than rejects on failure so a caller
-// can decide whether one bad segment should sink the whole tape.
+/**
+ * Runs ffmpeg to completion. `onProgress` receives seconds-of-output-written
+ * as ffmpeg reports them through -progress, which is what drives the
+ * on-screen percentage. Resolves rather than rejects on failure so a caller
+ * can decide whether one bad segment should sink the whole tape.
+ * @param {string} ffmpegPath Path to the ffmpeg binary.
+ * @param {string[]} args ffmpeg arguments.
+ * @param {Function} spawnFn The `spawn` function to start the process with.
+ * @param {object} [opts] Options.
+ * @param {number} [opts.timeoutMs] Kill the process after this long; defaults to the per-segment limit.
+ * @param {(seconds: number) => void} [opts.onProgress] Receives seconds of output written.
+ * @param {(child: object) => void} [opts.registerChild] Receives the child process, so a cancel can kill it.
+ * @returns {Promise<object>} `{ ok, output }`, where `output` is a bounded tail of stderr.
+ */
 function runFfmpeg(ffmpegPath, args, spawnFn, opts = {}) {
   return new Promise((resolve) => {
     let child;
@@ -173,6 +199,13 @@ function runFfmpeg(ffmpegPath, args, spawnFn, opts = {}) {
 // ffmpeg prints one "Stream #0:N: Audio: ..." line per audio stream and then
 // exits non-zero, which is expected here and not a failure.
 const audioProbeCache = new Map();
+/**
+ * Whether a media file has an audio stream, read from ffmpeg's banner and cached per path.
+ * @param {string} ffmpegPath Path to the ffmpeg binary.
+ * @param {string} filePath The media file.
+ * @param {Function} spawnFn The `spawn` function to start the process with.
+ * @returns {Promise<boolean>} True when an audio stream was found.
+ */
 async function hasAudioStream(ffmpegPath, filePath, spawnFn) {
   if (audioProbeCache.has(filePath)) return audioProbeCache.get(filePath);
   const result = await runFfmpeg(ffmpegPath, ['-hide_banner', '-nostdin', '-i', filePath], spawnFn, { timeoutMs: PROBE_TIMEOUT_MS });
@@ -182,9 +215,15 @@ async function hasAudioStream(ffmpegPath, filePath, spawnFn) {
   return found;
 }
 
-// Every segment lands at exactly this geometry and timebase. Letterboxing
-// rather than cropping, because a 4:3 show inside a 16:9 tape is what a real
-// recording of that broadcast looked like anyway.
+/**
+ * Every segment lands at exactly this geometry and timebase. Letterboxing
+ * rather than cropping, because a 4:3 show inside a 16:9 tape is what a real
+ * recording of that broadcast looked like anyway.
+ * @param {object} size The tape geometry, `{ w, h }`.
+ * @param {number} fps Output frame rate.
+ * @param {string[]} [extraFilters=[]] Filters (such as wear) applied after scaling.
+ * @returns {string} The `-vf` filter chain.
+ */
 function videoFilter(size, fps, extraFilters = []) {
   // Wear is applied after the scale/pad so its grain is at the tape's own
   // resolution rather than the source's, which is where it actually lived.
@@ -198,6 +237,12 @@ function videoFilter(size, fps, extraFilters = []) {
   ].join(',');
 }
 
+/**
+ * Shared x264/AAC encoder arguments so every piece of a tape concatenates cleanly.
+ * @param {object} size The tape geometry; its `crf` sets the quality.
+ * @param {number} fps Output frame rate, also the keyframe interval.
+ * @returns {string[]} ffmpeg arguments.
+ */
 function encodeArgs(size, fps) {
   return [
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(size.crf),
@@ -209,11 +254,18 @@ function encodeArgs(size, fps) {
   ];
 }
 
-// A whole DVD title, rather than a cut out of one file. Its VOBs are fed
-// through the concat demuxer as a single input so the title arrives as one
-// continuous stream — a DVD splits a title across VOBs at an arbitrary 1GB
-// boundary, not at anything you would want a seam at. No -ss/-t: the title
-// runs to its end, and its length is whatever the disc actually holds.
+/**
+ * A whole DVD title, rather than a cut out of one file. Its VOBs are fed
+ * through the concat demuxer as a single input so the title arrives as one
+ * continuous stream — a DVD splits a title across VOBs at an arbitrary 1GB
+ * boundary, not at anything you would want a seam at. No -ss/-t: the title
+ * runs to its end, and its length is whatever the disc actually holds.
+ * @param {object} segment The disc segment; `listPath` is its concat list of VOBs.
+ * @param {string} outPath Where the MPEG-TS piece is written.
+ * @param {object} size The tape geometry, `{ w, h, crf }`.
+ * @param {number} fps Output frame rate.
+ * @returns {string[]} ffmpeg arguments.
+ */
 function discCutArgs(segment, outPath, size, fps) {
   return [
     '-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats',
@@ -226,6 +278,16 @@ function discCutArgs(segment, outPath, size, fps) {
   ];
 }
 
+/**
+ * ffmpeg arguments that cut one segment of a file to a uniform MPEG-TS piece, frame-accurately.
+ * @param {object} segment The cut: `path`, `inSeconds` and `outSeconds`.
+ * @param {string} outPath Where the MPEG-TS piece is written.
+ * @param {object} size The tape geometry, `{ w, h, crf }`.
+ * @param {number} fps Output frame rate.
+ * @param {boolean} hasAudio Whether the source has audio; silence is generated when not.
+ * @param {string[]} [wearFilters=[]] Generation-loss filters from `degradeFilters()`.
+ * @returns {string[]} ffmpeg arguments.
+ */
 function cutArgs(segment, outPath, size, fps, hasAudio, wearFilters = []) {
   const duration = segment.outSeconds - segment.inSeconds;
   const args = ['-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats'];
@@ -251,11 +313,18 @@ function cutArgs(segment, outPath, size, fps, hasAudio, wearFilters = []) {
   return args;
 }
 
-// Black and silent, generated rather than cut from anything — for the breaks
-// core renders as an on-screen card with nothing playing underneath (a
-// trivia card, a local-avail slide, the default sign-off pattern). The tape
-// has to hold that time or everything after it would sit at the wrong place
-// on the tape.
+/**
+ * Black and silent, generated rather than cut from anything — for the breaks
+ * core renders as an on-screen card with nothing playing underneath (a
+ * trivia card, a local-avail slide, the default sign-off pattern). The tape
+ * has to hold that time or everything after it would sit at the wrong place
+ * on the tape.
+ * @param {number} durationSeconds Slate length in seconds.
+ * @param {string} outPath Where the MPEG-TS piece is written.
+ * @param {object} size The tape geometry, `{ w, h, crf }`.
+ * @param {number} fps Output frame rate.
+ * @returns {string[]} ffmpeg arguments.
+ */
 function slateArgs(durationSeconds, outPath, size, fps) {
   return [
     '-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats',
@@ -268,27 +337,42 @@ function slateArgs(durationSeconds, outPath, size, fps) {
   ];
 }
 
-// The tail of ffmpeg's own diagnostics, short enough to put in a message a
-// person will actually read.
+/**
+ * The tail of ffmpeg's own diagnostics, short enough to put in a message a
+ * person will actually read.
+ * @param {string} output ffmpeg's captured stderr.
+ * @returns {string} The last three lines joined, at most 300 characters.
+ */
 function lastLines(output) {
   return String(output || '').split('\n').slice(-3).join(' ').trim()
     .slice(0, 300);
 }
 
-// The concat demuxer's list format takes a single-quoted path, and escapes
-// an embedded quote by closing, escaping, and reopening.
+/**
+ * The concat demuxer's list format takes a single-quoted path, and escapes
+ * an embedded quote by closing, escaping, and reopening.
+ * @param {string} absPath Absolute path to a piece.
+ * @returns {string} One `file '...'` line for a concat list.
+ */
 function concatListLine(absPath) {
   const escaped = absPath.split("'").join("'\\''");
   return `file '${escaped}'`;
 }
 
-// Reading a disc's own index files is the one thing this process cannot do
-// directly: it is sandboxed to its own folders, and a disc sits at a drive
-// letter nobody granted. ffmpeg is a child process with no such limit, and
-// its `data` demuxer/muxer is a byte-exact passthrough, so it copies each
-// IFO into this plugin's folder where it CAN be read. No widening of the
-// sandbox, no extra binary — the tool already trusted for the disc's video
-// fetches its table of contents too.
+/**
+ * Reading a disc's own index files is the one thing this process cannot do
+ * directly: it is sandboxed to its own folders, and a disc sits at a drive
+ * letter nobody granted. ffmpeg is a child process with no such limit, and
+ * its `data` demuxer/muxer is a byte-exact passthrough, so it copies each
+ * IFO into this plugin's folder where it CAN be read. No widening of the
+ * sandbox, no extra binary — the tool already trusted for the disc's video
+ * fetches its table of contents too.
+ * @param {string} ffmpegPath Path to the ffmpeg binary.
+ * @param {string} sourcePath The IFO file on the disc.
+ * @param {string} destAbs Absolute destination inside this plugin's folder.
+ * @param {Function} spawnFn The `spawn` function to start the process with.
+ * @returns {Promise<boolean>} True when the copy succeeded.
+ */
 async function copyIntoDataDir(ffmpegPath, sourcePath, destAbs, spawnFn) {
   const result = await runFfmpeg(ffmpegPath, [
     '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
@@ -297,18 +381,25 @@ async function copyIntoDataDir(ffmpegPath, sourcePath, destAbs, spawnFn) {
   return result.ok;
 }
 
-// Whether a title's video can actually be decoded, as opposed to merely
-// listed.
-//
-// This matters because a pressed disc scrambles its VIDEO but not its index:
-// a commercial DVD hands over its titles, chapters and audio tracks quite
-// happily, and only fails when you try to read a frame. Without this check
-// the deck would list a film, spend a long time copying it, and produce
-// something unwatchable — the exact "silently produce a broken tape" outcome
-// the provider-backed refusal exists to avoid.
-//
-// A second of real decoding is the only honest test. Scrambled sectors do not
-// announce themselves; they just are not valid MPEG.
+/**
+ * Whether a title's video can actually be decoded, as opposed to merely
+ * listed.
+ *
+ * This matters because a pressed disc scrambles its VIDEO but not its index:
+ * a commercial DVD hands over its titles, chapters and audio tracks quite
+ * happily, and only fails when you try to read a frame. Without this check
+ * the deck would list a film, spend a long time copying it, and produce
+ * something unwatchable — the exact "silently produce a broken tape" outcome
+ * the provider-backed refusal exists to avoid.
+ *
+ * A second of real decoding is the only honest test. Scrambled sectors do not
+ * announce themselves; they just are not valid MPEG.
+ * @param {string} ffmpegPath Path to the ffmpeg binary.
+ * @param {string} videoTsPath The disc's VIDEO_TS folder.
+ * @param {number} vts The title-set number to test.
+ * @param {Function} spawnFn The `spawn` function to start the process with.
+ * @returns {Promise<object>} `{ readable, detail }`, where `detail` is ffmpeg's last diagnostics.
+ */
 async function probeTitleReadable(ffmpegPath, videoTsPath, vts, spawnFn) {
   const set = String(vts).padStart(2, '0');
   const vob = path.join(videoTsPath, `VTS_${set}_1.VOB`);
@@ -323,13 +414,21 @@ async function probeTitleReadable(ffmpegPath, videoTsPath, vts, spawnFn) {
   return { readable: result.ok && decodedSeconds > 0, detail: lastLines(result.output) };
 }
 
-// The chapters an existing video file already carries. An MKV off a disc has
-// them, and they are the whole point of the shelf's chapter menu, so an
-// imported file should not arrive as one undifferentiated lump.
-//
-// Written to a file rather than read off ffmpeg's stdout: this process reads
-// its own folder freely, and runFfmpeg's stdout is already spoken for by the
-// progress stream.
+/**
+ * The chapters an existing video file already carries. An MKV off a disc has
+ * them, and they are the whole point of the shelf's chapter menu, so an
+ * imported file should not arrive as one undifferentiated lump.
+ *
+ * Written to a file rather than read off ffmpeg's stdout: this process reads
+ * its own folder freely, and runFfmpeg's stdout is already spoken for by the
+ * progress stream.
+ * @param {string} ffmpegPath Path to the ffmpeg binary.
+ * @param {string} sourcePath The video file to read.
+ * @param {string} destAbs Absolute path for the temporary ffmetadata file.
+ * @param {Function} spawnFn The `spawn` function to start the process with.
+ * @param {object} fs The plugin's checked fs.
+ * @returns {Promise<Array<object>>} Chapters as `{ startS, label }`; empty when there are none or reading failed.
+ */
 async function readSourceChapters(ffmpegPath, sourcePath, destAbs, spawnFn, fs) {
   const ok = await runFfmpeg(ffmpegPath, [
     '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
@@ -363,14 +462,19 @@ async function readSourceChapters(ffmpegPath, sourcePath, destAbs, spawnFn, fs) 
     .map((c, i) => ({ startS: c.start / c.timebase, label: c.title || `CHAPTER ${i + 1}` }));
 }
 
-// Where tapes actually live. The default is this plugin's own data folder;
-// a user who picked somewhere else gets that instead — but only if it was
-// actually granted, which ctx.fs.writeDirs is the authority on. An isolated
-// plugin's write permissions are fixed when its process forks, so a folder
-// chosen since the last start has not been granted yet and must not be used:
-// writing there would throw on every single tape. Falling back to the data
-// folder keeps recording working until the restart its settings panel asks
-// for.
+/**
+ * Where tapes actually live. The default is this plugin's own data folder;
+ * a user who picked somewhere else gets that instead — but only if it was
+ * actually granted, which ctx.fs.writeDirs is the authority on. An isolated
+ * plugin's write permissions are fixed when its process forks, so a folder
+ * chosen since the last start has not been granted yet and must not be used:
+ * writing there would throw on every single tape. Falling back to the data
+ * folder keeps recording working until the restart its settings panel asks
+ * for.
+ * @param {object} ctx The plugin's main-process context.
+ * @param {object} config The loaded app config.
+ * @returns {string} Absolute path of the folder tapes are written to.
+ */
 function resolveTapesRoot(ctx, config) {
   const configured = ((config.pluginSettings || {})['tape-deck'] || {}).tapesDir;
   if (typeof configured !== 'string' || !configured.trim()) return ctx.fs.dataDir;
@@ -379,6 +483,11 @@ function resolveTapesRoot(ctx, config) {
   return granted ? wanted : ctx.fs.dataDir;
 }
 
+/**
+ * Sets up the recording queue and registers the tape deck's IPC handlers (record, read disc, import, status, cancel, list, set art, delete).
+ * @param {object} ctx The plugin's main-process context.
+ * @returns {Promise<void>} Resolves once the handlers are registered.
+ */
 async function activate(ctx) {
   const { ipcMain, fs, spawn } = ctx;
   let config;
