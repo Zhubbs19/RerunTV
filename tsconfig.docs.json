@@ -1,0 +1,14 @@
+{
+  "//": "Only for the code reference (npm run docs, scripts/build-docs.js): TypeDoc reads the JavaScript through the TypeScript compiler with these settings. Nothing is type-checked or emitted.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "moduleDetection": "force",
+    "types": []
+  }
+}

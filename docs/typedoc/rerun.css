@@ -1,0 +1,378 @@
+/* The code reference's look (TypeDoc's customCss, scripts/build-docs.js), matched to the website's
+   Classic cable-guide palette in site/src/style.css: navy grid, blue cells, a yellow focus and
+   cyan labels. The site is dark only, so TypeDoc's light and dark palettes are both set to it and
+   its theme picker is hidden. Most of this sets TypeDoc's color variables; the rest restyles the
+   parts they don't reach, and styles the site header bar and graphs scripts/typedoc-plugin.mjs adds. */
+:root {
+  --rtv-bg: #0b1030;
+  --rtv-bg-2: #111a48;
+  --rtv-head: #0a0f2c;
+  --rtv-cell: #2a3a9a;
+  --rtv-cell-2: #23307f;
+  --rtv-hover: #3448b8;
+  --rtv-rule: #3a4bb0;
+  --rtv-text: #eef1ff;
+  --rtv-text-dim: #b4bce6;
+  --rtv-yellow: #f6c90e;
+  --rtv-yellow-ink: #1a1400;
+  --rtv-cyan: #5fd6ff;
+  --rtv-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --rtv-font-tight: "Arial Narrow", "Roboto Condensed", "Segoe UI", system-ui, sans-serif;
+  --rtv-mono: "JetBrains Mono", "Cascadia Code", Consolas, Menlo, monospace;
+}
+
+/* Both of TypeDoc's palettes, so "os", "light" and "dark" all come out the same. */
+:root {
+  --light-color-background: var(--rtv-bg);
+  --light-color-background-secondary: var(--rtv-bg-2);
+  --light-color-background-active: var(--rtv-cell-2);
+  --light-color-background-warning: rgba(246, 201, 14, .1);
+  --light-color-warning-text: var(--rtv-text);
+  --light-color-accent: var(--rtv-rule);
+  --light-color-active-menu-item: var(--rtv-cell-2);
+  --light-color-text: var(--rtv-text);
+  --light-color-contrast-text: #fff;
+  --light-color-text-aside: var(--rtv-text-dim);
+  --light-color-icon-background: var(--rtv-bg);
+  --light-color-icon-text: var(--rtv-text);
+  --light-color-comment-tag-text: var(--rtv-text);
+  --light-color-comment-tag: var(--rtv-cell-2);
+  --light-color-link: var(--rtv-cyan);
+  --light-color-focus-outline: var(--rtv-yellow);
+  --light-color-ts-keyword: #ff9ad5;
+  --light-color-ts-project: var(--rtv-yellow);
+  --light-color-ts-module: var(--rtv-yellow);
+  --light-color-ts-namespace: var(--rtv-yellow);
+  --light-color-ts-enum: #ffb86b;
+  --light-color-ts-enum-member: #ffb86b;
+  --light-color-ts-variable: #9fb0ff;
+  --light-color-ts-function: var(--rtv-cyan);
+  --light-color-ts-class: #7fe0a0;
+  --light-color-ts-interface: #7fe0a0;
+  --light-color-ts-constructor: #7fe0a0;
+  --light-color-ts-property: #9fb0ff;
+  --light-color-ts-method: var(--rtv-cyan);
+  --light-color-ts-reference: #d09bff;
+  --light-color-ts-call-signature: var(--rtv-cyan);
+  --light-color-ts-index-signature: #9fb0ff;
+  --light-color-ts-constructor-signature: #7fe0a0;
+  --light-color-ts-parameter: var(--rtv-yellow);
+  --light-color-ts-type-parameter: #ffb86b;
+  --light-color-ts-accessor: #9fb0ff;
+  --light-color-ts-get-signature: #9fb0ff;
+  --light-color-ts-set-signature: #9fb0ff;
+  --light-color-ts-type-alias: #d09bff;
+  --light-color-document: var(--rtv-text);
+  --light-color-alert-note: var(--rtv-cyan);
+  --light-color-alert-tip: #7fe0a0;
+  --light-color-alert-important: #d09bff;
+  --light-color-alert-warning: var(--rtv-yellow);
+  --light-color-alert-caution: #ff7a7a;
+  --light-external-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 -256 1850 1850' width='10' height='10'><g transform='matrix(1 0 0 -1 30 1323)'><path fill='%235fd6ff' d='M1408 608V288Q1408 169 1323.5 84.5T1120 0H288Q169 0 84.5 84.5T0 288v832q0 119 84.5 203.5T288 1408h704q14 0 23-9t9-23v-64q0-14-9-23t-23-9H288q-66 0-113-47t-47-113V288q0-66 47-113t113-47h832q66 0 113 47t47 113v320q0 14 9 23t23 9h64q14 0 23-9t9-23zm384 864V960q0-26-19-45t-45-19-45 19L1507 1091 855 439q-10-10-23-10t-23 10L695 553q-10 10-10 23t10 23l652 652-176 176q-19 19-19 45t19 45 45 19h512q26 0 45-19t19-45z'/></g></svg>");
+  --light-color-scheme: dark;
+
+  --dark-color-background: var(--light-color-background);
+  --dark-color-background-secondary: var(--light-color-background-secondary);
+  --dark-color-background-active: var(--light-color-background-active);
+  --dark-color-background-warning: var(--light-color-background-warning);
+  --dark-color-warning-text: var(--light-color-warning-text);
+  --dark-color-accent: var(--light-color-accent);
+  --dark-color-active-menu-item: var(--light-color-active-menu-item);
+  --dark-color-text: var(--light-color-text);
+  --dark-color-contrast-text: var(--light-color-contrast-text);
+  --dark-color-text-aside: var(--light-color-text-aside);
+  --dark-color-icon-background: var(--light-color-icon-background);
+  --dark-color-icon-text: var(--light-color-icon-text);
+  --dark-color-comment-tag-text: var(--light-color-comment-tag-text);
+  --dark-color-comment-tag: var(--light-color-comment-tag);
+  --dark-color-link: var(--light-color-link);
+  --dark-color-focus-outline: var(--light-color-focus-outline);
+  --dark-color-ts-keyword: var(--light-color-ts-keyword);
+  --dark-color-ts-project: var(--light-color-ts-project);
+  --dark-color-ts-module: var(--light-color-ts-module);
+  --dark-color-ts-namespace: var(--light-color-ts-namespace);
+  --dark-color-ts-enum: var(--light-color-ts-enum);
+  --dark-color-ts-enum-member: var(--light-color-ts-enum-member);
+  --dark-color-ts-variable: var(--light-color-ts-variable);
+  --dark-color-ts-function: var(--light-color-ts-function);
+  --dark-color-ts-class: var(--light-color-ts-class);
+  --dark-color-ts-interface: var(--light-color-ts-interface);
+  --dark-color-ts-constructor: var(--light-color-ts-constructor);
+  --dark-color-ts-property: var(--light-color-ts-property);
+  --dark-color-ts-method: var(--light-color-ts-method);
+  --dark-color-ts-reference: var(--light-color-ts-reference);
+  --dark-color-ts-call-signature: var(--light-color-ts-call-signature);
+  --dark-color-ts-index-signature: var(--light-color-ts-index-signature);
+  --dark-color-ts-constructor-signature: var(--light-color-ts-constructor-signature);
+  --dark-color-ts-parameter: var(--light-color-ts-parameter);
+  --dark-color-ts-type-parameter: var(--light-color-ts-type-parameter);
+  --dark-color-ts-accessor: var(--light-color-ts-accessor);
+  --dark-color-ts-get-signature: var(--light-color-ts-get-signature);
+  --dark-color-ts-set-signature: var(--light-color-ts-set-signature);
+  --dark-color-ts-type-alias: var(--light-color-ts-type-alias);
+  --dark-color-document: var(--light-color-document);
+  --dark-color-alert-note: var(--light-color-alert-note);
+  --dark-color-alert-tip: var(--light-color-alert-tip);
+  --dark-color-alert-important: var(--light-color-alert-important);
+  --dark-color-alert-warning: var(--light-color-alert-warning);
+  --dark-color-alert-caution: var(--light-color-alert-caution);
+  --dark-external-icon: var(--light-external-icon);
+  --dark-color-scheme: dark;
+
+  --dim-toolbar-contents-height: 2.75rem;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--rtv-bg);
+  color: var(--rtv-text);
+  font-family: var(--rtv-font);
+}
+a:hover { color: #fff; }
+:focus-visible { outline: 3px solid var(--rtv-yellow); outline-offset: 2px; }
+::selection { background: var(--rtv-yellow); color: var(--rtv-yellow-ink); }
+code, pre, .tsd-signature, .tsd-signatures .tsd-signature { font-family: var(--rtv-mono); }
+
+/* The theme picker would switch to palettes that no longer differ. */
+.tsd-theme-toggle, #tsd-theme, .settings .tsd-theme-toggle { display: none !important; }
+.tsd-navigation.settings .tsd-filter-visibility + .tsd-theme-toggle { display: none !important; }
+
+/* ---------- The website's header bar (docs/typedoc/site-header.html) ---------- */
+.rtv-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 10px 2rem;
+  background: var(--rtv-bg);
+  background-image: radial-gradient(900px 260px at 85% -120%, #1d2a78 0%, transparent 70%);
+  border-bottom: 2px solid var(--rtv-rule);
+  font-family: var(--rtv-font);
+}
+.rtv-brand { display: flex; align-items: center; gap: 10px; color: var(--rtv-text); text-decoration: none; font-weight: 800; font-size: 1.2rem; letter-spacing: .01em; }
+.rtv-brand:hover { color: #fff; }
+.rtv-brand img { display: block; }
+.rtv-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--rtv-cyan);
+  font: 700 .8rem/1 var(--rtv-font-tight);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.rtv-eyebrow:hover { color: #fff; }
+.rtv-ch { background: var(--rtv-yellow); color: var(--rtv-yellow-ink); padding: 4px 7px; border-radius: 4px; letter-spacing: .06em; }
+.rtv-version { color: var(--rtv-text-dim); letter-spacing: .06em; }
+.rtv-nav { display: flex; gap: 20px; margin-left: auto; }
+.rtv-nav a { color: var(--rtv-text-dim); text-decoration: none; font-weight: 600; font-size: .95rem; }
+.rtv-nav a:hover { color: var(--rtv-text); }
+.rtv-nav a[aria-current="page"] { color: var(--rtv-yellow); }
+
+/* ---------- TypeDoc's toolbar, drawn as the guide's header row ---------- */
+.tsd-page-toolbar {
+  background: var(--rtv-head);
+  border-bottom: 2px solid var(--rtv-rule);
+}
+.tsd-page-toolbar .title {
+  color: var(--rtv-yellow);
+  font: 700 .85rem/1 var(--rtv-font-tight);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+#tsd-toolbar-links a { color: var(--rtv-text-dim); font: 700 .82rem/1 var(--rtv-font-tight); letter-spacing: .1em; text-transform: uppercase; }
+#tsd-toolbar-links a:hover { color: var(--rtv-yellow); }
+#tsd-search-trigger, #tsd-toolbar-menu-trigger { color: var(--rtv-text); }
+#tsd-search {
+  background: var(--rtv-bg-2);
+  border: 2px solid var(--rtv-rule);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
+}
+#tsd-search-input { background: var(--rtv-bg); color: var(--rtv-text); border: 2px solid var(--rtv-rule); border-radius: 8px; }
+#tsd-search-input:focus { border-color: var(--rtv-yellow); }
+#tsd-search-results > li:is(:hover, [aria-selected="true"]) { background: var(--rtv-cell); }
+
+/* ---------- The side menus, drawn as the guide's channel list ---------- */
+.tsd-navigation a, .tsd-navigation summary > span, .tsd-page-navigation a { color: var(--rtv-text); }
+.tsd-navigation a:hover, .tsd-page-navigation a:hover { background: var(--rtv-cell-2); text-decoration: none; }
+.tsd-navigation a.current, .tsd-page-navigation a.current {
+  background: var(--rtv-yellow);
+  color: var(--rtv-yellow-ink);
+  border-radius: 4px;
+}
+.tsd-navigation a.current .tsd-kind-icon, .tsd-page-navigation a.current .tsd-kind-icon { filter: brightness(.25); }
+.tsd-accordion-summary > h3, .tsd-accordion-summary h3,
+.tsd-page-navigation h3, .site-menu h3 {
+  color: var(--rtv-yellow);
+  font: 700 .82rem/1.2 var(--rtv-font-tight);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* ---------- Page headings ---------- */
+.tsd-page-title h1, .tsd-typography h1 { font: 800 clamp(1.5rem, 2.6vw, 2.1rem)/1.2 var(--rtv-font); color: var(--rtv-text); }
+.tsd-page-title h1::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 4px;
+  background: var(--rtv-yellow);
+  margin-bottom: 12px;
+  border-radius: 2px;
+}
+.tsd-breadcrumb a { color: var(--rtv-text-dim); }
+.tsd-breadcrumb li::after { color: var(--rtv-cyan); }
+.tsd-typography h2 { border-bottom: 1px solid var(--rtv-rule); padding-bottom: 6px; }
+.tsd-typography h3 { color: var(--rtv-yellow); }
+.tsd-typography li::marker { color: var(--rtv-cyan); }
+.tsd-typography code, .tsd-comment code {
+  background: rgba(255, 255, 255, .08);
+  padding: .05em .35em;
+  border-radius: 4px;
+  color: var(--rtv-text);
+}
+
+/* ---------- Member groups and members ---------- */
+.tsd-member-group > .tsd-accordion-summary h2, .tsd-panel-group > .tsd-accordion-summary h2,
+.tsd-index-panel h3, .tsd-index-heading {
+  color: var(--rtv-yellow);
+  font: 700 .85rem/1.2 var(--rtv-font-tight);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.tsd-panel-group.tsd-member-group > summary { border-bottom: 2px solid var(--rtv-rule); }
+.tsd-index-panel {
+  background: var(--rtv-bg-2);
+  border: 2px solid var(--rtv-rule);
+  border-radius: 10px;
+}
+.tsd-index-list a { color: var(--rtv-text); }
+.tsd-index-list a:hover { color: #fff; }
+
+/* A member as a program card: a yellow tab, a blue header row, a navy body. */
+.tsd-panel.tsd-member > .tsd-anchor-link {
+  display: inline-flex;
+  background: var(--rtv-yellow);
+  color: var(--rtv-yellow-ink);
+  border-radius: 8px 8px 0 0;
+  padding: 6px 12px 5px;
+  margin: 0;
+  font: 800 1rem/1.2 var(--rtv-font-tight);
+  letter-spacing: .02em;
+}
+.tsd-panel.tsd-member > .tsd-anchor-link .tsd-anchor-icon { color: var(--rtv-yellow-ink); }
+.tsd-panel.tsd-member > .tsd-anchor-link .tsd-tag { background: rgba(0, 0, 0, .14); color: var(--rtv-yellow-ink); }
+.tsd-signature, .tsd-signatures .tsd-signature {
+  background: var(--rtv-cell);
+  border: 2px solid var(--rtv-rule);
+  border-radius: 0 8px 0 0;
+  color: var(--rtv-text);
+  padding: 9px 12px;
+}
+.tsd-panel > .tsd-signature, .tsd-signatures .tsd-signature + .tsd-description,
+.tsd-panel.tsd-member > .tsd-signatures > li > .tsd-description,
+.tsd-panel.tsd-member > .tsd-comment, .tsd-panel.tsd-member > .tsd-sources {
+  background: var(--rtv-bg-2);
+}
+.tsd-signatures > li > .tsd-description, .tsd-panel.tsd-member > .tsd-comment {
+  border: 2px solid var(--rtv-rule);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  padding: 10px 14px 6px;
+  margin: 0;
+}
+.tsd-signature-type { color: var(--rtv-cyan); }
+.tsd-signature-symbol { color: var(--rtv-text-dim); }
+.tsd-kind-parameter { color: var(--rtv-yellow); }
+.tsd-parameters h4, .tsd-returns-title, .tsd-sources, .tsd-comment-tags h4 {
+  color: var(--rtv-cyan);
+  font: 700 .78rem/1.6 var(--rtv-font-tight);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.tsd-sources, .tsd-sources a { color: var(--rtv-text-dim); }
+.tsd-tag {
+  background: var(--rtv-head);
+  border: 1px solid var(--rtv-rule);
+  color: var(--rtv-cyan);
+  border-radius: 4px;
+  font: 700 .72rem/1 var(--rtv-font-tight);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 3px 6px;
+}
+
+/* ---------- Tables, code and alerts in the Markdown pages ---------- */
+.tsd-typography table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 2px solid var(--rtv-rule);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.tsd-typography th {
+  background: var(--rtv-head);
+  color: var(--rtv-yellow);
+  font: 700 .78rem/1.3 var(--rtv-font-tight);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  border: 0;
+  padding: 9px 12px;
+}
+.tsd-typography td { background: var(--rtv-cell); border: 0; border-top: 2px solid var(--rtv-bg); padding: 8px 12px; }
+.tsd-typography tr:nth-child(even) td { background: var(--rtv-cell-2); }
+pre { background: #070b22; border: 2px solid var(--rtv-rule); border-radius: 8px; }
+pre code { background: none; padding: 0; }
+blockquote { border-left: 4px solid var(--rtv-cyan); background: rgba(95, 214, 255, .07); border-radius: 0 8px 8px 0; }
+kbd { border: 1px solid var(--rtv-rule); border-bottom-width: 3px; background: var(--rtv-cell-2); border-radius: 5px; padding: .1em .45em; font: 700 .82em/1.3 var(--rtv-font-tight); }
+
+/* ---------- Graphs (scripts/docs-graphs.js, added by scripts/typedoc-plugin.mjs) ---------- */
+details.rtv-graph { margin: 14px 0 8px; }
+details.rtv-graph > summary {
+  cursor: pointer;
+  color: var(--rtv-cyan);
+  font: 700 .82rem/1.4 var(--rtv-font-tight);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+details.rtv-graph > summary:hover { color: #fff; }
+.rtv-graph-box {
+  margin-top: 8px;
+  max-width: 100%;
+  width: fit-content;
+  overflow: auto;
+  background: var(--rtv-head);
+  border: 2px solid var(--rtv-rule);
+  border-radius: 10px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.rtv-graph-box svg { display: block; max-width: none; height: auto; }
+.rtv-graph-box a:hover polygon, .rtv-graph-box a:hover path[fill] { filter: brightness(1.25); }
+
+/* Mermaid diagrams in the design docs, drawn in the page by the plugin's script. */
+.rtv-mermaid {
+  background: var(--rtv-head);
+  border: 2px solid var(--rtv-rule);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 10px 0 18px;
+  overflow-x: auto;
+}
+
+/* ---------- Footer ---------- */
+footer { border-top: 2px solid var(--rtv-rule); background: var(--rtv-bg); }
+.tsd-generator { color: var(--rtv-text-dim); }
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 769px) {
+  .rtv-top { gap: 10px 16px; padding: 10px 16px; }
+  .rtv-nav { margin-left: 0; width: 100%; gap: 16px; }
+  .rtv-eyebrow .rtv-version { display: none; }
+}
+
+/* The site header bar above already names the project. */
+.tsd-page-toolbar .title { visibility: hidden; }

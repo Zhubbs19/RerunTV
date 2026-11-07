@@ -1,7 +1,9 @@
-// scripts/doxygen-graphs.js: the call and class graphs `npm run docs` adds to the code reference.
+// scripts/docs-graphs.js: the import, call, caller and class graphs `npm run docs` adds to the code reference.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, insertIntoMember } = require('../scripts/doxygen-graphs');
+const {
+  analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, graphSection, resolveModule, instanceFields, parse,
+} = require('../scripts/docs-graphs');
 
 // A tiny repo: each entry is a file's source. Imports resolve between these files only.
 function graphOf(files) {
@@ -139,25 +141,29 @@ test('a file graph lists files by folder, and summarizes by folder past its limi
   assert.equal(fileGraphDot('src/a.js', new Set(), () => null, () => null, false), null);
 });
 
-test('graph sections go at the end of the right member', () => {
-  const page = [
-    '<h2 class="memtitle"><span class="permalink"><a href="#a1">x</a></span>one()</h2>',
-    '<div class="memitem">',
-    '<div class="memproto">p</div><div class="memdoc">',
-    '<p>One.</p>',
-    '</div>',
-    '</div>',
-    '<h2 class="memtitle"><span class="permalink"><a href="#a2">x</a></span>two()</h2>',
-    '<div class="memitem">',
-    '<div class="memproto">p</div><div class="memdoc">',
-    '<p>Two.</p>',
-    '</div>',
-    '</div>',
-    '<!-- contents -->',
-  ].join('\n');
-  const out = insertIntoMember(page, 'a2', 'GRAPH');
-  assert.ok(out.includes('<p>Two.</p>\nGRAPH</div>\n</div>\n<!-- contents -->'));
-  assert.equal(insertIntoMember(page, 'missing', 'GRAPH'), page);
+test('a graph section is a closed disclosure with its heading', () => {
+  assert.equal(graphSection('What calls this function', '<svg/>'),
+    '<details class="rtv-graph"><summary>What calls this function</summary><div class="rtv-graph-box"><svg/></div></details>');
+});
+
+test('relative imports resolve to repo files; packages, built-ins and missing files do not', () => {
+  assert.equal(resolveModule('renderer/js/core/x.js', './state.js'), 'renderer/js/core/state.js');
+  assert.equal(resolveModule('main/config/x.js', './config'), 'main/config/config.js');
+  assert.equal(resolveModule('main/config/x.js', '../util/db'), 'main/util/db.js');
+  assert.equal(resolveModule('main/config/x.js', 'node:path'), null);
+  assert.equal(resolveModule('main/config/x.js', 'electron'), null);
+  assert.equal(resolveModule('main/config/x.js', './missing.js'), null);
+});
+
+test('instance properties come from this.x assignments in methods, not from plain functions inside them', () => {
+  const { ast } = parse([
+    'class Session {',
+    '  ready = false;',
+    '  constructor(host) { this.host = host; this.socket = null; this.ready = true; }',
+    '  open() { this.retries = 0; function f() { this.nope = 1; } const g = () => { this.timer = 1; }; }',
+    '}',
+  ].join('\n'));
+  assert.deepEqual(instanceFields(ast.body[0]).map((f) => f.name), ['host', 'socket', 'retries', 'timer']);
 });
 
 test('a class graph lists the properties its methods create, then its methods', () => {

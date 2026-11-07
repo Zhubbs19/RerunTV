@@ -352,20 +352,25 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   `package.json`'s `"test"` script is `node scripts/run-tests.js`, which runs the tracked unit tests in
   `tests/*.test.js` (not the CDP suite above; `npm test` gates commits). `npm run lint` runs ESLint
   (`eslint.config.js`) and CI fails on any finding, so fix what it reports rather than adding disable comments.
-- **Comments are the code reference.** `npm run docs` builds Doxygen HTML into `docs/api/html`
-  (`Doxyfile`, `scripts/build-docs.js`). Doxygen can't read JavaScript, so `scripts/doxygen-filter.js`
-  rewrites each file into C++-shaped declarations line for line. A comment block directly above a
-  top-level function, class, class member or variable (no blank line between) documents it, and its
-  first sentence is the summary. The first comment block before any code documents the file. Keep
-  writing ordinary `//` comments; nothing needs Doxygen markup. The filter also prints each relative import as an `#include`, which Doxygen draws as the folder
-  graphs (Graphviz needed; without it the build skips the graphs). The file import, call, caller and class
-  graphs come from `scripts/doxygen-graphs.js` instead of Doxygen (whose parser loses function bodies after
-  `export` and links calls by bare name): it follows each file's imports to the real function, so an edge is
-  only drawn when the reference resolves, and lays graphs out for reading (grouped by file, a second step
-  only for short lists, long lists summarized). The filter also lists the properties a class's methods
-  create with `this.x =`. The look matches
-  the website: `docs/doxygen/rerun.css`, plus the header bar and graph recoloring that `build-docs.js` applies
-  after Doxygen runs. The Pages workflow (`.github/workflows/pages.yml`)
+- **Comments are the code reference.** `npm run docs` builds TypeDoc HTML into `docs/api/html`
+  (`scripts/build-docs.js`, `tsconfig.docs.json`) in about half a minute. TypeDoc reads the JavaScript
+  through the TypeScript compiler (nothing is type-checked or emitted), so JSDoc types become real,
+  linked types. It covers tracked files under `main/`, `renderer/js/`, `plugins/` and `plugin-dev-kit/`
+  (`moduleDetection: "force"` keeps each plugin script's names its own); README.md is the front page and the
+  other guides and `docs/design/` are pages beside the API. A comment directly above a top-level function,
+  class, class member or variable (no blank line between; `/** */` or `//`) documents it, and its first
+  sentence is the summary. The first comment block in a file (a `//` header) is the file's description. Keep
+  writing ordinary comments; write `@` in prose inside backticks (`` `@keyframes` ``), or TypeDoc reads it as a
+  tag. `scripts/typedoc-plugin.mjs` adds what TypeDoc doesn't do on its own:
+  - the file headers and the functions, classes and constants a file doesn't export ("Internal" groups);
+  - folding `@param opts.key` lines that TypeScript can't attach to the parameter's type into its description;
+  - the website's look (`docs/typedoc/rerun.css`, the site header bar) and the design docs' Mermaid diagrams;
+  - import, call, caller and class graphs from `scripts/docs-graphs.js`. It follows each file's imports to the
+    real function, so an edge is only drawn when the reference resolves, and lays graphs out for reading
+    (grouped by file, a second step only for short lists, long lists summarized). Graphviz is needed; without
+    it the build skips the graphs.
+
+  The Pages workflow (`.github/workflows/pages.yml`)
   publishes it under `api/` of the project site, behind the website in `site/` (a Vite + React app: `npm run site` builds both
   into `_site/`, `npm run site:dev` serves it with live reload; feature pages are `site/src/pages/features/*.jsx`,
   listed in order in `site/src/features.json`); the Download button follows the newest release, so the page has no version to bump.

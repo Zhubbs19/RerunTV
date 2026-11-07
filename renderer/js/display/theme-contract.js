@@ -10,7 +10,7 @@
 //      never position, size, display or stacking;
 //   3. native field chrome — html[data-theme="id"] :is(input, select, textarea)
 //      and its :focus/:focus-visible, same property list;
-//   4. @keyframes, and @media (prefers-reduced-motion) around rules of kind 2–3.
+//   4. `@keyframes`, and `@media (prefers-reduced-motion)` around rules of kind 2–3.
 
 // Every element a theme may decorate, and where it is.
 export const THEME_SLOTS = Object.freeze({

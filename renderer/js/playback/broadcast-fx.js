@@ -738,7 +738,7 @@ export function updateLogoBug(ch) {
 // to replay on every call (a fresh tune, or any other updateLogoBug trigger)
 // — forcing a reflow between remove and add is the same trick
 // attachSliderReadout's pulse uses (setup-util.js); 'pulse'/'glow' are
-// persistent CSS @keyframes loops that don't need replaying.
+// persistent CSS `@keyframes` loops that don't need replaying.
 export function applyLogoBugMotion() {
   const preset = (S.config.display && S.config.display.logoBugMotion) || 'none';
   LOGO_MOTION_PRESETS.forEach((p) => logoBugEl.classList.remove(`logo-motion-${p}`));

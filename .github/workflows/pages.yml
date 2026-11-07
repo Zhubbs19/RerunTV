@@ -1,6 +1,6 @@
 name: Pages
 
-# Publishes the GitHub Pages site: the Vite + React app in site/ plus the Doxygen code reference
+# Publishes the GitHub Pages site: the Vite + React app in site/ plus the TypeDoc code reference
 # under api/ (site/vite.config.mjs). Runs when master moves, when a release is published (the
 # Download button points at the newest installer), and by hand. Pages must be set to deploy
 # from GitHub Actions (Settings > Pages > Source).
@@ -37,8 +37,8 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
 
-      - name: Install Doxygen and Graphviz
-        run: bash scripts/ci-install-doxygen.sh
+      - name: Install Graphviz (for the code reference's graphs)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz
 
       - name: Build the code reference
         run: npm run docs

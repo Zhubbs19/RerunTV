@@ -265,7 +265,7 @@ export function isVideoMediaPath(mediaPath) {
 // A CSS animation preset applied to #logo-bug (overlays.css's
 // .logo-bug-motion-<preset> classes). 'slide-in' is one-shot, replayed on
 // every tune (see the classList remove/reflow/add trick, playback.js);
-// 'pulse'/'glow' are persistent CSS @keyframes loops.
+// 'pulse'/'glow' are persistent CSS `@keyframes` loops.
 export const LOGO_MOTION_PRESETS = ['none', 'pulse', 'glow', 'slide-in'];
 
 // ---------- Dynamic overlays (animated logo/image/video, shown on trigger) ----------

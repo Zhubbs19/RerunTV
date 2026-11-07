@@ -524,7 +524,7 @@ Questions and ideas are welcome in [Discussions](https://github.com/Zhubbs19/Rer
 [issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose). Pull requests are currently limited to
 collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). The
 [code reference](https://zhubbs19.github.io/RerunTV/api/) is generated from the comments in the source
-(`npm run docs`, needs Doxygen) and published with the website (`npm run site`,
+(`npm run docs`, TypeDoc) and published with the website (`npm run site`,
 `.github/workflows/pages.yml`). Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Packaging

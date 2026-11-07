@@ -1,20 +1,19 @@
-// Call graphs and class graphs for the code reference (`npm run docs`, scripts/build-docs.js).
+// Call, caller, class and file import graphs for the code reference (`npm run docs`,
+// scripts/build-docs.js, drawn into TypeDoc's pages by scripts/typedoc-plugin.mjs).
 //
-// Doxygen can't draw these for JavaScript. Its code parser loses a function's body after
-// `export`, and it links a call to whichever function has that bare name, which in this codebase
-// (many `render`, `init`, `load` functions) draws wrong edges. So this works from the JavaScript
-// itself: espree parses each documented file, every import and require is followed to the file and
-// export it names (re-exports included), and a reference counts only when it resolves to a real
-// top-level function, class or method. A local variable with the same name shadows it.
-//
-// After Doxygen has written the HTML, `addGraphs` finds each function's and class's section in it,
-// renders the graphs with Graphviz in parallel batches, and adds them as the same collapsible
-// sections Doxygen uses for its own graphs, in the site palette.
+// This works from the JavaScript itself: espree parses each documented file, every import and
+// require is followed to the file and export it names (re-exports included), and a reference counts
+// only when it resolves to a real top-level function, class or method. A local variable with the
+// same name shadows it. Graphs are laid out for reading: grouped in one frame per file (or folder),
+// a second step out only for short lists, long lists cut to a "+N more" box or summarized by folder.
+// Graphviz renders them in parallel batches.
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
-const { parse, resolveModule, instanceFields } = require('./doxygen-filter');
+const { spawn, spawnSync } = require('node:child_process');
+const espree = require('espree');
+
+const ROOT = path.join(__dirname, '..');
 
 // Graph limits, chosen for readability: a second step out is only drawn when the first step has at
 // most SECOND_STEP_LIMIT functions; a graph keeps at most MAX_NODES boxes (the rest become one
@@ -672,155 +671,143 @@ function inlineSvg(svg, prefix) {
     .trim();
 }
 
-// ---------- Putting the graphs in the pages ----------
+// ---------- Parsing ----------
 
 /**
- * Reads which page and anchor documents each function, class and method, from Doxygen's HTML.
- * @param {string} htmlDir The generated HTML folder.
- * @returns {{ files: Map<string, object>, classes: Map<string, object[]>, dirs: Map<string, string> }}
- *   File pages by repo path and class pages by class name, each { page, anchors: Map name -> anchor },
- *   and folder pages by repo path.
+ * Parses a file with espree, as an ES module first and as CommonJS if that fails.
+ * @param {string} source The file's text.
+ * @returns {{ ast?: object, error?: Error }} The AST, or the first parse error.
  */
-function readPages(htmlDir) {
-  const files = new Map();
-  const classes = new Map();
-  const dirs = new Map();
-  for (const page of fs.readdirSync(htmlDir)) {
-    if (!page.endsWith('.html') || page.endsWith('_source.html')) continue;
-    const html = fs.readFileSync(path.join(htmlDir, page), 'utf8');
-    const title = (html.match(/<title>[^:<]*: ([^<]*)<\/title>/) || [])[1];
-    if (!title) continue;
-    const fileMatch = title.match(/^(.*) File Reference$/);
-    const classMatch = title.match(/^(.*) Class Reference$/);
-    const dirMatch = title.match(/^(.*) Directory Reference$/);
-    if (dirMatch) { dirs.set(decodeEntities(dirMatch[1]).replace(/\/$/, ''), page); continue; }
-    if (!fileMatch && !classMatch) continue;
-    const anchors = new Map();
-    for (const m of html.matchAll(/<h2 class="memtitle"><span class="permalink"><a href="#(\w+)">[^<]*<\/a><\/span>([\w$]+)/g)) {
-      if (!anchors.has(m[2])) anchors.set(m[2], m[1]);
-    }
-    const entry = { page, anchors };
-    if (fileMatch) files.set(decodeEntities(fileMatch[1]), entry);
-    else {
-      const name = decodeEntities(classMatch[1]);
-      if (!classes.has(name)) classes.set(name, []);
-      classes.get(name).push(entry);
+function parse(source) {
+  const options = { ecmaVersion: 'latest', comment: true, loc: true, range: true };
+  let firstError = null;
+  for (const sourceType of ['module', 'commonjs']) {
+    try {
+      return { ast: espree.parse(source, { ...options, sourceType }) };
+    } catch (err) {
+      firstError = firstError || err;
     }
   }
-  return { files, classes, dirs };
+  return { error: firstError };
 }
 
 /**
- * Decodes the few HTML entities Doxygen writes in page titles.
- * @param {string} text Title text.
- * @returns {string} Plain text.
+ * Resolves a relative import or require to the repo file it loads, the way Node and the browser
+ * would for this codebase's specifiers (an exact path, or one missing its `.js` / `/index.js`).
+ * @param {string} relPath The importing file, relative to the repo root with `/` separators.
+ * @param {string} spec The specifier as written (`./state.js`, `../util`).
+ * @returns {string|null} The imported file relative to the repo root, or null for a package,
+ *   a built-in, a URL, or a file that doesn't exist.
  */
-function decodeEntities(text) {
-  return text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+function resolveModule(relPath, spec) {
+  if (!/^\.\.?\//.test(spec)) return null;
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(relPath), spec.split(/[?#]/)[0]));
+  if (base.startsWith('..')) return null;
+  for (const candidate of [base, `${base}.js`, `${base}.mjs`, `${base}.cjs`, `${base}/index.js`]) {
+    try {
+      if (fs.statSync(path.join(ROOT, candidate)).isFile()) return candidate;
+    } catch { /* not this one */ }
+  }
+  return null;
 }
 
 /**
- * One collapsible graph section in Doxygen's own markup (dynsections.js opens and closes it).
- * @param {string} id A page-unique id.
+ * The instance properties a class's methods create with `this.name = ...` and that the class
+ * doesn't already declare as a field, method or accessor, in order of first assignment. Bodies
+ * of plain `function`s and nested classes are skipped, since `this` means something else there;
+ * arrow functions keep the method's `this`, so theirs count.
+ * @param {object} cls An espree ClassDeclaration or ClassExpression.
+ * @returns {Array<{ name: string, statement: object }>} Each property, with the statement (or
+ *   expression) of its first assignment, whose comments document it.
+ */
+function instanceFields(cls) {
+  const declared = new Set(cls.body.body.map((m) => (m.computed || !m.key ? null : m.key.name || m.key.value)));
+  const found = new Map();
+  const visit = (node, parent) => {
+    if (!node || typeof node.type !== 'string') return;
+    if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration' || node.type === 'ClassExpression' || node.type === 'ClassDeclaration') return;
+    if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression' && !node.left.computed
+      && node.left.object.type === 'ThisExpression' && node.left.property.type === 'Identifier') {
+      const name = node.left.property.name;
+      if (!declared.has(name) && !found.has(name)) {
+        found.set(name, { name, statement: parent && parent.type === 'ExpressionStatement' ? parent : node });
+      }
+    }
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'range') continue;
+      const value = node[key];
+      if (Array.isArray(value)) value.forEach((child) => visit(child, node));
+      else if (value && typeof value.type === 'string') visit(value, node);
+    }
+  };
+  const methods = cls.body.body.filter((m) => m.type === 'MethodDefinition' && !m.static);
+  // The constructor first, so a property's documented first assignment is usually there.
+  methods.sort((a, b) => (b.kind === 'constructor') - (a.kind === 'constructor'));
+  for (const m of methods) visit(m.value.body, m.value);
+  return [...found.values()];
+}
+
+// ---------- Finding Graphviz and putting graphs in pages ----------
+
+/**
+ * Finds Graphviz's `dot`.
+ * @returns {string|null} The command to run: `dot` when it is on PATH, the full path when it is
+ *   only in its usual Windows install folder (the installer doesn't always add it to PATH), or
+ *   null when it isn't installed.
+ */
+function findGraphviz() {
+  const onPath = spawnSync('dot', ['-V'], { encoding: 'utf8' });
+  if (!onPath.error && onPath.status === 0) return 'dot';
+  if (process.platform !== 'win32') return null;
+  for (const base of [process.env.ProgramFiles, process.env['ProgramFiles(x86)']].filter(Boolean)) {
+    const exe = path.join(base, 'Graphviz', 'bin', 'dot.exe');
+    if (fs.existsSync(exe)) return exe;
+  }
+  return null;
+}
+
+/**
+ * One collapsible graph section, closed until it is opened.
  * @param {string} heading The section's heading.
  * @param {string} svg The inline SVG.
  * @returns {string} HTML.
  */
-function graphSection(id, heading, svg) {
-  return `${MARK_START}<div id="${id}" class="dynheader closed"><span class="dynarrow"><span class="arrowhead closed"></span></span>${heading}</div>\n`
-    + `<div id="${id}-summary" class="dynsummary">\n</div>\n`
-    + `<div id="${id}-content" class="dyncontent hidden">\n<div class="center rtv-graph-box">${svg}</div>\n</div>\n${MARK_END}`;
-}
-
-// Comments around every added section, so a re-run (`--brand-only`) can take the old ones out.
-const MARK_START = '<!--rtv-graph-->';
-const MARK_END = '<!--/rtv-graph-->';
-const MARKED = /<!--rtv-graph-->[\s\S]*?<!--\/rtv-graph-->/g;
-
-/**
- * Inserts HTML at the end of one member's documentation block (just before its memdoc closes).
- * @param {string} html The page.
- * @param {string} anchor The member's anchor id.
- * @param {string} insert The HTML to add.
- * @returns {string} The page with the HTML added, or unchanged if the member wasn't found.
- */
-function insertIntoMember(html, anchor, insert) {
-  const start = html.indexOf(`<h2 class="memtitle"><span class="permalink"><a href="#${anchor}">`);
-  if (start < 0) return html;
-  const doc = html.indexOf('<div class="memdoc">', start);
-  if (doc < 0) return html;
-  // The member ends where the next member, section or the page contents begin.
-  const ends = ['<h2 class="memtitle">', '<h2 class="groupheader">', '<!-- contents -->', '<hr/>The documentation for this']
-    .map((s) => html.indexOf(s, doc)).filter((i) => i > 0);
-  const end = ends.length ? Math.min(...ends) : html.length;
-  const close = html.lastIndexOf('</div>\n</div>', end);
-  if (close < doc) return html;
-  return html.slice(0, close) + insert + html.slice(close);
+function graphSection(heading, svg) {
+  return `<details class="rtv-graph"><summary>${heading}</summary><div class="rtv-graph-box">${svg}</div></details>`;
 }
 
 /**
- * Adds call, caller and class graphs to the generated code reference.
+ * Reads, links and draws every graph for a set of files.
  * @param {object} opts
- * @param {string} opts.root The repo root.
- * @param {string} opts.htmlDir The generated HTML folder (docs/api/html).
+ * @param {string[]} opts.files The documented files, relative to the repo root with `/` separators.
  * @param {string} opts.dotCommand The Graphviz dot executable.
- * @returns {Promise<{ functions: number, classes: number }>} How many call/caller and class graphs were added.
+ * @param {string} opts.workDir A scratch folder for the DOT and SVG files (emptied, then removed).
+ * @param {Function} opts.hrefOf Returns the link for a graph key (a function, method, class or
+ *   file), or null when it has no page. Links are written as given into the SVG.
+ * @returns {Promise<Map<string, Array<{ heading: string, svg: string }>>>} The graphs for each graph
+ *   key, in the order they should be shown.
  */
-async function addGraphs({ root, htmlDir, dotCommand }) {
-  const pages = readPages(htmlDir);
+async function drawGraphs({ files, dotCommand, workDir, hrefOf }) {
   const modules = new Map();
-  for (const file of pages.files.keys()) {
-    if (!/\.(c|m)?js$/.test(file)) continue;
+  for (const file of files) {
     let source;
-    try { source = fs.readFileSync(path.join(root, file), 'utf8'); } catch { continue; }
+    try { source = fs.readFileSync(path.join(ROOT, file), 'utf8'); } catch { continue; }
     const mod = analyzeSource(source, file);
     if (mod) modules.set(file, mod);
   }
   const graph = linkModules(modules);
   const { nodes, calls, callers } = graph;
 
-  // Where each node is documented. A class or method needs a class page for its name; when two
-  // classes share a name, neither gets one (the page can't be told apart).
-  const classPage = (name) => { const p = pages.classes.get(name); return p && p.length === 1 ? p[0] : null; };
-  const placeOf = (key) => {
-    const node = nodes.get(key);
-    if (node.kind === 'function') {
-      const page = pages.files.get(node.file);
-      const anchor = page && page.anchors.get(node.name);
-      return anchor ? { page: page.page, anchor } : null;
-    }
-    const page = classPage(node.kind === 'class' ? node.name : node.className);
-    if (!page) return null;
-    if (node.kind === 'class') return { page: page.page, anchor: null };
-    const anchor = page.anchors.get(node.name === 'constructor' ? node.className : node.name);
-    return anchor ? { page: page.page, anchor } : null;
-  };
-  const hrefOf = (key) => { const p = placeOf(key); return p ? (p.anchor ? `${p.page}#${p.anchor}` : p.page) : null; };
-
-  // Write every graph's DOT file, render them all, then put each SVG in its page.
-  const work = path.join(htmlDir, '..', 'graphs-tmp');
-  fs.rmSync(work, { recursive: true, force: true });
-  fs.mkdirSync(work, { recursive: true });
-  const jobs = []; // { page, anchor, heading, name, kind }
-  const addJob = (place, heading, dot, kind) => {
+  fs.rmSync(workDir, { recursive: true, force: true });
+  fs.mkdirSync(workDir, { recursive: true });
+  const jobs = []; // { key, heading, name }
+  const addJob = (key, heading, dot) => {
     const name = `g${jobs.length}.dot`;
-    fs.writeFileSync(path.join(work, name), dot);
-    jobs.push({ ...place, heading, name, kind });
+    fs.writeFileSync(path.join(workDir, name), dot);
+    jobs.push({ key, heading, name });
   };
-  let functionGraphs = 0;
-  for (const key of nodes.keys()) {
-    const node = nodes.get(key);
-    if (node.kind === 'class') continue;
-    const place = placeOf(key);
-    if (!place || !place.anchor) continue;
-    const what = node.kind === 'method' ? 'method' : 'function';
-    const out = callGraphDot(key, calls, nodes, hrefOf, false);
-    const into = callGraphDot(key, callers, nodes, hrefOf, true);
-    if (out) addJob(place, `What this ${what} calls:`, out, 'member');
-    if (into) addJob(place, `What calls this ${what}:`, into, 'member');
-    if (out || into) functionGraphs++;
-  }
-  // Each file's imports and importers, among the documented files.
+
+  // Files: what each imports and what imports it, among the documented files.
   const importers = new Map();
   for (const [file, mod] of modules) {
     for (const dep of mod.deps) {
@@ -829,46 +816,39 @@ async function addGraphs({ root, htmlDir, dotCommand }) {
       importers.get(dep).add(file);
     }
   }
-  const fileHref = (f) => (pages.files.has(f) ? pages.files.get(f).page : null);
-  const dirHref = (d) => pages.dirs.get(d) || null;
+  const fileHref = (f) => hrefOf(f);
+  const dirHref = () => null;
   for (const [file, mod] of modules) {
-    const place = { page: pages.files.get(file).page, anchor: null };
     const out = fileGraphDot(file, new Set([...mod.deps].filter((d) => modules.has(d))), fileHref, dirHref, false);
     const into = fileGraphDot(file, importers.get(file) || new Set(), fileHref, dirHref, true);
-    if (out) addJob(place, 'What this file imports:', out, 'file');
-    if (into) addJob(place, 'What imports this file:', into, 'file');
+    if (out) addJob(file, 'What this file imports', out);
+    if (into) addJob(file, 'What imports this file', into);
   }
-  let classGraphs = 0;
-  for (const key of nodes.keys()) {
-    if (nodes.get(key).kind !== 'class') continue;
-    const place = placeOf(key);
-    if (!place) continue;
-    addJob(place, `Class graph for ${dotHtml(nodes.get(key).name)}:`, classGraphDot(key, graph, modules, hrefOf), 'class');
-    classGraphs++;
+  // Functions and methods, then classes.
+  for (const [key, node] of nodes) {
+    if (node.kind === 'class') {
+      addJob(key, `Class graph for ${dotHtml(node.name)}`, classGraphDot(key, graph, modules, hrefOf));
+      continue;
+    }
+    const what = node.kind === 'method' ? 'method' : 'function';
+    const out = callGraphDot(key, calls, nodes, hrefOf, false);
+    const into = callGraphDot(key, callers, nodes, hrefOf, true);
+    if (out) addJob(key, `What this ${what} calls`, out);
+    if (into) addJob(key, `What calls this ${what}`, into);
   }
-  await renderAll(work, jobs.map((j) => j.name), dotCommand);
+  await renderAll(workDir, jobs.map((j) => j.name), dotCommand);
 
-  const byPage = new Map();
-  for (const job of jobs) {
-    if (!byPage.has(job.page)) byPage.set(job.page, []);
-    byPage.get(job.page).push(job);
-  }
-  for (const page of new Set([...byPage.keys(), ...[...pages.files.values(), ...[...pages.classes.values()].flat()].map((p) => p.page)])) {
-    const file = path.join(htmlDir, page);
-    const before = fs.readFileSync(file, 'utf8');
-    let html = before.replace(MARKED, '').replace(/<div class="textblock"><\/div>/g, '');
-    const top = []; // file and class graphs, which go at the top of the page
-    (byPage.get(page) || []).forEach((job, i) => {
-      const svg = inlineSvg(fs.readFileSync(path.join(work, `${job.name}.svg`), 'utf8'), `rtvg${i}-`);
-      const section = graphSection(`rtv-graph-${i}`, job.heading, svg);
-      if (job.kind === 'member') html = insertIntoMember(html, job.anchor, section);
-      else top.push(section);
-    });
-    if (top.length) html = html.replace('<div class="contents">', `<div class="contents">\n<div class="textblock">${top.join('')}</div>`);
-    if (html !== before) fs.writeFileSync(file, html);
-  }
-  fs.rmSync(work, { recursive: true, force: true });
-  return { functions: functionGraphs, classes: classGraphs };
+  const result = new Map();
+  jobs.forEach((job, i) => {
+    const svg = inlineSvg(fs.readFileSync(path.join(workDir, `${job.name}.svg`), 'utf8'), `rtvg${i}-`);
+    if (!result.has(job.key)) result.set(job.key, []);
+    result.get(job.key).push({ heading: job.heading, svg });
+  });
+  fs.rmSync(workDir, { recursive: true, force: true });
+  return result;
 }
 
-module.exports = { analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, insertIntoMember, addGraphs };
+module.exports = {
+  analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, drawGraphs, findGraphviz,
+  graphSection, parse, resolveModule, instanceFields,
+};

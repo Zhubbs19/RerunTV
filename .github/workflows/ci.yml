@@ -31,9 +31,9 @@ jobs:
         run: npm test -- --coverage
 
   docs:
-    name: Code reference (Doxygen)
-    # Builds the Doxygen code reference (npm run docs), so a file scripts/doxygen-filter.js can't
-    # read shows up here, and keeps the HTML as a download on the run.
+    name: Code reference (TypeDoc)
+    # Builds the TypeDoc code reference (npm run docs), so a file TypeDoc or
+    # scripts/typedoc-plugin.mjs can't read shows up here, and keeps the HTML as a download on the run.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,8 +47,8 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
 
-      - name: Install Doxygen and Graphviz
-        run: bash scripts/ci-install-doxygen.sh
+      - name: Install Graphviz (for the graphs)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends graphviz
 
       - name: Build the code reference
         run: npm run docs

@@ -6,7 +6,7 @@
 // __SITE_INFO__ constant. The repository comes from GITHUB_REPOSITORY (set in Actions), else the
 // origin remote. The Download button points at the Windows installer of the newest release,
 // prereleases included, looked up with the GitHub CLI; without `gh` or a release, or in dev, it
-// points at the Releases page. After a build, the Doxygen code reference (docs/api/html, from
+// points at the Releases page. After a build, the TypeDoc code reference (docs/api/html, from
 // `npm run docs`) is copied in under api/.
 import fs from 'node:fs';
 import path from 'node:path';
