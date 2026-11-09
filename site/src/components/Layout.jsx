@@ -16,7 +16,7 @@ function skipToMain(event) {
 /**
  * The site header: the brand and the main navigation.
  * @param {Object} props
- * @param {string} [props.current] Which nav item is the current page ("features" or none).
+ * @param {string} [props.current] Which nav item is the current page ("features", "downloads" or none).
  * @returns {JSX.Element} The header.
  */
 export function Header({ current }) {
@@ -30,6 +30,7 @@ export function Header({ current }) {
         </a>
         <nav aria-label="Site">
           <a href="#/features" aria-current={current === 'features' ? 'page' : undefined}>Features</a>
+          <a href="#/downloads" aria-current={current === 'downloads' ? 'page' : undefined}>Downloads</a>
           <a href="api/">Docs</a>
           <a href={SITE.repoUrl}>GitHub</a>
         </nav>

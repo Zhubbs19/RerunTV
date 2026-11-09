@@ -7,7 +7,7 @@ import guideHd from '@screenshots/guide-hd.jpg';
 import timeMachine from '@screenshots/time-machine.jpg';
 import setup from '@screenshots/setup.png';
 
-// { repoUrl, downloadUrl, releaseNote }, filled in by vite.config.mjs.
+// { repoUrl, releasesUrl, release, releaseNote, changelog }, filled in by vite.config.mjs.
 export const SITE = __SITE_INFO__;
 
 // The feature pages in order: { slug, ch, title, summary }.

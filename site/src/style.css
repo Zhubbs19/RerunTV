@@ -316,6 +316,18 @@ table.keys tbody td { background: var(--cell); color: var(--text); }
 .pager small { display: block; color: var(--cyan); font: 700 .75rem/1.4 var(--font-tight); letter-spacing: .1em; text-transform: uppercase; }
 .pager .next { text-align: right; grid-column: 2; }
 
+/* ---------- Downloads ---------- */
+.downloads { max-width: var(--wrap); margin: 0 auto; padding: 24px 16px 56px; }
+.dl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; margin: 0 0 44px; }
+.article .dl-card { background: var(--bg-2); border: 2px solid var(--rule); border-radius: var(--radius); padding: 22px; margin: 0; min-width: 0; }
+.dl-card .dl-file { font-size: .85rem; margin: 10px 0 14px; overflow-wrap: anywhere; }
+.dl-card p:last-child { margin-bottom: 0; }
+.dl-card code { overflow-wrap: anywhere; }
+.change { margin: 0 0 26px; }
+.article .change h3 { margin-top: 0; }
+.change ul { margin-bottom: 0; }
+.older summary { cursor: pointer; color: var(--cyan); font-weight: 700; margin-bottom: 18px; }
+
 /* ---------- Narrow screens ---------- */
 @media (max-width: 860px) {
   .hero, .how-grid { grid-template-columns: 1fr; gap: 32px; }

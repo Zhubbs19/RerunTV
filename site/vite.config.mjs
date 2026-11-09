@@ -2,19 +2,22 @@
 // serves it with live reload). The site is a small React app in site/src: a hash router picks the
 // landing page, the features index or one feature page (listed in src/features.json).
 //
-// The build also looks up the repository and the newest release, which the pages read through the
-// __SITE_INFO__ constant. The repository comes from GITHUB_REPOSITORY (set in Actions), else the
-// origin remote. The Download button points at the Windows installer of the newest release,
-// prereleases included, looked up with the GitHub CLI; without `gh` or a release, or in dev, it
-// points at the Releases page. After a build, the TypeDoc code reference (docs/api/html, from
-// `npm run docs`) is copied in under api/.
+// The build also looks up the repository, the newest release and the changelog, which the pages
+// read through the __SITE_INFO__ constant. The repository comes from GITHUB_REPOSITORY (set in
+// Actions), else the origin remote. The Downloads page lists the newest release's files, prereleases
+// included, looked up with the GitHub CLI; without `gh` or a release, or in dev, it points at the
+// Releases page. Its Linux download appears only when that release has an AppImage attached. The
+// changelog is HELP > What's New, read from the same list CHANGELOG.md is generated from. After a
+// build, the TypeDoc code reference (docs/api/html, from `npm run docs`) is copied in under api/.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const releaseNotes = createRequire(import.meta.url)('../scripts/release-notes.js');
 const siteDir = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(siteDir, '..');
 const out = path.join(root, '_site');
@@ -46,34 +49,58 @@ function gh(args) {
 }
 
 /**
- * Picks the newest release and its Windows installer.
+ * Finds the newest release and the files the Downloads page offers from it.
  * @param {string} slug The repository, "owner/name".
- * @returns {Object|null} { tag, prerelease, url }, or null when there is none.
+ * @returns {Object|null} { tag, beta, date, windows, linux, checksums, demo }, or null when there is
+ *   no release with a Windows installer. Each file is { name, url, size }; all but windows may be null.
  */
-function newestInstaller(slug) {
-  const list = gh(['release', 'list', '-R', slug, '-L', '1', '--exclude-drafts', '--json', 'tagName,isPrerelease']);
+function newestRelease(slug) {
+  const list = gh(['release', 'list', '-R', slug, '-L', '1', '--exclude-drafts', '--json', 'tagName,isPrerelease,publishedAt']);
   if (!list || !list.length) return null;
-  const { tagName, isPrerelease } = list[0];
+  const { tagName, isPrerelease, publishedAt } = list[0];
   const view = gh(['release', 'view', tagName, '-R', slug, '--json', 'assets']);
-  const asset = view && view.assets.find((a) => /^RerunTV-Setup-.+\.exe$/.test(a.name));
-  if (!asset) return null;
-  return { tag: tagName, prerelease: isPrerelease, url: asset.url };
+  if (!view) return null;
+  const file = (pattern) => {
+    const asset = view.assets.find((a) => pattern.test(a.name));
+    return asset ? { name: asset.name, url: asset.url, size: asset.size } : null;
+  };
+  const windows = file(/^RerunTV-Setup-.+\.exe$/);
+  if (!windows) return null;
+  return {
+    tag: tagName,
+    beta: isPrerelease,
+    date: publishedAt,
+    windows,
+    linux: file(/^RerunTV-.+\.AppImage$/),
+    checksums: file(/^SHA256SUMS\.txt$/),
+    demo: file(/^RerunTV-demo-library\.zip$/),
+  };
 }
 
 /**
- * Works out what the pages say about the repository and the newest release.
+ * Reads the changelog from HELP > What's New.
+ * @returns {Object[]} The entries, newest first: { date, items }.
+ */
+function readChangelog() {
+  return releaseNotes.parseChangelog(fs.readFileSync(path.join(root, releaseNotes.SOURCE), 'utf8'));
+}
+
+/**
+ * Works out what the pages say about the repository, the newest release and the changelog.
  * @param {boolean} lookUpRelease Whether to ask GitHub for the newest release (builds only).
- * @returns {Object} { repoUrl, downloadUrl, releaseNote }.
+ * @returns {Object} { repoUrl, releasesUrl, release, releaseNote, changelog }.
  */
 function siteInfo(lookUpRelease) {
   const slug = repoSlug();
   const repoUrl = `https://github.com/${slug}`;
-  const release = lookUpRelease ? newestInstaller(slug) : null;
-  if (lookUpRelease && !release) console.warn('No release installer found (or gh unavailable): Download links to the Releases page.');
+  const release = lookUpRelease ? newestRelease(slug) : null;
+  if (lookUpRelease && !release) console.warn('No release installer found (or gh unavailable): Downloads links to the Releases page.');
   return {
     repoUrl,
-    downloadUrl: release ? release.url : `${repoUrl}/releases`,
-    releaseNote: release ? `Latest: ${release.tag}${release.prerelease ? ' (beta)' : ''}.` : '',
+    releasesUrl: `${repoUrl}/releases`,
+    release,
+    releaseNote: release ? `Latest: ${release.tag}${release.beta ? ' (beta)' : ''}.` : '',
+    changelog: readChangelog(),
   };
 }
 

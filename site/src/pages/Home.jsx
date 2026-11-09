@@ -48,10 +48,10 @@ export default function Home() {
             <h1>Your own media library, <em>on the air</em>.</h1>
             <p className="lede">RerunTV turns folders of your own video into cable channels. Each channel has been running since the moment you made it, so when you tune in, you land mid-show, with a program guide, commercial breaks and the look of an old cable box.</p>
             <div className="cta">
-              <a className="button primary" href={SITE.downloadUrl}>Download for Windows</a>
+              <a className="button primary" href="#/downloads">Downloads</a>
               <a className="button" href={SITE.repoUrl}>View on GitHub</a>
             </div>
-            <p className="fine">{SITE.releaseNote ? `${SITE.releaseNote} ` : ''}Beta software. The installer isn&apos;t code-signed yet, so Windows will warn you the first time; <a href={`${SITE.repoUrl}#download-and-install`}>here&apos;s how to check the download</a>. Free and open source (MIT).</p>
+            <p className="fine">{SITE.releaseNote ? `${SITE.releaseNote} ` : ''}Beta software for Windows{SITE.release && SITE.release.linux ? ' and Linux' : ''}. Free and open source (MIT).</p>
           </div>
           <figure className="tv">
             <div className="bezel">

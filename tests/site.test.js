@@ -69,6 +69,7 @@ test('the router splits hashes into route parts', async () => {
   assert.deepEqual(parseHash(''), []);
   assert.deepEqual(parseHash('#/'), []);
   assert.deepEqual(parseHash('#/features'), ['features']);
+  assert.deepEqual(parseHash('#/downloads'), ['downloads']);
   assert.deepEqual(parseHash('#/features/live-tv'), ['features', 'live-tv']);
   assert.deepEqual(parseHash('#/docs/'), ['docs']);
 });

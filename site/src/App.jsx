@@ -6,6 +6,7 @@ import { FEATURES } from './site.js';
 import { FeatureLayout } from './components/Layout.jsx';
 import Home from './pages/Home.jsx';
 import FeaturesIndex from './pages/FeaturesIndex.jsx';
+import Downloads from './pages/Downloads.jsx';
 
 // Each feature page's component, keyed by slug: pages/features/<slug>.jsx.
 const FEATURE_PAGES = Object.fromEntries(
@@ -27,10 +28,12 @@ export default function App() {
   const FeaturePage = feature && FEATURE_PAGES[feature.slug];
   const isHome = route.length === 0 || (route.length === 1 && HOME_SECTIONS.has(first));
   const isIndex = route.length === 1 && first === 'features';
+  const isDownloads = route.length === 1 && first === 'downloads';
 
   let title = 'RerunTV';
   if (FeaturePage) title = `${feature.title} · RerunTV`;
   else if (isIndex) title = 'Features · RerunTV';
+  else if (isDownloads) title = 'Downloads · RerunTV';
   else if (!isHome) title = 'Not found · RerunTV';
 
   useEffect(() => {
@@ -43,6 +46,7 @@ export default function App() {
 
   if (FeaturePage) return <FeaturePage />;
   if (isIndex) return <FeaturesIndex />;
+  if (isDownloads) return <Downloads />;
   if (isHome) return <Home />;
   return (
     <FeatureLayout page={{ slug: '', ch: '00', title: 'No signal', summary: 'There is no page at this address.' }} eyebrow="Not found" isIndex>
