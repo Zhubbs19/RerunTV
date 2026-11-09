@@ -16,9 +16,6 @@ module.exports = {
   directories: { output: 'dist' },
   artifactName: '${productName}-Setup-${version}.${ext}',
   files: ['main/**/*.js', 'renderer/**/*', ...pluginFiles, 'package.json'],
-  // These live beside RerunTV.exe in installed/unpacked builds. Each batch
-  // file also retains a development fallback for running from the repo.
-  extraFiles: ['run-server.bat', 'run-headless.bat'],
   asarUnpack: ['plugins/**'],
   // Packaged-build hardening. The app starts its own helper processes with
   // utilityProcess.fork() (plugin isolation, the splicer), never by running the
@@ -33,8 +30,23 @@ module.exports = {
   publish: {
     provider: 'github', owner: 'Zhubbs19', repo: 'RerunTV',
   },
-  // Windows is the only packaged platform (CI builds only the NSIS installer).
-  win: { target: 'nsis', icon: 'build/icon.png' },
+  // The release workflow builds these two: the NSIS installer and an experimental AppImage.
+  win: {
+    target: 'nsis',
+    icon: 'build/icon.png',
+    // These live beside RerunTV.exe in installed/unpacked builds. Each batch
+    // file also retains a development fallback for running from the repo.
+    extraFiles: ['run-server.bat', 'run-headless.bat'],
+  },
+  linux: {
+    target: 'AppImage',
+    icon: 'build/icon.png',
+    category: 'AudioVideo',
+    artifactName: '${productName}-${version}-${arch}.${ext}',
+  },
+  // The static AppImage runtime. The default one needs libfuse2, which Ubuntu
+  // has left out of its desktop installs since 22.04, so the file wouldn't open.
+  toolsets: { appimage: '1.0.3' },
   nsis: {
     oneClick: false,
     allowToChangeInstallationDirectory: true,

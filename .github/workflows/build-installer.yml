@@ -16,7 +16,50 @@ permissions:
   contents: read
 
 jobs:
+  linux:
+    name: Linux AppImage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Experimental: a failed Linux build must not hold up the Windows release,
+    # which then goes out without an AppImage.
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write      # sign the build attestation
+      attestations: write  # store the build attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compute beta version
+        id: version
+        run: |
+          base=$(node -p "require('./package.json').version")
+          echo "version=${base}-beta.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the AppImage
+        run: npx electron-builder --linux --publish=never --config electron-builder.config.js --config.extraMetadata.version=${{ steps.version.outputs.version }}
+
+      - name: Attest the AppImage
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*.AppImage
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reruntv-linux-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 1
+
   build:
+    needs: linux
     runs-on: windows-latest
     permissions:
       contents: write      # create the release
@@ -60,11 +103,20 @@ jobs:
         # here, that implicit publish just fails the build outright).
         run: npx electron-builder --win --publish=never --config electron-builder.config.js --config.extraMetadata.version=${{ steps.version.outputs.version }}
 
+      - name: Fetch the Linux AppImage
+        # Missing when the Linux job failed; the release is then Windows only.
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: reruntv-linux-appimage
+          path: dist
+
       - name: Write checksums
         shell: bash
         run: |
+          shopt -s nullglob
           cd dist
-          sha256sum "RerunTV-Setup-${{ steps.version.outputs.version }}.exe" > SHA256SUMS.txt
+          sha256sum "RerunTV-Setup-${{ steps.version.outputs.version }}.exe" *.AppImage > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Attest build provenance
@@ -85,6 +137,10 @@ jobs:
             cp "$BUNDLE" "dist/RerunTV-Setup-${{ steps.version.outputs.version }}.exe.intoto.jsonl"
             extra+=("dist/RerunTV-Setup-${{ steps.version.outputs.version }}.exe.intoto.jsonl")
           fi
+          # The AppImage from the Linux job, when that job succeeded. Linux builds
+          # don't auto-update, so no latest-linux.yml goes up with it.
+          shopt -s nullglob
+          extra+=(dist/*.AppImage)
           # electron-updater's PrivateGitHubProvider (node_modules/electron-
           # updater/out/providers/PrivateGitHubProvider.js) does not sort
           # GitHub's releases list by version before picking one — it just

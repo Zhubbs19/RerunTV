@@ -1,16 +1,14 @@
 name: Linux (experimental)
 
-# Measures how far RerunTV is from running on Linux. Windows is still the only
-# released platform; this workflow ships nothing. It runs the same lint and unit
-# tests as CI on Ubuntu, and, when started by hand, builds an unsigned AppImage kept as a
-# workflow artifact (never a release: the "Build installer" workflow's single
-# prerelease is what electron-updater reads).
+# Keeps the Linux build honest between releases; this workflow ships nothing
+# (the "Build installer" workflow attaches the release's AppImage). It runs the
+# same lint and unit tests as CI on Ubuntu, and, when started by hand, builds an
+# unsigned AppImage kept as a workflow artifact.
 #
 # The two jobs don't depend on each other, so a failing test still shows
 # whether the AppImage builds. A packaged Linux build keeps userData in
 # ~/.config/RerunTV and skips auto-update (only Windows has a feed). Launch
-# at login is still Windows-only. The Windows run-*.bat extraFiles are
-# copied into the AppImage too; they're harmless there.
+# at login is still Windows-only.
 on:
   push:
     branches: [master]
@@ -48,8 +46,7 @@ jobs:
       - name: Unit and contract tests
         run: npm test
 
-  # Manual runs only: until the Linux build has passed a real-hardware test,
-  # pushes and pull requests don't leave a downloadable AppImage behind.
+  # Manual runs only: pushes and pull requests don't need their own AppImage.
   appimage:
     name: AppImage build
     if: github.event_name == 'workflow_dispatch'
@@ -72,18 +69,12 @@ jobs:
           echo "version=${base}-linux.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Build the AppImage
-        # The Linux settings are passed here, not added to
-        # electron-builder.config.js: that file describes what is released, and
-        # tests/release-integrity.test.js holds it to Windows only.
         # --publish=never: electron-builder would otherwise try to publish a
         # GitHub Release on its own when it detects CI.
         run: |
-          npx electron-builder --linux AppImage --publish=never \
+          npx electron-builder --linux --publish=never \
             --config electron-builder.config.js \
-            --config.extraMetadata.version=${{ steps.version.outputs.version }} \
-            --config.linux.icon=build/icon.png \
-            --config.linux.category=AudioVideo \
-            '--config.linux.artifactName=${productName}-${version}-${arch}.${ext}'
+            --config.extraMetadata.version=${{ steps.version.outputs.version }}
 
       - name: Summary
         run: |

@@ -33,7 +33,12 @@ still "correct" when you come back.
 
 ## Download and install
 
-Windows installers are on the [Releases page](../../releases).
+Windows installers and an experimental Linux AppImage are on the [downloads page](https://zhubbs19.github.io/RerunTV/#/downloads), along with the changelog.
+
+**Linux.** Mark the AppImage executable (`chmod +x RerunTV-<version>-x86_64.AppImage`) and run it. It does not
+update itself, your channels are kept in `~/.config/RerunTV`, and features that need FFmpeg use the one from
+your package manager. Starting at sign-in is Windows-only for now. Where the system blocks Chromium's sandbox,
+as Ubuntu does by default since 24.04, the AppImage starts without it.
 
 **The installers are not code-signed yet.** Windows SmartScreen will probably show "Windows protected
 your PC" the first time you run one, and your browser may ask you to confirm the download. That is
@@ -533,6 +538,7 @@ collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). The
 npm run pack    # reproducible unpacked release build from the tracked plugin allowlist
 npm run pack:personal # local build that also includes ignored plugins in this checkout
 npm run dist    # Windows installer (NSIS)
+npx electron-builder --linux --publish=never --config electron-builder.config.js    # Linux AppImage (run on Linux)
 ```
 
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
@@ -553,7 +559,7 @@ the CI build number, so every release is a pre-release and each is newer than th
 (`0.2.0-beta.7` > `0.2.0-beta.6`). Bump the base by hand for a new minor or major. The in-app update
 check follows the beta series.
 
-Pre-built beta installers (Windows) are published automatically as GitHub Releases from
+Pre-built beta installers (Windows, plus an experimental Linux AppImage) are published automatically as GitHub Releases from
 the `deploy` branch — see the [Releases page](../../releases). **They're unsigned** (see [Download and install](#download-and-install) for how to
 verify one), so Windows SmartScreen and your browser will likely warn you before running one.
 SmartScreen: "More info" → "Run anyway". Chrome's download bar: the dropdown arrow →

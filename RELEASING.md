@@ -54,6 +54,10 @@ release build. The workflow then:
    (`scripts/release-notes.js`), followed by GitHub's generated list of commits and pull requests,
 6. creates the GitHub pre-release with the installer, its blockmap, `latest.yml` and `SHA256SUMS.txt`.
 
+A separate Linux job builds and attests the experimental AppImage first. When it succeeds the AppImage is
+attached to the same release and listed in `SHA256SUMS.txt`, and the website's Downloads page offers it.
+If that job fails, the Windows release goes out without it.
+
 When that workflow succeeds, the **Demo pack** workflow runs automatically and attaches
 `RerunTV-demo-library.zip` (generated, copyright-free test video, with a build attestation) to the
 same release. You can also run it by hand from the Actions tab against any release tag.
@@ -73,6 +77,8 @@ boots (right version, all bundled plugins load, no uncaught errors). Fix a red r
   `gh attestation verify <installer> --bundle <installer>.intoto.jsonl --repo Zhubbs19/RerunTV`.
 - Install it on a clean machine, and upgrade a machine that has the previous version to confirm the
   in-app update works. Expect the Windows SmartScreen warning while installers are unsigned.
+- If the Linux job failed (it shows as a warning, not a failed run), the release has no AppImage and the
+  Downloads page shows Windows only.
 
 ## If a release is bad
 

@@ -42,16 +42,36 @@ test('the default package is deterministic and personal plugins require an expli
   assert.ok(fs.statSync(path.join(ROOT, config.win.icon)).size > 1000);
 });
 
-test('only the Windows installer is configured, matching what CI builds and the docs claim', () => {
+test('Windows and Linux are the configured targets, matching what CI builds and the docs claim', () => {
   const config = loadBuilderConfig(undefined);
   assert.equal(config.win.target, 'nsis');
   assert.equal(config.mac, undefined);
-  assert.equal(config.linux, undefined);
+  assert.equal(config.linux.target, 'AppImage');
   assert.equal(config.publish.provider, 'github');
   const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'build-installer.yml'), 'utf8');
   assert.match(workflow, /electron-builder --win\b/);
+  assert.match(workflow, /electron-builder --linux\b/);
   const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
-  assert.doesNotMatch(readme, /\bdmg\b|AppImage/);
+  assert.doesNotMatch(readme, /\bdmg\b/);
+});
+
+test('the AppImage runs without libfuse2 and carries no Windows launchers', () => {
+  const config = loadBuilderConfig(undefined);
+  // '0.0.0', the default, is the runtime that needs libfuse2.
+  assert.match(config.toolsets.appimage, /^[1-9]/);
+  assert.equal(config.extraFiles, undefined);
+  assert.ok(config.win.extraFiles.every((name) => name.endsWith('.bat')));
+});
+
+test('the website finds the AppImage under the name the builder gives it', () => {
+  const config = loadBuilderConfig(undefined);
+  const name = config.linux.artifactName
+    .replace('${productName}', config.productName).replace('${version}', '1.2.3-beta.4')
+    .replace('${arch}', 'x86_64').replace('${ext}', 'AppImage');
+  const site = fs.readFileSync(path.join(ROOT, 'site', 'vite.config.mjs'), 'utf8');
+  const pattern = site.match(/file\(\/(\^RerunTV-[^/]*AppImage\$)\//);
+  assert.ok(pattern, 'site/vite.config.mjs no longer looks for an AppImage');
+  assert.match(name, new RegExp(pattern[1]));
 });
 
 test('the installer name template is the one the release workflow and updater feed rely on', () => {
