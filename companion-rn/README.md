@@ -47,11 +47,27 @@ device's secure storage. The code itself is never stored. Sessions last 90 days 
 - **Remote**: now-playing card (channel, programme, time left, next, sleep countdown, skip break), power /
   mute / guide / info, channel and volume rockers that repeat when held, channel list / keypad / D-pad,
   picture and sound, time machine. Tablets and landscape phones get two columns.
+- **Screen** (`src/app/(tabs)/screen.tsx`): what the box's screen shows, from `GET /api/ui`
+  (`renderer/js/remote/companion-control.js`): the top surface (dialog, TV menu, guide, setup page or live TV),
+  the setup breadcrumb, and every control on it, grouped. A tap presses, picks, adjusts or focuses the real
+  control (`POST /api/ui { op, snapshot, index }`), and the text box types into the focused field
+  (`{ op: 'text', text, submit }`). Host-only controls (plug-ins, network, updates, backups, PIN lock, PC power)
+  come back `locked` and can't be pressed. The D-pad sends RemoteKey names (`POST /command { remote, long }`),
+  which the box routes through its TV-mode remote path; an older box without `remote-keys` in `/state`'s
+  `features` gets the keyboard keys instead (`src/lib/screen-model.ts`).
 - **Guide**: now and next for every channel with search and a favorites filter, plus controls for the TV's
   on-screen guide.
 - **Lineup**: tune, favorite and quick-channel toggles.
 - **More**: breaking news, EAS test, trivia, ticker, setup shortcuts, PC shutdown (when the box allows it),
-  connection info, and **BOX SETTINGS**.
+  connection info, **BOX SETTINGS** and **SCHEDULE CALENDAR**.
+- **Schedule calendar** (`src/app/calendar.tsx`, `src/app/block.tsx`): a channel's month as the box's
+  SCHEDULE › CALENDAR draws it (`GET /api/calendar?channel&year&month`), with each day's block, overlaps,
+  blocks with no folder and day overrides; the blocks themselves, and a block editor (dates or weekly hours,
+  days, priority, loop / one a day / one a week, folder). Edits are calendar operations
+  (`POST /api/calendar { channel, baseRevision, ops }`: create, update, remove, overrideDay) that the box applies
+  through its config host as a remote client, so an edit made against an old revision of the same block is
+  refused rather than merged. A folder is picked from `/api/roots` and `/api/files` and scanned on the box
+  (`POST /api/calendar/folder`). The model is `src/lib/calendar.ts`.
 - **Box settings** (`src/app/settings.tsx`): a box that serves `GET /api/settings/registry` (its settings
   registry, `renderer/js/core/settings-registry.js`) gets the box's own sections and pages, a SIMPLE / ADVANCED
   switch, defaults for settings never saved, and dimmed fields whose switch is off
@@ -75,7 +91,7 @@ labels do not overflow. Rotation is allowed.
 
 ```bash
 npm run typecheck   # tsc --noEmit
-npm test            # pure logic: addresses, layout, settings model, discovery (incl. a real local scan)
+npm test            # pure logic: addresses, layout, settings model, screen model, calendar, discovery (incl. a real local scan)
 ```
 
 `npx expo export --platform android` bundles the JS and is a quick "does it build" check.

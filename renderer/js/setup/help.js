@@ -555,6 +555,8 @@ if (helpPrintManualBtn) {
 const CHANGELOG = [
   { date: '2026-11-13', items: [
     'A phone the box no longer recognises goes back to the companion app’s pairing screen. Before, it showed NO SIGNAL and its Settings page failed with a JSON error.',
+    'The companion app can now reach every screen on the box. Its new SCREEN tab shows what the TV is showing (a setup page, a dialog, the TV menu, the guide or a plugin page) and lists every button, switch, list and text field on it. Tap one to press it, pick a choice, move a slider or type into a field with the phone’s keyboard. The phone’s D-pad, OK, Back and Menu now work the way the box’s own remote does in TV mode, so the TV menu and dialogs answer them too. The plug-in, network, update, backup, PIN lock and PC power controls are shown but stay locked: they’re changed on the box.',
+    'The companion app has the schedule calendar: MORE › SCHEDULE CALENDAR shows what each channel airs on every day of the month, with overlaps and blocks that have no folder marked. Add a block for a day, change a block’s dates, hours, days, priority and how it runs, give it a folder from your channel folders, remove it, or override one day of a daily or weekly block.',
   ] },
   { date: '2026-11-12', items: [
     'The phone companion app wears your box’s theme: Cable Guide HD ’15 gives it black screens with blue buttons, Classic ’05 navy with yellow, and every other theme its own colours. It changes when you change the box’s theme and opens in the last box’s colours.',

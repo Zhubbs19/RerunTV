@@ -140,6 +140,54 @@ function matchingBlocksIncludingEmpty(ch, atMs) {
 }
 
 /**
+ * What one channel airs on one calendar day, from the same pure
+ * resolveActiveSource/matchingBlocks functions live playback and the guide use.
+ * A calendar day is a snapshot of "what would air at this moment", so there is
+ * no separate day-preview data model. Shared by the CALENDAR grid and the
+ * companion app's calendar (remote/companion-control.js).
+ * @param {object} ch The channel config.
+ * @param {number} dayMs A moment on the day (the grid uses noon).
+ * @returns {object} `{ ch, source, matches, emptyMatches, label, color, conflict, isDaily }`.
+ */
+export function calendarDayInfo(ch, dayMs) {
+  const source = resolveActiveSource(ch, dayMs);
+  const matches = matchingBlocks(ch, dayMs);
+  const emptyMatches = matchingBlocksIncludingEmpty(ch, dayMs);
+  const label = source.block ? blockPickerLabel(source.block) : (ch.files.length ? 'DEFAULT' : 'NO CONTENT');
+  const colorKey = source.block ? source.block.id : `default-${ch.number}`;
+  const color = (source.block || ch.files.length) ? calendarSourceColor(colorKey) : null;
+  const conflict = matches.length > 1;
+  const isDaily = !!source.block && (source.block.mode === 'daily' || source.block.mode === 'weekly');
+  return { ch, source, matches, emptyMatches, label, color, conflict, isDaily };
+}
+
+/**
+ * Scans a folder for a block and probes every video, the way CHOOSE FOLDER
+ * does. Nothing is assigned here: the caller decides what to do with the files.
+ * @param {string} folder The folder's path on this machine.
+ * @param {object} [opts={}] Options.
+ * @param {boolean} [opts.shuffle] Shuffle the files (the channel's SHUFFLE).
+ * @param {(text: string) => void} [opts.onProgress] Called with status text while probing.
+ * @returns {Promise<object>} `{ files, unreadable, error }`; `error` is `empty`, `unreadable` or null.
+ */
+export async function scanBlockFolder(folder, { shuffle = false, onProgress = null } = {}) {
+  const paths = await window.api.scanFolder('local', folder);
+  if (!Array.isArray(paths) || !paths.length) return { files: [], unreadable: 0, error: 'empty' };
+  const files = [];
+  let unreadable = 0;
+  for (let i = 0; i < paths.length; i++) {
+    if (onProgress) onProgress(`PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`);
+    // eslint-disable-next-line no-await-in-loop
+    const duration = await probeDuration(paths[i]);
+    if (!(duration > 0)) { unreadable++; continue; }
+    files.push({ path: paths[i], duration, source: 'local' });
+  }
+  if (!files.length) return { files, unreadable, error: 'unreadable' };
+  if (shuffle) shuffleArray(files);
+  return { files, unreadable, error: null };
+}
+
+/**
  * Converts a `#rrggbb` colour to an `rgba()` string.
  * @param {string} hex The colour.
  * @param {number} alpha Opacity, 0 to 1.
@@ -339,22 +387,8 @@ export function buildCalendarPanel(channels, panelEl, opts) {
   panelEl.appendChild(detail);
 
   // Everything the grid, the legend, and the click-to-preview detail panel
-  // all need to know about a single channel on a single day, computed once
-  // per (channel, day) pair from the same pure resolveActiveSource/
-  // matchingBlocks functions live playback and the guide already use — a
-  // calendar day is never more than a snapshot of "what would air right now
-  // if it were this moment," so there's no separate day-preview data model.
-  function cellInfoFor(ch, dayMs) {
-    const source = resolveActiveSource(ch, dayMs);
-    const matches = matchingBlocks(ch, dayMs);
-    const emptyMatches = matchingBlocksIncludingEmpty(ch, dayMs);
-    const label = source.block ? blockPickerLabel(source.block) : (ch.files.length ? 'DEFAULT' : 'NO CONTENT');
-    const colorKey = source.block ? source.block.id : `default-${ch.number}`;
-    const color = (source.block || ch.files.length) ? calendarSourceColor(colorKey) : null;
-    const conflict = matches.length > 1;
-    const isDaily = source.block && (source.block.mode === 'daily' || source.block.mode === 'weekly');
-    return { ch, source, matches, emptyMatches, label, color, conflict, isDaily };
-  }
+  // all need to know about a single channel on a single day (calendarDayInfo).
+  const cellInfoFor = calendarDayInfo;
 
   // Cheap read-only scan (no DOM) — whether any day in (year, month) has a
   // real block airing or an empty-but-matching block, used both to
@@ -1150,28 +1184,18 @@ export function buildSchedulePanel(ch, panelEl) {
         showScanStatus('SCANNING BLOCK FOLDER…');
         let hideAfterMs = 0;
         try {
-          const paths = await window.api.scanFolder('local', folder);
-          if (!Array.isArray(paths) || !paths.length) {
+          const { files, unreadable, error } = await scanBlockFolder(folder, { shuffle: !!ch.shuffle, onProgress: showScanStatus });
+          if (error === 'empty') {
             showScanStatus('NO VIDEO FILES FOUND IN THAT FOLDER — BLOCK LEFT AS IT WAS');
             hideAfterMs = 3000;
             return;
           }
-          const files = [];
-          let unreadable = 0;
-          for (let i = 0; i < paths.length; i++) {
-            showScanStatus(`PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`);
-            // eslint-disable-next-line no-await-in-loop
-            const duration = await probeDuration(paths[i]);
-            if (!(duration > 0)) { unreadable++; continue; }
-            files.push({ path: paths[i], duration, source: 'local' });
-          }
-          if (!files.length) {
+          if (error) {
             showScanStatus('COULD NOT READ ANY VIDEO IN THAT FOLDER — BLOCK LEFT AS IT WAS');
             hideAfterMs = 4000;
             return;
           }
           if (unreadable) { showScanStatus(`${unreadable} UNREADABLE FILE${unreadable === 1 ? '' : 'S'} SKIPPED`); hideAfterMs = 4000; }
-          if (ch.shuffle) shuffleArray(files);
           block.folder = folder;
           block.files = files;
           block.anchor = Date.now();

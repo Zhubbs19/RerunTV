@@ -682,6 +682,11 @@ async function bootApp() {
     // The settings registry's remote-editable entries (no config values), for
     // the companion app's GET /api/settings/registry.
     getSettingsCatalogue: async () => (await loadSettingsRegistry()).remoteSettingsCatalogue(),
+    // The companion app's calendar edits (POST /api/calendar). Always a remote
+    // client batch, whatever the caller passes: the conflict checks and the
+    // host-only deny-lists (main/config/host.js) apply to every phone edit.
+    applyConfigCommands: (batch, meta = {}) => configHost.applyCommands(batch, { ...meta, origin: 'client', remote: true }),
+    getConfigRevision: () => configHost.getRevision(),
     getInstalledThemes: () => {
       const reported = getLatestThemeList();
       if (reported.length) return reported;

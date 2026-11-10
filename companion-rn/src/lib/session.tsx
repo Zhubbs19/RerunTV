@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 import { ApiError, createClient, type Client, type RemoteState, type Session } from './api';
 import type { LineupRow } from './pure';
+import { fallbackKey } from './screen-model';
 
 // Storage failures are survivable (the session still works) but should not vanish silently in development.
 function warnDev(what: string, error: unknown): void {
@@ -31,6 +32,10 @@ interface Ctx {
   signOut(): Promise<void>;
   refreshChannels(): Promise<void>;
   press(key: string, mods?: Keys): Promise<void>;
+  /** A remote button by RemoteKey name: the box's TV remote path, or its key on an older box. */
+  pressRemote(button: string, long?: boolean): Promise<void>;
+  /** Whether the paired box offers a feature ('remote-keys', 'ui', 'calendar'). */
+  hasFeature(name: string): boolean;
   tune(number: number): Promise<void>;
   /** Run a client call with failure feedback; returns whether it worked. */
   run(label: string, fn: (client: Client) => Promise<void>): Promise<boolean>;
@@ -144,14 +149,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await run('Button', (c) => c.command(key, mods));
   }, [run]);
 
+  // Read through a ref so the callbacks stay stable across polls.
+  const features = useRef<string[]>([]);
+  features.current = Array.isArray(state?.features) ? state.features : [];
+  const hasFeature = useCallback((name: string) => features.current.includes(name), []);
+
+  const pressRemote = useCallback(async (button: string, long = false) => {
+    void Haptics.impactAsync(long ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    if (features.current.includes('remote-keys')) {
+      await run('Button', (c) => c.remote(button, long));
+      return;
+    }
+    const key = fallbackKey(button);
+    if (key) await run('Button', (c) => c.command(key));
+  }, [run]);
+
   const tune = useCallback(async (number: number) => {
     void Haptics.selectionAsync().catch(() => {});
     await run('Tune', (c) => c.tune(number));
   }, [run]);
 
   const value = useMemo<Ctx>(() => ({
-    loaded, session, client, state, connection, channels, signIn, signOut, refreshChannels, press, tune, run, toast, showToast, toastIsError,
-  }), [loaded, session, client, state, connection, channels, signIn, signOut, refreshChannels, press, tune, run, toast, showToast, toastIsError]);
+    loaded, session, client, state, connection, channels, signIn, signOut, refreshChannels, press, pressRemote, hasFeature, tune, run, toast, showToast, toastIsError,
+  }), [loaded, session, client, state, connection, channels, signIn, signOut, refreshChannels, press, pressRemote, hasFeature, tune, run, toast, showToast, toastIsError]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

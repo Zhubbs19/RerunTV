@@ -70,6 +70,7 @@ import {
 import { initDvrScheduler } from './personal/dvr-scheduler.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 import { closeBannerHub } from './tv/banner-hub.js';
+import { answerCompanionQuery, pressCompanionRemote } from './remote/companion-control.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
 // the whole app (docs/design/01, contract C1).
@@ -564,17 +565,12 @@ window.addEventListener('reruntv:watch-tv', () => showTvScreen());
 // {key, shift} and is fed through the exact same handler real keystrokes
 // use — digit-entry buffering, guide-grid interception, wake-on-any-key,
 // time-machine shuttle, all of it, with zero duplicated logic.
-window.api.onRemoteCommand((cmd) => {
-  if (cmd?.action === 'watch-tv') {
-    showTvScreen();
-    return;
-  }
-  const init = {
-    key: cmd.key,
-    shiftKey: !!cmd.shift,
-    ctrlKey: !!cmd.ctrl,
-    altKey: !!cmd.alt,
-  };
+/**
+ * Relays one key from the phone remote: to setup's own keyboard navigation
+ * when Setup is showing, otherwise to the keyboard handler.
+ * @param {object} init `{ key, shiftKey, ctrlKey, altKey }`.
+ */
+function relayRemoteKey(init) {
   if (tvScreen.classList.contains('hidden')) {
     // Setup has its own window-level keyboard navigation (setup-keyboard.js).
     // The old direct handleKey call returned immediately while Setup was
@@ -587,6 +583,30 @@ window.api.onRemoteCommand((cmd) => {
   } else {
     handleKey({ ...init, preventDefault() {} });
   }
+}
+
+window.api.onRemoteCommand((cmd) => {
+  // The companion app asking what's on screen, or a calendar question
+  // (remote/companion-control.js answers on remote:state).
+  if (cmd?.action === 'companion-query') {
+    answerCompanionQuery(cmd);
+    return;
+  }
+  if (cmd?.action === 'watch-tv') {
+    showTvScreen();
+    return;
+  }
+  // A remote button by RemoteKey name: the TV-mode remote path in TV mode.
+  if (typeof cmd?.remote === 'string') {
+    pressCompanionRemote(cmd, (key) => relayRemoteKey({ key, shiftKey: false, ctrlKey: false, altKey: false }));
+    return;
+  }
+  relayRemoteKey({
+    key: cmd.key,
+    shiftKey: !!cmd.shift,
+    ctrlKey: !!cmd.ctrl,
+    altKey: !!cmd.alt,
+  });
 });
 // Direct channel jump from the Android companion remote's quick-tap grid —
 // bypasses the digit-entry buffer entirely (unlike pushDigit) since the app

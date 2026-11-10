@@ -4,6 +4,8 @@
 import { parseTarget, readBoxReply, type LineupRow } from './pure';
 import { isCatalogue, type Catalogue } from './settings-model';
 import type { BoxThemeReport } from './palette';
+import { isSnapshot, type ScreenSnapshot } from './screen-model';
+import { isCalendarView, type CalendarOp, type CalendarView } from './calendar';
 
 export interface Session {
   baseUrl: string;
@@ -55,6 +57,21 @@ export interface RemoteState {
   settingsResult?: { at: number; applied?: string[]; rejected?: { section: string; reason: string }[] } | null;
   /** The box theme's id, layout and colour tokens; the app's colours follow it (src/lib/palette.ts). */
   theme?: BoxThemeReport | null;
+  /** What the box's companion API can do beyond the remote: 'remote-keys', 'ui', 'calendar'. Absent on older boxes. */
+  features?: string[];
+}
+
+/** One step of a POST /api/ui action (renderer/js/remote/companion-control.js). */
+export type ScreenAction =
+  | { op: 'activate' | 'focus'; snapshot: number; index: number }
+  | { op: 'set'; snapshot: number; index: number; value: string | number | boolean }
+  | { op: 'text'; text: string; submit?: boolean; snapshot?: number; index?: number };
+
+export interface FolderEntry {
+  name: string;
+  isDir: boolean;
+  size: number | null;
+  mtime: number | null;
 }
 
 const TIMEOUT_MS = 6000;
@@ -102,6 +119,22 @@ export interface Client {
   /** The box's settings registry, or null from a box that has none. */
   catalogue(): Promise<Catalogue | null>;
   saveSettings(patch: Record<string, unknown>): Promise<void>;
+  /** A remote button by RemoteKey name (up, ok, back, menu…); a long press when `long`. */
+  remote(button: string, long?: boolean): Promise<void>;
+  /** What the box's screen shows now. */
+  screen(): Promise<ScreenSnapshot>;
+  /** Presses, sets or types into a control on the box's screen; answers the screen after. */
+  act(action: ScreenAction): Promise<ScreenSnapshot>;
+  /** A channel's calendar blocks and, when the box's screen is running, what each day of a month airs. */
+  calendar(channel: number, year?: number, month?: number): Promise<CalendarView>;
+  /** Applies calendar edits made at `baseRevision` (from calendar()). */
+  editCalendar(channel: number, baseRevision: number, ops: CalendarOp[]): Promise<{ revision: number; created: string[] }>;
+  /** Points a block at a folder inside one of the channel folders; the box scans it in the background. */
+  setBlockFolder(channel: number, blockId: string, root: string, path: string): Promise<void>;
+  /** The channel folders this phone may browse. */
+  roots(): Promise<{ id: string; label: string }[]>;
+  /** One folder's contents. */
+  files(root: string, path: string): Promise<FolderEntry[]>;
 }
 
 export function createClient(session: Session, onUnauthorized: () => void): Client {
@@ -120,8 +153,17 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
       throw new ApiError(401, 'This phone is no longer paired.');
     }
     if (response.status === 429) throw new ApiError(429, 'Slow down. The box is limiting requests.');
-    if (!response.ok) throw new ApiError(response.status, `The box answered ${response.status}.`);
+    if (!response.ok) throw new ApiError(response.status, await errorText(response));
     return response;
+  }
+  // The newer routes explain a refusal in a JSON { error }; use it when there is one.
+  async function errorText(response: Response): Promise<string> {
+    try {
+      const reply = readBoxReply(response.headers.get('content-type'), await response.text());
+      const message = reply.kind === 'json' && reply.value && typeof reply.value === 'object' ? (reply.value as { error?: unknown }).error : null;
+      if (typeof message === 'string' && message) return message;
+    } catch { /* fall through to the status */ }
+    return `The box answered ${response.status}.`;
   }
   // Every JSON read goes through here, so a web page in reply (the box no
   // longer knows this phone) sends the app back to pairing, and anything else
@@ -137,6 +179,16 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
     return reply.value;
   }
   const post = (path: string, body: unknown) => call(path, { method: 'POST', body: JSON.stringify(body) }).then(() => undefined);
+  async function postJson(path: string, body: unknown): Promise<unknown> {
+    const response = await call(path, { method: 'POST', body: JSON.stringify(body) });
+    const reply = readBoxReply(response.headers.get('content-type'), await response.text());
+    if (reply.kind !== 'json') throw new ApiError(response.status, 'The box sent a reply the app could not read.');
+    return reply.value;
+  }
+  const snapshotOf = (value: unknown): ScreenSnapshot => {
+    if (!isSnapshot(value)) throw new ApiError(500, 'The box described its screen in a way this app does not know.');
+    return value;
+  };
   return {
     state: async () => (await getJson('/state')) as RemoteState,
     channels: async () => {
@@ -170,5 +222,27 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
       }
     },
     saveSettings: (patch) => post('/api/settings', { patch }),
+    remote: (button, long = false) => post('/command', { remote: button, long }),
+    screen: async () => snapshotOf(await getJson('/api/ui')),
+    act: async (action) => snapshotOf(await postJson('/api/ui', action)),
+    calendar: async (channel, year, month) => {
+      const query = year && month ? `&year=${year}&month=${month}` : '';
+      const body = await getJson(`/api/calendar?channel=${encodeURIComponent(String(channel))}${query}`);
+      if (!isCalendarView(body)) throw new ApiError(500, 'The box sent a calendar this app does not know.');
+      return body;
+    },
+    editCalendar: async (channel, baseRevision, ops) => {
+      const body = (await postJson('/api/calendar', { channel, baseRevision, ops, id: `cal-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}` })) as { revision?: number; created?: string[] };
+      return { revision: Number(body.revision) || baseRevision, created: Array.isArray(body.created) ? body.created : [] };
+    },
+    setBlockFolder: (channel, blockId, root, path) => post('/api/calendar/folder', { channel, blockId, root, path }),
+    roots: async () => {
+      const rows = await getJson('/api/roots');
+      return Array.isArray(rows) ? (rows as { id: string; label: string }[]) : [];
+    },
+    files: async (root, path) => {
+      const body = (await getJson(`/api/files?root=${encodeURIComponent(root)}&path=${encodeURIComponent(path)}`)) as { entries?: FolderEntry[] };
+      return Array.isArray(body?.entries) ? body.entries : [];
+    },
   };
 }

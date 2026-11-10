@@ -27,8 +27,25 @@
 // see buildRoots() below.
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { createControlRoutes, createQueryBroker } = require('./control-routes');
 
 const PORT = 8725;
+// What this box's companion API can do beyond the original remote routes, for
+// the phone to show or hide whole screens (GET /state's `features`).
+// remote-keys: POST /command { remote } goes through the TV-mode remote path.
+// ui: GET/POST /api/ui reads and drives what is on screen.
+// calendar: GET/POST /api/calendar edits a channel's schedule blocks.
+const FEATURES = ['remote-keys', 'ui', 'calendar'];
+// RemoteKey names (renderer/js/remote/input.js REMOTE_KEYS) the phone may
+// press through POST /command { remote }.
+const REMOTE_KEYS = new Set([
+  'up', 'down', 'left', 'right', 'ok', 'back', 'home', 'menu', 'info', 'guide',
+  'chUp', 'chDown', 'volUp', 'volDown', 'mute',
+  'digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9', 'dot',
+  'playPause', 'play', 'pause', 'stop', 'rewind', 'fastForward', 'prev', 'next', 'record',
+  'red', 'green', 'yellow', 'blue', 'settings', 'search', 'exit', 'tv', 'captions', 'audioTrack', 'last',
+]);
 const REMOTE_DIR = path.join(__dirname, 'remote');
 // Cached, not persisted — just enough for the remote page's "NOW WATCHING"
 // readout, pushed from the renderer whenever it tunes (see tuneToChannel,
@@ -201,6 +218,7 @@ async function activate(ctx) {
   const {
     ipcMain, createServer, getMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, mimeFor,
     getLanAddresses, createLanAccess, isLanServiceEnabled, getInstalledThemes, getSettingsCatalogue,
+    applyConfigCommands, getConfigRevision,
   } = ctx;
   // Same-process plugin, so unlike an isolated plugin's proxied
   // ctx.sendToMainWindow (main-plugin-isolation.js), this talks to the real
@@ -242,8 +260,22 @@ async function activate(ctx) {
   // appear for a moment and vanish on the next volume keypress. Every field
   // either sender owns is always present in its own payload, so a merge
   // never leaves a stale value standing.
+  // Questions to the renderer (the screen, a calendar month) go out on
+  // remote:command and come back on remote:state as `companionReply`, so no
+  // new IPC channel (and capability) is needed. Only a real window answers:
+  // a headless box's LAN viewer is a separate display, not the box's screen.
+  const queries = createQueryBroker({
+    send: (message) => {
+      const mainWindow = getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
+      mainWindow.webContents.send('remote:command', message);
+      return true;
+    },
+  });
+
   ipcMain.on('remote:state', (event, state) => {
     if (!state || typeof state !== 'object') { latestRemoteState = { number: null, name: null }; return; }
+    if (state.companionReply) { queries.receive(state.companionReply); return; }
     latestRemoteState = { ...latestRemoteState, ...state };
   });
 
@@ -253,7 +285,10 @@ async function activate(ctx) {
     return;
   }
   const access = createLanAccess('companion', {
-    readLimit: 600, writeLimit: 60,
+    // Driving setup screens from the phone is a press or a tap a second, with
+    // held D-pad keys repeating faster, so writes get more room than the old
+    // remote's 60 a minute.
+    readLimit: 600, writeLimit: 240,
     sessionsFile: path.join(ctx.fs.dataDir, 'sessions.json'),
     sessionTtlMs: SESSION_TTL_MS,
   });
@@ -261,11 +296,34 @@ async function activate(ctx) {
     name: entry.name, url: access.pairingUrl(`http://${entry.address}:${PORT}`),
   }));
 
+  const controlRoutes = createControlRoutes({
+    ask: queries.ask,
+    loadConfig,
+    // A phone is a remote client of the config host: origin 'client' gets the
+    // conflict checks, `remote` the host-only deny-lists (main/config/host.js).
+    applyCommands: (batch, meta) => (typeof applyConfigCommands === 'function'
+      ? applyConfigCommands(batch, meta)
+      : Promise.resolve({ ok: false, reason: 'forbidden', message: 'This box cannot take calendar edits from the phone.' })),
+    getRevision: () => (typeof getConfigRevision === 'function' ? getConfigRevision() : 0),
+    readJsonBody,
+    buildRoots,
+    resolveWithinRoot,
+    isDirectory: (absPath) => { try { return fs.statSync(absPath).isDirectory(); } catch (e) { return false; } },
+    // One client id per paired phone (its bearer token or session cookie), so
+    // two phones editing the same block are checked against each other.
+    clientFor: (req) => `companion:${crypto.createHash('sha256')
+      .update(String(req.headers.authorization || req.headers.cookie || req.socket.remoteAddress || ''))
+      .digest('hex').slice(0, 12)}`,
+  });
+
   const handleRequest = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const kind = req.method === 'GET' ? 'read' : 'write';
     if (!(await access.authorize(req, res, url, kind))) return;
     trackConnection('companion', req);
+
+    // On-screen navigation (/api/ui) and the schedule calendar (/api/calendar).
+    if (await controlRoutes(req, res, url)) return;
 
     if (req.method === 'GET' && url.pathname === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
@@ -396,6 +454,13 @@ async function activate(ctx) {
         }
         if (body?.action === 'watch-tv') {
           sendToMainWindow('remote:command', { action: 'watch-tv' });
+        } else if (body && typeof body.remote === 'string') {
+          // A remote button by RemoteKey name. The renderer sends it through
+          // the TV-mode remote path (tv/input.js) when the box is in TV mode,
+          // so the TV menu, dialogs and plugin channels behave as they do
+          // with the box's own remote; in desktop mode it becomes the key.
+          if (!REMOTE_KEYS.has(body.remote)) { res.writeHead(400).end('Unknown remote button'); return; }
+          sendToMainWindow('remote:command', { remote: body.remote, long: !!body.long });
         } else if (body && typeof body.key === 'string') {
           sendToMainWindow('remote:command', {
             key: body.key,
@@ -420,7 +485,7 @@ async function activate(ctx) {
       const power = ctx.services.pcShutdown;
       const pcShutdown = power && typeof power.status === 'function' ? power.status() : null;
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-        .end(JSON.stringify({ ...currentRemoteState(), pcShutdown }));
+        .end(JSON.stringify({ ...currentRemoteState(), pcShutdown, features: FEATURES }));
       return;
     }
 

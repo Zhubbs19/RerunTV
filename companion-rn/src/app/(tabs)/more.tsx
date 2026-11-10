@@ -29,6 +29,12 @@ export default function MoreScreen() {
       </Card>
 
       <Card>
+        <SectionHeader eyebrow="HOLIDAYS & TIME SLOTS" title="SCHEDULE CALENDAR" />
+        <Text style={[t.body, { color: color.onSurfaceVariant, marginBottom: space.md }]}>See what each channel airs on every day of the month, and add, change or remove its date-range and weekly blocks.</Text>
+        <Button icon="calendar-month" label="OPEN CALENDAR" tone="filled" onPress={() => router.push('/calendar')} />
+      </Card>
+
+      <Card>
         <SectionHeader eyebrow="LIVE INSERTS" title="ALERTS & TICKER" />
         <Text style={[t.body, { color: color.onSurfaceVariant, marginBottom: space.md }]}>These interrupt whatever is on the TV right now.</Text>
         <Text style={t.label}>BREAKING NEWS HEADLINE (OPTIONAL)</Text>

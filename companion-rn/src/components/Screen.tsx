@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { RefreshControl, ScrollView, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBox } from '../lib/session';
 import { MAX_CONTENT_WIDTH, MAX_WIDE_CONTENT_WIDTH } from '../lib/layout';
 import { useLayout } from '../lib/useLayout';
 import { formatChannelNumber, formatCountdown, minutesLeft, modeLabel, canSkipBreak } from '../lib/pure';
-import { makeStyles, shape, space, useTheme } from '../theme';
+import { makeStyles, shape, space, TARGET, useTheme } from '../theme';
 import { Button, Card, Led } from './ui';
 
 // Re-renders about once a second so countdowns tick between polls.
@@ -70,6 +71,26 @@ export function Screen({ title, children, onRefresh, scroll = true, wide = false
   );
 }
 
+// The top bar of a screen opened from a tab (settings, calendar, a block):
+// Back, an eyebrow and title, and an optional action on the right.
+export function StackHeader({ eyebrow, title, onBack, right }: { eyebrow: string; title: string; onBack(): void; right?: ReactNode }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={[s.stackBar, { paddingTop: insets.top + space.sm, paddingLeft: space.sm + insets.left, paddingRight: space.lg + insets.right }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={s.back}>
+        <MaterialCommunityIcons name="arrow-left" size={24} color={color.onSurface} />
+      </Pressable>
+      <View style={{ flex: 1 }}>
+        <Text style={t.eyebrow}>{eyebrow}</Text>
+        <Text style={t.headline} numberOfLines={1}>{title}</Text>
+      </View>
+      {right}
+    </View>
+  );
+}
+
 // The big "now playing" readout at the top of the Remote tab: LED-style
 // channel number, name, what is on, how long is left, and what is next.
 export function NowPlaying() {
@@ -129,4 +150,6 @@ const useStyles = makeStyles((color) => ({
   status: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color.surfaceContainer, borderRadius: shape.full, paddingHorizontal: space.md, minHeight: 32 },
   numberPlate: { minWidth: 84, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surfaceDim, borderRadius: shape.md, borderWidth: 1, borderColor: color.outlineVariant, paddingVertical: space.sm, paddingHorizontal: space.md },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg, marginTop: space.md },
+  stackBar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingBottom: space.sm, backgroundColor: color.surface, borderBottomWidth: 1, borderBottomColor: color.outlineVariant },
+  back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', borderRadius: shape.full },
 }));

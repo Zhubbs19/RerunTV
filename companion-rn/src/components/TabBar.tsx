@@ -9,6 +9,7 @@ import type { IconName } from './ui';
 
 const ICONS: Record<string, { on: IconName; off: IconName; label: string }> = {
   index: { on: 'remote', off: 'remote', label: 'REMOTE' },
+  screen: { on: 'monitor-screenshot', off: 'monitor-screenshot', label: 'SCREEN' },
   guide: { on: 'television-guide', off: 'television-guide', label: 'GUIDE' },
   lineup: { on: 'format-list-numbered', off: 'format-list-numbered', label: 'LINEUP' },
   more: { on: 'tune-variant', off: 'tune-variant', label: 'MORE' },

@@ -3,6 +3,7 @@ import { ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { Button, Card, Chip, Empty, RepeatButton, Segmented, SectionHeader } from '../../components/ui';
 import { NowPlaying, Screen, useNow } from '../../components/Screen';
+import { DPad } from '../../components/DPad';
 import { useBox } from '../../lib/session';
 import { useLayout } from '../../lib/useLayout';
 import { canSkipBreak, formatChannelNumber, formatCountdown, modeLabel } from '../../lib/pure';
@@ -24,7 +25,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 export default function RemoteScreen() {
   const { color, type: t } = useTheme();
   const s = useStyles();
-  const { state, channels, press, tune, client, run, refreshChannels, showToast } = useBox();
+  const { state, channels, press, pressRemote, tune, run, refreshChannels, showToast } = useBox();
   const now = useNow();
   const layout = useLayout();
   const [panel, setPanel] = useState<Panel>('channels');
@@ -121,16 +122,11 @@ export default function RemoteScreen() {
 
         {panel === 'dpad' ? (
           <View style={s.dpad}>
-            <View style={s.dpadRow}><RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-up" accessibilityLabel="Up" onFire={() => press('ArrowUp')} /></View>
-            <View style={s.dpadRow}>
-              <RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-left" accessibilityLabel="Left" onFire={() => press('ArrowLeft')} />
-              <Button style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} label="OK" tone="filled" onPress={() => press('Enter')} />
-              <RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-right" accessibilityLabel="Right" onFire={() => press('ArrowRight')} />
-            </View>
-            <View style={s.dpadRow}><RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-down" accessibilityLabel="Down" onFire={() => press('ArrowDown')} /></View>
+            {/* Remote buttons by name: in TV mode the box routes them like its own remote. */}
+            <DPad extras={false} onPress={(button, long) => { void pressRemote(button, long); }} />
             <Row>
-              <Button style={s.flex} icon="arrow-left" label="BACK" onPress={() => press('Escape')} />
-              <Button style={s.flex} icon="menu" label="TV MENU" onPress={() => press('?')} />
+              <Button style={s.flex} icon="arrow-left" label="BACK" onPress={() => pressRemote('back')} />
+              <Button style={s.flex} icon="menu" label="TV MENU" onPress={() => pressRemote('menu')} />
             </Row>
           </View>
         ) : null}
@@ -240,6 +236,4 @@ const useStyles = makeStyles((color) => ({
   meter: { alignSelf: 'stretch', height: 6, borderRadius: shape.full, backgroundColor: color.surfaceDim, overflow: 'hidden' },
   meterFill: { height: 6, backgroundColor: color.primary },
   dpad: { alignItems: 'center', gap: space.sm },
-  dpadRow: { flexDirection: 'row', gap: space.sm, justifyContent: 'center' },
-  dpadKey: { width: 84, height: 84, borderRadius: shape.xl },
 }));

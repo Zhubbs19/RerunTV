@@ -160,6 +160,32 @@ export function Segmented<T extends string>({ options, value, onChange, compact 
   );
 }
 
+// A value with − and + either side (hours, days, priority). `format` draws the value.
+export function Stepper({ label, value, onChange, format, min, max, wrap, accessibilityLabel }: {
+  label?: string; value: number; onChange(next: number): void; format?: (v: number) => string;
+  min: number; max: number; wrap?: boolean; accessibilityLabel?: string;
+}) {
+  const { type: t } = useTheme();
+  const s = useStyles();
+  const step = (d: number) => {
+    let next = value + d;
+    if (wrap) next = ((next - min) % (max - min + 1) + (max - min + 1)) % (max - min + 1) + min;
+    else next = Math.min(max, Math.max(min, next));
+    if (next !== value) onChange(next);
+  };
+  const name = accessibilityLabel ?? label ?? 'value';
+  return (
+    <View style={s.stepper}>
+      {label ? <Text style={[t.label, { marginBottom: space.xs }]}>{label}</Text> : null}
+      <View style={s.stepperRow}>
+        <Button compact icon="minus" accessibilityLabel={`Less ${name}`} onPress={() => step(-1)} disabled={!wrap && value <= min} />
+        <Text style={[t.led, s.stepperValue]} accessibilityLabel={`${name} ${format ? format(value) : value}`}>{format ? format(value) : String(value)}</Text>
+        <Button compact icon="plus" accessibilityLabel={`More ${name}`} onPress={() => step(1)} disabled={!wrap && value >= max} />
+      </View>
+    </View>
+  );
+}
+
 export function Led({ state }: { state: 'online' | 'offline' | 'connecting' }) {
   const { color } = useTheme();
   const s = useStyles();
@@ -188,4 +214,7 @@ const useStyles = makeStyles((color) => ({
   segmentLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1.2, color: color.onSurfaceVariant },
   led: { width: 10, height: 10, borderRadius: 5, shadowOpacity: 0.9, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   empty: { color: color.onSurfaceVariant, textAlign: 'center', padding: space.xl, fontSize: 12, letterSpacing: 1 },
+  stepper: { flex: 1, minWidth: 140 },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  stepperValue: { flex: 1, textAlign: 'center' },
 }));

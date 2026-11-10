@@ -693,10 +693,12 @@ function writeConfigSoon(delay) {
 
 /**
  * Sends pending edits right now rather than on the debounce. Used by undo and
- * redo, where what the user does next may depend on the edit having landed.
+ * redo, where what the user does next may depend on the edit having landed,
+ * and by the companion app's folder scan, which tells the phone it is done only
+ * once the box has the new files.
  * @returns {Promise<boolean>} The result of `flushCommands`.
  */
-function writeConfigNow() {
+export function writeConfigNow() {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
   return flushCommands();
