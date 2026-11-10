@@ -154,6 +154,8 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.5 The Android Companion App and Connected Devices', body: [
     'There\'s also a separate Android app (different from the browser remote above) with quick-tap favorite channels you set up yourself, plus the same core remote controls — a faster option if you\'re often using just one hand.',
+    'Its SCREEN tab shows what the TV is showing right now (a setup page, a dialog, the TV menu, the guide or a plugin page) and lists every button, switch, list and text field on it. Tap one to press it, pick a choice, move a slider, or type into a field with the phone\'s keyboard. Its D-pad, OK, BACK and MENU work the way the box\'s own remote does. Plugin, network, update, backup, PIN lock and PC power controls are listed but locked; change those on the box.',
+    'MORE › SCHEDULE CALENDAR on the app shows each channel\'s month the way SCHEDULE › CALENDAR does here. Add a block for a day, change a block\'s dates, hours, days, priority and how it runs, pick its folder from your channel folders, remove it, or override one day of a daily or weekly block.',
     'CONNECTED DEVICES shows every remote, viewer, and party guest currently active on your network. NOTE: A device drops off this list about 30 seconds after it stops checking in — think of it as "who\'s active right now," not a permanent list.',
   ] },
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.6 Backing Up Your Settings', body: [
