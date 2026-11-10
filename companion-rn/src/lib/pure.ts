@@ -87,3 +87,39 @@ export function canSkipBreak(state: { skipBreaks?: string; timeMachineOn?: boole
   const rule = state?.skipBreaks ?? 'always';
   return rule === 'always' || (rule === 'timeMachine' && !!state?.timeMachineOn);
 }
+
+/** What a box reply turned out to be once read. */
+export type BoxReply =
+  | { kind: 'json'; value: unknown }
+  | { kind: 'page' }
+  | { kind: 'unreadable'; detail: string };
+
+/**
+ * A reply's size in words a person can read.
+ * @param length Its length in characters.
+ * @returns For example "1.5 MB", "12 KB" or "40 bytes".
+ */
+function describeSize(length: number): string {
+  if (length >= 1024 * 1024) return `${(length / (1024 * 1024)).toFixed(1)} MB`;
+  if (length >= 1024) return `${Math.round(length / 1024)} KB`;
+  return `${length} bytes`;
+}
+
+/**
+ * Reads the body of a box reply the app expects to be JSON.
+ * A web page is what the box sends a phone it no longer has a session for
+ * (older boxes do so with a 200), so it means "pair again", not a parse error.
+ * @param contentType The reply's Content-Type header, if any.
+ * @param text The reply body.
+ * @returns The parsed value, `page` for HTML, or `unreadable` with a short description of what came back.
+ */
+export function readBoxReply(contentType: string | null, text: string): BoxReply {
+  const type = (contentType ?? '').toLowerCase();
+  if (type.includes('text/html') || /^\s*<(!doctype|html)\b/i.test(text)) return { kind: 'page' };
+  try {
+    return { kind: 'json', value: JSON.parse(text) };
+  } catch {
+    const kind = type ? `, ${type.split(';')[0].trim()}` : '';
+    return { kind: 'unreadable', detail: text.length ? `${describeSize(text.length)}${kind}` : `an empty reply${kind}` };
+  }
+}

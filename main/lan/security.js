@@ -540,7 +540,12 @@ function createLanAccess(service, opts = {}) {
       return true;
     }
     if (supplied) recordPairFailure(requestIp(req));
-    if (req.method === 'GET' || (req.method === 'POST' && url.pathname === '/_pair')) {
+    // A native app presenting a bearer token this host no longer holds gets a
+    // plain 401, never the pairing page: answered with a 200 page, the app
+    // reads HTML where it expects JSON and never learns it must pair again.
+    // Browsers carry their session in a cookie, so their pages are unchanged.
+    const staleBearer = !supplied && /^Bearer\s+/i.test(String(req.headers.authorization || ''));
+    if (!staleBearer && (req.method === 'GET' || (req.method === 'POST' && url.pathname === '/_pair'))) {
       const message = supplied ? 'That pairing code was not accepted.' : '';
       res.writeHead(supplied ? 401 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(pairingPage(service, message));
       return true;

@@ -1,8 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  filterChannels, formatChannelNumber, formatCountdown, minutesLeft, modeLabel, normalizeCode, parseTarget,
+  filterChannels, formatChannelNumber, formatCountdown, minutesLeft, modeLabel, normalizeCode, parseTarget, readBoxReply,
 } from '../src/lib/pure.ts';
+
+test('readBoxReply parses JSON, spots the pairing page, and names anything else', () => {
+  assert.deepEqual(readBoxReply('application/json', '{"a":1}'), { kind: 'json', value: { a: 1 } });
+  assert.deepEqual(readBoxReply(null, '[]'), { kind: 'json', value: [] });
+  // A box that no longer knows the phone sends its pairing page, on older boxes with a 200.
+  assert.deepEqual(readBoxReply('text/html; charset=utf-8', '<!doctype html><html></html>'), { kind: 'page' });
+  assert.deepEqual(readBoxReply(null, '  <!DOCTYPE html>'), { kind: 'page' });
+  assert.deepEqual(readBoxReply('application/json', ''), { kind: 'unreadable', detail: 'an empty reply, application/json' });
+  assert.deepEqual(readBoxReply('text/plain', 'Pairing required'), { kind: 'unreadable', detail: '16 bytes, text/plain' });
+  assert.deepEqual(readBoxReply('application/json', `{"x":"${'a'.repeat(2048)}`), { kind: 'unreadable', detail: '2 KB, application/json' });
+});
 
 test('parseTarget fills in http and the default port', () => {
   assert.deepEqual(parseTarget('192.168.1.20'), { baseUrl: 'http://192.168.1.20:8725', code: null });

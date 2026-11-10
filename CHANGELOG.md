@@ -4,6 +4,10 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-13
+
+- A phone the box no longer recognises goes back to the companion app’s pairing screen. Before, it showed NO SIGNAL and its Settings page failed with a JSON error.
+
 ## 2026-11-12
 
 - The phone companion app wears your box’s theme: Cable Guide HD ’15 gives it black screens with blue buttons, Classic ’05 navy with yellow, and every other theme its own colours. It changes when you change the box’s theme and opens in the last box’s colours.

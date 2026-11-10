@@ -165,6 +165,28 @@ test('an unpaired device reaches none of it', async () => {
   }
 });
 
+test('a forgotten bearer token gets a 401, while a browser still gets the pairing page', async () => {
+  const ctx = await startTestHost();
+  try {
+    const stale = await request(ctx.port, '/api/config', { headers: { Authorization: 'Bearer not-a-real-token', Accept: 'application/json' } });
+    assert.equal(stale.status, 401, 'an app with a stale token must learn it is unpaired');
+    assert.doesNotMatch(String(stale.headers['content-type'] || ''), /html/);
+    assert.match(String(stale.headers['www-authenticate'] || ''), /^Bearer /);
+    const browser = await request(ctx.port, '/', { headers: { Accept: 'text/html' } });
+    assert.equal(browser.status, 200);
+    assert.match(String(browser.headers['content-type']), /text\/html/);
+    // A stale token cannot turn a wrong code into anything but a refusal either.
+    const wrongCode = await request(ctx.port, '/?pair=00000000', { headers: { Authorization: 'Bearer not-a-real-token', Accept: 'application/json' } });
+    assert.equal(wrongCode.status, 401);
+    // And it still pairs with the right code.
+    const paired = await request(ctx.port, `/?pair=${ctx.access.pairingCodes.view}`, { headers: { Authorization: 'Bearer not-a-real-token', Accept: 'application/json' } });
+    assert.equal(paired.status, 200);
+    assert.ok(paired.json().token);
+  } finally {
+    await new Promise((resolve) => ctx.runtime.server.close(resolve));
+  }
+});
+
 test('entering the control code mints a new session and never widens the old one', async () => {
   const ctx = await startTestHost();
   try {

@@ -1,7 +1,7 @@
 // The box's companion HTTP API (plugins/companion-app/main.js). Pairing trades
 // the 8-digit code for a bearer token (main/lan/security.js); every later
 // request carries it. Nothing here touches React.
-import { parseTarget, type LineupRow } from './pure';
+import { parseTarget, readBoxReply, type LineupRow } from './pure';
 import { isCatalogue, type Catalogue } from './settings-model';
 import type { BoxThemeReport } from './palette';
 
@@ -80,7 +80,9 @@ export async function pair(baseUrl: string, code: string): Promise<Session> {
   if (response.status === 423) throw new ApiError(423, 'Too many wrong codes. Wait a few minutes and try again.');
   if (response.status === 401) throw new ApiError(401, 'That pairing code was not accepted.');
   if (!response.ok) throw new ApiError(response.status, `The box refused pairing (${response.status}).`);
-  const body = (await response.json()) as { token?: string; scope?: string };
+  const reply = readBoxReply(response.headers.get('content-type'), await response.text());
+  if (reply.kind === 'page') throw new ApiError(500, 'That address answered with a web page. Check it is the box’s companion address.');
+  const body = (reply.kind === 'json' && reply.value && typeof reply.value === 'object' ? reply.value : {}) as { token?: string; scope?: string };
   if (!body.token) throw new ApiError(500, 'The box did not return a session.');
   return { baseUrl: target.baseUrl, token: body.token, scope: body.scope ?? 'view' };
 }
@@ -121,11 +123,24 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
     if (!response.ok) throw new ApiError(response.status, `The box answered ${response.status}.`);
     return response;
   }
+  // Every JSON read goes through here, so a web page in reply (the box no
+  // longer knows this phone) sends the app back to pairing, and anything else
+  // unreadable says what arrived instead of a bare JSON parse error.
+  async function getJson(path: string): Promise<unknown> {
+    const response = await call(path);
+    const reply = readBoxReply(response.headers.get('content-type'), await response.text());
+    if (reply.kind === 'page') {
+      onUnauthorized();
+      throw new ApiError(401, 'This phone is no longer paired.');
+    }
+    if (reply.kind === 'unreadable') throw new ApiError(response.status, `The box sent a reply the app could not read (${reply.detail}).`);
+    return reply.value;
+  }
   const post = (path: string, body: unknown) => call(path, { method: 'POST', body: JSON.stringify(body) }).then(() => undefined);
   return {
-    state: async () => (await call('/state')).json() as Promise<RemoteState>,
+    state: async () => (await getJson('/state')) as RemoteState,
     channels: async () => {
-      const rows = await (await call('/channels')).json();
+      const rows = await getJson('/channels');
       return Array.isArray(rows) ? (rows as LineupRow[]) : [];
     },
     command: (key, mods = {}) => post('/command', { key, shift: !!mods.shift, ctrl: !!mods.ctrl, alt: !!mods.alt }),
@@ -135,10 +150,10 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
     news: (headline) => post('/news/trigger', { headline }),
     trivia: () => post('/party/trivia/start', {}),
     ticker: (text, enabled) => post('/ticker/set', { text, enabled }),
-    config: async () => ((await (await call('/api/config')).json()) ?? {}) as Record<string, unknown>,
+    config: async () => ((await getJson('/api/config')) ?? {}) as Record<string, unknown>,
     themes: async () => {
       try {
-        const rows = await (await call('/api/themes')).json();
+        const rows = await getJson('/api/themes');
         return Array.isArray(rows) ? (rows as { id: string; label: string }[]) : [];
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) throw e;
@@ -147,7 +162,7 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
     },
     catalogue: async () => {
       try {
-        const body = await (await call('/api/settings/registry')).json();
+        const body = await getJson('/api/settings/registry');
         return isCatalogue(body) ? body : null;
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) throw e;

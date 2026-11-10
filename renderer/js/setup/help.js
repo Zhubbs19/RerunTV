@@ -553,6 +553,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-13', items: [
+    'A phone the box no longer recognises goes back to the companion app’s pairing screen. Before, it showed NO SIGNAL and its Settings page failed with a JSON error.',
+  ] },
   { date: '2026-11-12', items: [
     'The phone companion app wears your box’s theme: Cable Guide HD ’15 gives it black screens with blue buttons, Classic ’05 navy with yellow, and every other theme its own colours. It changes when you change the box’s theme and opens in the last box’s colours.',
   ] },
