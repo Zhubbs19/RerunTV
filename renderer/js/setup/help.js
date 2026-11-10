@@ -553,6 +553,11 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-14', items: [
+    'Game controllers have their own settings: SYSTEM › REMOTE & KEYS › GAME CONTROLLER. Choose what every button, trigger and stick direction does, either a remote button (OK, Guide, Channel up…) or any keyboard shortcut (Fullscreen, Sleep timer, Skip the commercial break…). Press a button on the controller and its row lights up.',
+    'New on a controller out of the box: the right stick is the volume, clicking the left stick mutes, clicking the right stick goes back to the last channel, and in TV mode holding A opens the TV menu.',
+    'A controller is now ignored while another window is in front, so playing a game on the same PC doesn’t change channels. Respond while another window is in front turns that off; Stick dead zone helps a worn stick. Both are also in the TV menu under SETUP › CONTROLS.',
+  ] },
   { date: '2026-11-13', items: [
     'A phone the box no longer recognises goes back to the companion app’s pairing screen. Before, it showed NO SIGNAL and its Settings page failed with a JSON error.',
     'The companion app can now reach every screen on the box. Its new SCREEN tab shows what the TV is showing (a setup page, a dialog, the TV menu, the guide or a plugin page) and lists every button, switch, list and text field on it. Tap one to press it, pick a choice, move a slider or type into a field with the phone’s keyboard. The phone’s D-pad, OK, Back and Menu now work the way the box’s own remote does in TV mode, so the TV menu and dialogs answer them too. The plug-in, network, update, backup, PIN lock and PC power controls are shown but stay locked: they’re changed on the box.',

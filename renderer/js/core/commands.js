@@ -412,7 +412,7 @@ const SETTING_LABELS = {
   reminderNotify: 'reminder notifications', reminderLeadMinutes: 'reminder lead time',
   viewingHistory: 'viewing history', keepDisplayAwake: 'keep display awake', playbackResync: 'playback resync',
   customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
-  controls: 'tuning & controls', keyMap: 'keyboard shortcuts', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', lastSeenAt: 'last seen', librarySync: 'library sync',
+  controls: 'tuning & controls', keyMap: 'keyboard shortcuts', gamepad: 'game controller', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', lastSeenAt: 'last seen', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
   pcPower: 'PC power', programFit: 'fit to time slots',
   playback: 'playback', signOnCard: 'welcome-back card', audioLevelerTarget: 'leveler loudness', remote: 'remote buttons',

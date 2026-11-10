@@ -24,6 +24,7 @@ import { renderUsageModeSetting, renderScreenSpeakersSettings } from './screens.
 import { renderRemindersPanel, renderAirChecksPanel, renderViewingHistoryPanel, renderPcShutdownRows, renderBackupsList } from './system-panels.js';
 import { renderControlsPanel, renderBakedBarsStatus } from './controls.js';
 import { refreshDependentControls } from './dependent-controls.js';
+import { renderGamepadSettings } from './gamepad-settings.js';
 import { renderViewerUrlStatus, renderViewerControlUrlStatus, renderStartupServerStatus, renderConnectedDevices } from './lan-status.js';
 import './search.js';
 import './display-controls.js';
@@ -322,6 +323,7 @@ export function renderSettingsPanels() {
   timeMachineEnabledEl.checked = !!S.config.timeMachine.enabled;
   timeMachineBadgeEl.checked = S.config.timeMachine.showTimeShiftBadge !== false;
   renderControlsPanel();
+  renderGamepadSettings();
   aspectBarsEl.checked = !!S.config.display.removeBakedBars;
   renderBakedBarsStatus();
   aspectAutofillEl.checked = !!S.config.display.autoFillWidescreen;

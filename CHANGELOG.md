@@ -4,6 +4,12 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-14
+
+- Game controllers have their own settings: SYSTEM › REMOTE & KEYS › GAME CONTROLLER. Choose what every button, trigger and stick direction does, either a remote button (OK, Guide, Channel up…) or any keyboard shortcut (Fullscreen, Sleep timer, Skip the commercial break…). Press a button on the controller and its row lights up.
+- New on a controller out of the box: the right stick is the volume, clicking the left stick mutes, clicking the right stick goes back to the last channel, and in TV mode holding A opens the TV menu.
+- A controller is now ignored while another window is in front, so playing a game on the same PC doesn’t change channels. Respond while another window is in front turns that off; Stick dead zone helps a worn stick. Both are also in the TV menu under SETUP › CONTROLS.
+
 ## 2026-11-13
 
 - A phone the box no longer recognises goes back to the companion app’s pairing screen. Before, it showed NO SIGNAL and its Settings page failed with a JSON error.

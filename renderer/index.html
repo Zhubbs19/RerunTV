@@ -1949,6 +1949,29 @@
           <span class="panel-status">Pick the key for each action while watching. Click a key, then press the one you want; Esc cancels. Digits, the volume keys, the arrows and a few plug-in keys can't be reassigned. The hint bar and the shortcuts list follow your choices.</span>
           <div id="keymap-editor" class="keymap-editor"></div>
         </div>
+        <div class="panel span-full" data-reset-keys='[["gamepad","enabled"],["gamepad","deadzone"],["gamepad","background"],["gamepad","buttons"]]'>
+          <div class="panel-toggle">GAME CONTROLLER</div>
+          <span class="panel-status" id="gamepad-status">Press any button on the controller to connect it.</span>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="gamepad-enabled" data-synonyms="controller gamepad joystick joypad pad">
+              <label class="setting-row-label" for="gamepad-enabled">Use a game controller as a remote</label>
+              <div class="setting-row-control"><input type="checkbox" id="gamepad-enabled" checked></div>
+              <p class="setting-row-help">A game controller changes channels, opens the guide and moves through menus.</p>
+            </div>
+            <div class="setting-row" data-setting="gamepad-deadzone" data-depends-on="gamepad-enabled" data-synonyms="controller gamepad stick drift sensitivity thumbstick analog">
+              <label class="setting-row-label" for="gamepad-deadzone">Stick dead zone</label>
+              <div class="setting-row-control"><input type="range" id="gamepad-deadzone" min="20" max="90" step="5" value="50"></div>
+              <p class="setting-row-help">How far a stick must be pushed before it counts. Raise it if a worn stick moves things on its own.</p>
+            </div>
+            <div class="setting-row" data-setting="gamepad-background" data-depends-on="gamepad-enabled" data-synonyms="controller gamepad focus other window game playing">
+              <label class="setting-row-label" for="gamepad-background">Respond while another window is in front</label>
+              <div class="setting-row-control"><input type="checkbox" id="gamepad-background"></div>
+              <p class="setting-row-help">Off, the controller is ignored while you use another app, so playing a game doesn't change channels.</p>
+            </div>
+          </div>
+          <span class="panel-status">Choose what each button does. Press a button on the controller to find its row. A remote button acts by what is on screen, like the same button on a remote; a shortcut does one thing while watching.</span>
+          <div id="gamepad-map-editor" class="keymap-editor gamepad-map-editor"></div>
+        </div>
         </div>
         </div>
 

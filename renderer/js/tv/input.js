@@ -31,6 +31,7 @@ import {
 } from '../remote/input.js';
 import { createRemoteProfile } from '../remote/profile.js';
 import { S } from '../core/state.js';
+import { KEY_ACTIONS } from '../core/keymap.js';
 import { enterTimeMachine, scrubProgramBoundary, scrubStep } from '../playback/timemachine.js';
 import { closeTvMenu, openTvMenu } from './menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
@@ -424,17 +425,39 @@ export function routeKeydown(event) {
     if (!event.isTrusted) return runShort(context, remoteKey, event);
     event.preventDefault();
     if (event.repeat || longPress.isDown(remoteKey)) return true;
-    const at = performance.now();
-    longPress.press(remoteKey, at);
-    clearTimeout(holdTimers.get(remoteKey));
-    holdTimers.set(remoteKey, setTimeout(() => {
-      holdTimers.delete(remoteKey);
-      if (longPress.hold(remoteKey, performance.now())) runAction(route(currentContext(), remoteKey, true), null);
-    }, 500));
+    beginHold(remoteKey);
     return true;
   }
 
   return runShort(context, remoteKey, event);
+}
+
+/**
+ * Starts timing a key that has a long-press action: the long action fires once it has been down 500 ms, and `endHold` runs the short one if it comes up sooner.
+ * @param {string} remoteKey The RemoteKey name.
+ */
+function beginHold(remoteKey) {
+  longPress.press(remoteKey, performance.now());
+  clearTimeout(holdTimers.get(remoteKey));
+  holdTimers.set(remoteKey, setTimeout(() => {
+    holdTimers.delete(remoteKey);
+    if (longPress.hold(remoteKey, performance.now())) runAction(route(currentContext(), remoteKey, true), null);
+  }, 500));
+}
+
+/**
+ * Finishes a key `beginHold` is timing: runs the short action, or a long action that fired late.
+ * @param {string} remoteKey The RemoteKey name.
+ * @returns {boolean} True when the key was being timed.
+ */
+function endHold(remoteKey) {
+  if (!longPress.isDown(remoteKey)) return false;
+  clearTimeout(holdTimers.get(remoteKey));
+  holdTimers.delete(remoteKey);
+  const result = longPress.release(remoteKey, performance.now());
+  if (result === 'short') runShort(currentContext(), remoteKey, null);
+  else if (result === 'long-late') runAction(route(currentContext(), remoteKey, true), null);
+  return true;
 }
 
 /**
@@ -493,12 +516,7 @@ function resolveRemoteKey(raw, fallback) {
 export function routeKeyup(event) {
   if (!isTvMode()) return false;
   const remoteKey = resolveRemoteKey({ source: 'keyboard', key: event.key, keyCode: event.keyCode, code: event.code }, normalizeKey(event));
-  if (!remoteKey || !longPress.isDown(remoteKey)) return false;
-  clearTimeout(holdTimers.get(remoteKey));
-  holdTimers.delete(remoteKey);
-  const result = longPress.release(remoteKey, performance.now());
-  if (result === 'short') runShort(currentContext(), remoteKey, null);
-  else if (result === 'long-late') runAction(route(currentContext(), remoteKey, true), null);
+  if (!remoteKey || !endHold(remoteKey)) return false;
   event.preventDefault();
   return true;
 }
@@ -535,6 +553,19 @@ function nativeInput(evt) {
   const remoteKey = resolveRemoteKey(raw, automatic);
   if (!remoteKey) return 'ignored';
   if (raw.action === 'up') return 'ignored';
+  return pressRemoteKey(remoteKey, { repeat: raw.repeat, longPress: raw.longPress });
+}
+
+/**
+ * Acts on one press of a RemoteKey from a source that isn't the keyboard: routes it by what is on screen, or hands it to the keyboard handler where no context claims it.
+ * @param {string} remoteKey The RemoteKey name.
+ * @param {object} [press={}] Press details.
+ * @param {boolean} [press.repeat=false] True for an auto-repeat of a held button.
+ * @param {boolean} [press.longPress=false] True when the source already timed this as a long press.
+ * @returns {string} `handled` or `ignored`.
+ */
+function pressRemoteKey(remoteKey, { repeat = false, longPress: held = false } = {}) {
+  const evt = { repeat, longPress: held };
   noteRemoteKey(remoteKey);
   // Back on the setup screen: close a dialog if one is open, otherwise go
   // back to live TV — setup is a desk task (doc 01 §6.4), not a place to be
@@ -562,6 +593,86 @@ function nativeInput(evt) {
   }
   runAction(action, { repeat: !!evt.repeat });
   return 'handled';
+}
+
+// ---------- Game controllers ----------
+// In desktop mode a controller still works (docs/design/01 §8
+// "remote-in-desktop"), as the keys the keyboard handler already knows.
+const GAMEPAD_DESKTOP_KEYS = {
+  up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', ok: 'Enter', back: 'Escape',
+  info: 'i', guide: 'g', chUp: 'PageUp', chDown: 'PageDown', menu: '?', last: 'Backspace',
+  volUp: '+', volDown: '-', mute: 'm', record: 'r', captions: 'k', audioTrack: 'u',
+};
+
+/**
+ * The keyboard key a controller button stands for in desktop mode. The triggers open the time machine, then shuttle once it is open, as they do in TV mode.
+ * @param {string} remoteKey The RemoteKey name.
+ * @returns {?string} The `KeyboardEvent.key` value, or null.
+ */
+function gamepadDesktopKey(remoteKey) {
+  if (remoteKey === 'rewind' || remoteKey === 'fastForward') {
+    if (!S.timeMachineOn) return 't';
+    return remoteKey === 'rewind' ? 'ArrowLeft' : 'ArrowRight';
+  }
+  return GAMEPAD_DESKTOP_KEYS[remoteKey] || null;
+}
+
+/**
+ * Sends a key through the window's keydown listeners as the default key, whatever the keyboard is remapped to, so the setup screen's own keyboard navigation sees it too.
+ * @param {string} key The `KeyboardEvent.key` value.
+ * @param {boolean} repeat True for an auto-repeat.
+ */
+function dispatchDefaultKey(key, repeat) {
+  window.__remoteKeyDispatch = true;
+  try { window.dispatchEvent(new KeyboardEvent('keydown', { key, repeat, bubbles: true })); } finally { window.__remoteKeyDispatch = false; }
+}
+
+/**
+ * One control event from a game controller (tv/gamepad.js): a press, a repeat while held, or a release.
+ *
+ * The Remote test and learn mode see it first, as `gamepad:<control>`. A control assigned to a keyboard shortcut (`action:<id>`) sends that shortcut's default key. Otherwise it is a remote button: routed by what is on screen in TV mode, with hold-for-long-press, and turned into the keyboard's keys in desktop mode.
+ * @param {?object} evt The event: `{ key, button, repeat, release }`, where `key` is a RemoteKey, `action:<id>` or null.
+ * @returns {string} `handled` or `ignored`.
+ */
+export function gamepadInput(evt) {
+  if (!evt) return 'ignored';
+  const target = typeof evt.key === 'string' ? evt.key : null;
+  const shortcut = target && target.startsWith('action:') ? KEY_ACTIONS.find((action) => action.id === target.slice(7)) : null;
+  const automatic = target && !target.startsWith('action:') ? target : null;
+  const raw = {
+    source: 'gamepad', button: evt.button, key: automatic, keyCode: null, scanCode: null,
+    repeat: !!evt.repeat, longPress: false, holdMs: null, action: evt.release ? 'up' : 'down',
+  };
+  if (tapRawInput(raw, automatic)) return 'handled';
+  // A learn-mode override for this button wins over its assignment.
+  const override = profile.overrideFor(rawKeyId(raw));
+  const remoteKey = override || automatic;
+  if (raw.action === 'up') return remoteKey && endHold(remoteKey) ? 'handled' : 'ignored';
+
+  if (!remoteKey) {
+    // Shortcuts belong to live TV: not behind a dialog, and never twice from one press.
+    if (!shortcut || raw.repeat || !keyboardHandler || exitPromptOpen() || openModal()) return 'ignored';
+    sendKey(shortcut.key, null);
+    return 'handled';
+  }
+
+  if (!isTvMode()) {
+    const key = gamepadDesktopKey(remoteKey);
+    if (!key) return 'ignored';
+    dispatchDefaultKey(key, raw.repeat);
+    return 'handled';
+  }
+
+  if (longPress.isDown(remoteKey)) return 'handled'; // being timed: repeats wait for the release
+  if (!raw.repeat) {
+    const context = currentContext();
+    if (context !== 'none' && longPressable(context, remoteKey)) {
+      noteRemoteKey(remoteKey);
+      beginHold(remoteKey);
+      return 'handled';
+    }
+  }
+  return pressRemoteKey(remoteKey, { repeat: raw.repeat });
 }
 
 /**

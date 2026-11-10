@@ -106,8 +106,8 @@ test('each gamepad gets its own mapper, so one pad\'s hold cannot mask another\'
   assert.equal(mappers.size(), 2);
 
   // Pad A releases; pad B's hold must survive that.
-  mappers.update({ ...pressedA, buttons: [{ pressed: false }] }, 20);
-  assert.deepEqual(mappers.update(pressedB, 40), [], 'B is still held, not re-fired');
+  assert.deepEqual(mappers.update({ ...pressedA, buttons: [{ pressed: false }] }, 20).map((e) => [e.key, !!e.release]), [['ok', true]]);
+  assert.deepEqual(mappers.update(pressedB, 40), [], 'B is still held, not re-fired or released');
 
   mappers.prune([pressedB]);
   assert.equal(mappers.size(), 1, 'a disconnected pad is dropped');

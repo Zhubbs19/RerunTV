@@ -198,6 +198,12 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 The single-letter keys above (G, S, M, C, V, A, Z, F, P, O, T, D, J, L, N, I, X, H) can be remapped under
 **SETTINGS › System › Keys**.
 
+A game controller works as a remote: A is OK, B is Back, X is Info, Y is the guide, LB/RB change
+channel, the triggers open the time machine and shuttle, Menu opens the TV menu, the D-pad and left stick move, the
+right stick is the volume, and the stick clicks mute and recall the last channel. Every button can be given another
+remote button or any keyboard shortcut under **SETTINGS › System › Remote & Keys › Game controller**. The controller is
+ignored while another window is in front unless you turn that off there.
+
 ### Time machine
 
 Enable it in **Box Settings** first. Press `T`, then `←`/`→` to rewind/fast-forward — tap

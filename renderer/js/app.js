@@ -62,13 +62,13 @@ import { applyKeyHints, remapKeyboardEvent } from './core/key-remap.js';
 import { fillNewSettingDefaults } from './core/setting-defaults.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
-import { installGamepad } from './tv/gamepad.js';
+import { gamepadSettings, installGamepad } from './tv/gamepad.js';
 import { installTvPlatform } from './tv/platform.js';
 import {
   initPersonalState, isFavorite, isHiddenForProfile, personalCommand, setFavorite,
 } from './personal/state.js';
 import { initDvrScheduler } from './personal/dvr-scheduler.js';
-import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
+import { exitPromptOpen, gamepadInput, installTvInput, routeKeydown } from './tv/input.js';
 import { closeBannerHub } from './tv/banner-hub.js';
 import { answerCompanionQuery, pressCompanionRemote } from './remote/companion-control.js';
 
@@ -552,7 +552,7 @@ installTvInput({ handleKey });
 installTvSuggestion(() => document.documentElement.dataset.mode || 'desktop');
 // Phase E platforms (docs/design/01): game controllers anywhere, and a
 // Samsung/LG TV browser's key registration and standby-on-hide.
-installGamepad({ isTvMode });
+installGamepad({ send: gamepadInput, settings: () => gamepadSettings(S.config) });
 installTvPlatform(window, document, {
   standby: () => { if (S.isPoweredOn) powerOff({ reason: 'standby' }); },
   wake: () => { if (!S.isPoweredOn) powerOn(); },

@@ -1756,7 +1756,9 @@ function showDetailsForGuideSelection() {
 export function handleGuideGridKey(e) {
   // Focus inside the program-search results: Enter/Space activate the focused
   // button natively, Tab walks the buttons; only Escape is ours (close them).
-  if (programResultsEl && e.target && e.target !== document && programResultsEl.contains(e.target)) {
+  // A key from the phone remote or a game controller is dispatched on the
+  // window itself, which is not a Node and would make contains() throw.
+  if (programResultsEl && e.target instanceof Node && e.target !== document && programResultsEl.contains(e.target)) {
     if (e.key === 'Escape') {
       hideProgramResults();
       guideSearchEl.focus();

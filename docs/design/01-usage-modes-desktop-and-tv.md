@@ -97,6 +97,14 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   (`source: 'gamepad'`, so learn mode can remap a button); desktop mode turns them into the keys the
   keyboard handler knows (§8 remote-in-desktop). Android TV controllers arrive as `KEYCODE_BUTTON_*`
   and `ANDROID_KEYCODES` maps them the same way.
+- **Controller key mapping (2026-11-09)**: the layout is now a table (`GAMEPAD_CONTROLS`) that
+  `config.gamepad.buttons` overrides, edited in SYSTEM › REMOTE & KEYS › GAME CONTROLLER. A control can be a
+  RemoteKey (acts by context), a keyboard shortcut (`action:<KEY_ACTIONS id>`) or nothing. New defaults:
+  right stick up/down = volume, left stick click = mute, right stick click = last channel. The mapper
+  reports releases, so holding A opens the TV menu like a held OK. Events reach `gamepadInput`
+  (`tv/input.js`) with a real `gamepad:<control>` raw id (learn mode used to see only the RemoteKey
+  name). `config.gamepad` also holds `enabled`, `deadzone` and `background`; presses are ignored while
+  the window is not in front unless `background` is on.
 - **Samsung Tizen / LG webOS** (`renderer/js/tv/platform.js`): on Tizen, registers every key RerunTV understands that
   `tvinputdevice.getSupportedKeys()` offers; webOS needs no registration (its keyCodes were already
   normalized). On both, the page going hidden puts RerunTV in standby and coming back wakes it. Not

@@ -5988,6 +5988,13 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 #setup-screen .keymap-key.keymap-changed { border-color: var(--accent); color: var(--accent); }
 #setup-screen .keymap-reset { font-size: 11px; opacity: 0.85; }
 #setup-screen .keymap-message { grid-column: 1 / -1; min-height: 1.4em; color: var(--accent); }
+/* GAME CONTROLLER: the same rows, with a choice list where the key button is. */
+#setup-screen .gamepad-map-editor { grid-template-columns: repeat(auto-fill, minmax(440px, 1fr)); }
+#setup-screen .gamepad-map-row { grid-template-columns: minmax(130px, 1fr) minmax(170px, 230px) 64px; padding: 2px 6px; border-radius: 4px; outline: 2px solid transparent; }
+#setup-screen .gamepad-map-row .setting-row-control { grid-area: auto; min-width: 0; }
+#setup-screen .gamepad-map-row select { width: 100%; min-width: 0; }
+#setup-screen .gamepad-map-row select.keymap-changed { border-color: var(--accent); color: var(--accent); }
+#setup-screen .gamepad-map-row.gamepad-row-pressed { outline-color: var(--accent); }
 
 /* "New things to try": one line of text and a TAKE ME THERE button each. */
 .highlights-list { display: flex; flex-direction: column; gap: 6px; padding: 10px 4px 4px; }
