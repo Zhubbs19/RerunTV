@@ -34,7 +34,7 @@ export default function SchedulingPage() {
 
       <section>
         <h2>The calendar</h2>
-        <p>The calendar shows a whole month at once, colored by what's playing each day. It flags anything that conflicts, and you can override a single day without touching the regular schedule.</p>
+        <p>The calendar shows a whole month at once, colored by what's playing each day. It flags anything that conflicts, and you can override a single day without touching the regular schedule. The Android companion app has the same calendar, so a holiday block can be set up from the couch.</p>
       </section>
 
       <section>

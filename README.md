@@ -363,7 +363,8 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 - **Cast to TV** — casts whatever's currently airing to a Chromecast/Google TV device on the
   LAN, kept in sync with the live schedule
 - **Companion App** — turns a paired phone on the same WiFi into a remote and mobile setup
-  surface; it also provides the API used by the Android companion app
+  surface; it also provides the API used by the Android companion app, which can read and
+  drive whatever is on screen and edit each channel's schedule calendar
 - **TMDB metadata matching** for the TITLES tab (needs a free API key) — down to the
   episode, with ratings, posters and cast for program info
 - **TVmaze Episodes** — episode titles, synopses, series names and original air dates and

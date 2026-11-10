@@ -18,9 +18,11 @@ export default function OtherScreensPage() {
           <li>It only works on your home network, not over mobile data or from outside the house.</li>
           <li>If the page won't load, check the phone is on the same Wi-Fi as the box and not a guest network. That's the most common problem.</li>
           <li>A separate Android companion app adds quick-tap favorite channels you set up yourself, for one-handed use. Its settings screen has the same sections and pages as setup on the box, in a Simple or Advanced view, its remote counts down to the end of a break, and it wears the box's theme.</li>
+          <li>The app's SCREEN tab shows what the TV is showing (a setup page, a dialog, the TV menu, the guide or a plug-in page) and lists every button, switch, list and text field on it. Tap one to press it, pick a choice, move a slider or type with the phone's keyboard. Its D-pad works the way the box's own remote does.</li>
+          <li>The app also has each channel's schedule calendar: see what airs every day of the month, add or change date-range and weekly blocks, give one a folder, and override a single day.</li>
         </ul>
         <div className="callout">
-          <p><b>Some things stay on the box.</b> A paired remote can't change plug-in approvals or settings, network or update settings, the PIN lock, or the PC power options.</p>
+          <p><b>Some things stay on the box.</b> A paired remote can't change plug-in approvals or settings, network or update settings, the PIN lock, or the PC power options. The app's SCREEN tab shows those controls but keeps them locked.</p>
         </div>
       </section>
 
