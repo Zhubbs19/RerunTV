@@ -1949,7 +1949,7 @@
           <span class="panel-status">Pick the key for each action while watching. Click a key, then press the one you want; Esc cancels. Digits, the volume keys, the arrows and a few plug-in keys can't be reassigned. The hint bar and the shortcuts list follow your choices.</span>
           <div id="keymap-editor" class="keymap-editor"></div>
         </div>
-        <div class="panel span-full" data-reset-keys='[["gamepad","enabled"],["gamepad","deadzone"],["gamepad","background"],["gamepad","buttons"]]'>
+        <div class="panel span-full" data-reset-keys='[["gamepad","enabled"],["gamepad","deadzone"],["gamepad","background"],["gamepad","keyboard"],["gamepad","buttons"]]'>
           <div class="panel-toggle">GAME CONTROLLER</div>
           <span class="panel-status" id="gamepad-status">Press any button on the controller to connect it.</span>
           <div class="panel-body setting-rows">
@@ -1967,6 +1967,11 @@
               <label class="setting-row-label" for="gamepad-background">Respond while another window is in front</label>
               <div class="setting-row-control"><input type="checkbox" id="gamepad-background"></div>
               <p class="setting-row-help">Off, the controller is ignored while you use another app, so playing a game doesn't change channels.</p>
+            </div>
+            <div class="setting-row" data-setting="gamepad-keyboard" data-depends-on="gamepad-enabled" data-synonyms="controller gamepad on-screen keyboard osk type text typing letters">
+              <label class="setting-row-label" for="gamepad-keyboard">On-screen keyboard for text boxes</label>
+              <div class="setting-row-control"><input type="checkbox" id="gamepad-keyboard" checked></div>
+              <p class="setting-row-help">Pressing A on a text box opens a keyboard you type on with the controller. On this setup screen the D-pad moves between controls and A presses them.</p>
             </div>
           </div>
           <span class="panel-status">Choose what each button does. Press a button on the controller to find its row. A remote button acts by what is on screen, like the same button on a remote; a shortcut does one thing while watching.</span>

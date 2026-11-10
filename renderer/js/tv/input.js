@@ -16,7 +16,7 @@
 //   CH± pages the guide a screenful while ▲▼ move one row;
 //   a held channel key changes one channel per CHANNEL_REPEAT_MS.
 import {
-  detailsOverlayEl, guideGrid, guideRowsEl, pluginChannelContainerEl, shortcutsOverlayEl, tvScreen,
+  detailsOverlayEl, guideGrid, guideRowsEl, pluginChannelContainerEl, setupScreen, shortcutsOverlayEl, tvScreen,
 } from '../core/dom.js';
 import { getChannel } from '../core/channels.js';
 import { showDetailsForCurrentChannel } from './details.js';
@@ -32,6 +32,7 @@ import {
 import { createRemoteProfile } from '../remote/profile.js';
 import { S } from '../core/state.js';
 import { KEY_ACTIONS } from '../core/keymap.js';
+import { gamepadSettings } from './gamepad.js';
 import { enterTimeMachine, scrubProgramBoundary, scrubStep } from '../playback/timemachine.js';
 import { closeTvMenu, openTvMenu } from './menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
@@ -627,6 +628,113 @@ function dispatchDefaultKey(key, repeat) {
   try { window.dispatchEvent(new KeyboardEvent('keydown', { key, repeat, bubbles: true })); } finally { window.__remoteKeyDispatch = false; }
 }
 
+// ---------- A controller on text boxes and the setup screen ----------
+const TEXT_INPUT_TYPES = new Set(['text', 'search', 'password', 'number', 'url', 'email', 'tel', '']);
+
+/**
+ * Tests whether an element is a text box the on-screen keyboard can fill in.
+ * @param {?Element} el The element.
+ * @returns {boolean} True for an editable text input or text area.
+ */
+function isTextBox(el) {
+  if (!el || el.disabled || el.readOnly) return false;
+  if (el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && TEXT_INPUT_TYPES.has(String(el.getAttribute('type') || '').toLowerCase());
+}
+
+/**
+ * A title for the keyboard from the text box's label, accessible name or placeholder.
+ * @param {HTMLElement} el The text box.
+ * @returns {string} The title, upper-cased.
+ */
+function textBoxTitle(el) {
+  const label = (el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) || el.closest('label');
+  const text = (label && label.textContent) || el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.getAttribute('title') || 'Enter text';
+  return text.replace(/\s+/g, ' ').replace(/[….:]+$/g, '').trim().toUpperCase().slice(0, 60);
+}
+
+/**
+ * Opens the on-screen keyboard for a text box and writes the result back as if it had been typed. Does nothing when the element isn't a text box, the setting is off or a dialog is already up.
+ * @param {?Element} el The focused element.
+ * @returns {boolean} True when the keyboard was opened.
+ */
+function editWithKeyboard(el) {
+  if (!isTextBox(el) || !gamepadSettings(S.config).keyboard || openModal() || exitPromptOpen()) return false;
+  import('../ui/on-screen-keyboard.js').then(async ({ openOnScreenKeyboard }) => {
+    const text = await openOnScreenKeyboard({
+      title: textBoxTitle(el), value: el.value, maxLength: el.maxLength > 0 ? el.maxLength : 120, mixedCase: true, mask: el.type === 'password',
+    });
+    if (!el.isConnected) return;
+    if (text != null && text !== el.value) {
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (el.isConnected) el.focus({ preventScroll: true });
+  }).catch((e) => console.warn('[tv-input] on-screen keyboard failed', e));
+  return true;
+}
+
+/**
+ * Steps a list or slider one place, as its own arrow keys would, and reports the change.
+ * @param {HTMLElement} el The focused control.
+ * @param {number} direction 1 for the next value, -1 for the previous.
+ * @param {boolean} wrap Whether a list goes round from its last choice to its first.
+ * @returns {boolean} True when `el` was a list or slider.
+ */
+function stepControl(el, direction, wrap) {
+  const changed = () => {
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  if (el.tagName === 'SELECT') {
+    const options = Array.from(el.options);
+    let i = el.selectedIndex;
+    for (let n = 0; n < options.length; n += 1) {
+      i += direction;
+      if (wrap) i = (i + options.length) % options.length;
+      if (i < 0 || i >= options.length) return true;
+      if (!options[i].disabled) break;
+    }
+    if (i !== el.selectedIndex) { el.selectedIndex = i; changed(); }
+    return true;
+  }
+  if (el.tagName === 'INPUT' && el.type === 'range') {
+    const step = Number(el.step) || 1;
+    const next = Math.min(Number(el.max), Math.max(Number(el.min), Number(el.value) + direction * step));
+    if (String(next) !== el.value) { el.value = String(next); changed(); }
+    return true;
+  }
+  return false;
+}
+
+const SETUP_DIRECTIONS = new Set(['up', 'down', 'left', 'right']);
+
+/**
+ * A controller on the setup screen, which is otherwise a keyboard-and-mouse place: the D-pad or stick moves between its controls by position, ◀▶ change a list or slider, and A presses the focused control. Other buttons (B, the shortcuts) keep what they did.
+ * @param {string} remoteKey The RemoteKey name.
+ * @returns {boolean} True when the press was used here.
+ */
+function gamepadOnSetup(remoteKey) {
+  if (!setupScreen || setupScreen.classList.contains('hidden') || openModal() || exitPromptOpen()) return false;
+  const direction = SETUP_DIRECTIONS.has(remoteKey) ? remoteKey : null;
+  if (!direction && remoteKey !== 'ok') return false;
+  // Shows where focus is, which the page only does by itself after a key press.
+  document.documentElement.classList.add('gamepad-nav');
+  const el = document.activeElement;
+  const inSetup = !!el && el !== document.body && setupScreen.contains(el);
+  if (direction) {
+    if (inSetup && (direction === 'left' || direction === 'right') && stepControl(el, direction === 'right' ? 1 : -1, false)) return true;
+    if (!inSetup && el && el.blur) el.blur();
+    moveFocusSpatially(setupScreen, direction);
+    return true;
+  }
+  if (!inSetup) { moveFocusSpatially(setupScreen, 'down'); return true; }
+  if (stepControl(el, 1, true)) return true;
+  if (el.click) el.click();
+  return true;
+}
+
 /**
  * One control event from a game controller (tv/gamepad.js): a press, a repeat while held, or a release.
  *
@@ -656,7 +764,15 @@ export function gamepadInput(evt) {
     return 'handled';
   }
 
+  // A press on a text box opens the on-screen keyboard for it, wherever it is.
+  if (remoteKey === 'ok' && !raw.repeat && editWithKeyboard(document.activeElement)) return 'handled';
+  // The setup screen: the D-pad moves between its controls and A presses them.
+  if (gamepadOnSetup(remoteKey)) return 'handled';
+
   if (!isTvMode()) {
+    // A dialog on top (a confirm, the on-screen keyboard) takes the D-pad, A
+    // and B the way it does in TV mode.
+    if (exitPromptOpen() || openModal()) return pressRemoteKey(remoteKey, { repeat: raw.repeat });
     const key = gamepadDesktopKey(remoteKey);
     if (!key) return 'ignored';
     dispatchDefaultKey(key, raw.repeat);
@@ -895,6 +1011,8 @@ export function installTvInput({ handleKey }) {
   window.addEventListener('blur', forgetHolds);
   document.addEventListener('visibilitychange', () => { if (document.hidden) forgetHolds(); });
   window.addEventListener('mousemove', onPointerMove, { passive: true });
+  // The controller's focus outline on the setup screen goes once the mouse takes over.
+  window.addEventListener('mousedown', () => document.documentElement.classList.remove('gamepad-nav'), true);
   onUsageModeChange((mode) => {
     longPress.reset();
     holdTimers.forEach((timer) => clearTimeout(timer));

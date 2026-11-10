@@ -4,6 +4,12 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-15
+
+- A game controller now works on the setup screen: the D-pad or left stick moves between controls, ◀▶ change a list or slider, and A presses the one in focus.
+- Pressing A on a text box opens an on-screen keyboard you type on with the controller, on the setup screen and anywhere else a text box has focus. It has upper case, lower case and symbols; the bottom-left key switches between them, DONE keeps the text and B cancels. Turn it off with On-screen keyboard for text boxes (SYSTEM › REMOTE & KEYS › GAME CONTROLLER, or SETUP › CONTROLS in the TV menu).
+- Dialogs answer the controller in desktop mode too: the D-pad moves between their buttons, A presses and B cancels.
+
 ## 2026-11-14
 
 - Game controllers have their own settings: SYSTEM › REMOTE & KEYS › GAME CONTROLLER. Choose what every button, trigger and stick direction does, either a remote button (OK, Guide, Channel up…) or any keyboard shortcut (Fullscreen, Sleep timer, Skip the commercial break…). Press a button on the controller and its row lights up.

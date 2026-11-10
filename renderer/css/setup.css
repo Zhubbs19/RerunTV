@@ -5995,6 +5995,8 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 #setup-screen .gamepad-map-row select { width: 100%; min-width: 0; }
 #setup-screen .gamepad-map-row select.keymap-changed { border-color: var(--accent); color: var(--accent); }
 #setup-screen .gamepad-map-row.gamepad-row-pressed { outline-color: var(--accent); }
+/* A controller moving through setup: always show which control has focus. */
+html.gamepad-nav #setup-screen :focus { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 /* "New things to try": one line of text and a TAKE ME THERE button each. */
 .highlights-list { display: flex; flex-direction: column; gap: 6px; padding: 10px 4px 4px; }

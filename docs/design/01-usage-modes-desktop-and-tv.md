@@ -105,6 +105,11 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   (`tv/input.js`) with a real `gamepad:<control>` raw id (learn mode used to see only the RemoteKey
   name). `config.gamepad` also holds `enabled`, `deadzone` and `background`; presses are ignored while
   the window is not in front unless `background` is on.
+- **Controller on setup and text boxes (2026-11-10)**: `gamepadInput` moves focus through the setup
+  screen by position (`moveFocusSpatially`), steps a focused list or slider with ◀▶ and clicks the
+  focused control on A, in both modes. A on a text box opens the on-screen keyboard (`gamepad.keyboard`,
+  on by default) with `mixedCase`: upper, lower and symbol layers (`oskLayerRows`, `tv/setup-model.js`).
+  With a modal open in desktop mode the controller takes the dialog context, as it does in TV mode.
 - **Samsung Tizen / LG webOS** (`renderer/js/tv/platform.js`): on Tizen, registers every key RerunTV understands that
   `tvinputdevice.getSupportedKeys()` offers; webOS needs no registration (its keyCodes were already
   normalized). On both, the page going hidden puts RerunTV in standby and coming back wakes it. Not

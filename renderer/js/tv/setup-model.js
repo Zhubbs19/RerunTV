@@ -41,6 +41,42 @@ export const OSK_ROWS = [
   ['SPACE', 'DELETE', 'CLEAR', 'DONE'],
 ];
 
+// For a text box that isn't just a name (a search, a message, a folder): the
+// same keyboard with lower case and symbols. The first key of the bottom row
+// switches layer and shows the one it switches to.
+const OSK_LETTER_ROWS = OSK_ROWS.slice(0, 3);
+const OSK_SYMBOL_ROWS = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+  ['!', '@', '#', '$', '%', '^', '&', '*', '(', ')'],
+  ['-', '_', '=', '+', '/', '\\', ':', ';', '?', '~'],
+  ['.', ',', '\'', '"', '<', '>', '[', ']', '{', '}'],
+];
+export const OSK_LAYERS = ['upper', 'lower', 'symbols'];
+// The key that leaves each layer, labelled with where it goes.
+export const OSK_LAYER_KEYS = { upper: 'abc', lower: '#+=', symbols: 'ABC' };
+
+/**
+ * The layer after `layer`, wrapping.
+ * @param {string} layer An OSK_LAYERS id.
+ * @returns {string} The next layer id; `'upper'` for an unknown one.
+ */
+export function nextOskLayer(layer) {
+  const i = OSK_LAYERS.indexOf(layer);
+  return OSK_LAYERS[(i + 1) % OSK_LAYERS.length] || 'upper';
+}
+
+/**
+ * The key rows of one layer of the full keyboard.
+ * @param {string} layer An OSK_LAYERS id.
+ * @returns {string[][]} Rows of key labels; the bottom row starts with the layer key.
+ */
+export function oskLayerRows(layer) {
+  const bottom = [OSK_LAYER_KEYS[layer] || OSK_LAYER_KEYS.upper, 'SPACE', 'DELETE', 'CLEAR', 'DONE'];
+  if (layer === 'symbols') return [...OSK_SYMBOL_ROWS, bottom];
+  const letters = OSK_LETTER_ROWS.map((row) => row.map((key) => (layer === 'lower' ? key.toLowerCase() : key)));
+  return [...letters, OSK_ROWS[3], bottom];
+}
+
 /**
  * One key applied to the text. Returns { value, done }.
  * @param {?string} value The text so far.

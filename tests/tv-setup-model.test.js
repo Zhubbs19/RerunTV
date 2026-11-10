@@ -33,6 +33,28 @@ test('the on-screen keyboard edits text and finishes on DONE', async () => {
   assert.ok(OSK_ROWS.flat().includes('DONE'));
 });
 
+test('the full keyboard has upper case, lower case and symbols, and a key that goes round them', async () => {
+  const { applyOskKey, nextOskLayer, oskLayerRows, OSK_LAYERS, OSK_LAYER_KEYS, OSK_ROWS } = await load();
+  assert.deepEqual(OSK_LAYERS.map(nextOskLayer), ['lower', 'symbols', 'upper']);
+  assert.equal(nextOskLayer('nonsense'), 'upper');
+  const upper = oskLayerRows('upper');
+  const lower = oskLayerRows('lower');
+  const symbols = oskLayerRows('symbols');
+  assert.deepEqual(upper.slice(0, 4), OSK_ROWS.slice(0, 4), 'the upper layer is the plain keyboard’s keys');
+  assert.ok(lower.flat().includes('q') && !lower.flat().includes('Q'));
+  assert.ok(lower.flat().includes('7'), 'digits stay on the lower layer');
+  for (const ch of ['/', '\\', ':', '_', '@', '"']) assert.ok(symbols.flat().includes(ch), `${ch} can be typed`);
+  for (const layer of OSK_LAYERS) {
+    const rows = oskLayerRows(layer);
+    assert.equal(rows.length, 5);
+    assert.deepEqual(rows[4], [OSK_LAYER_KEYS[layer], 'SPACE', 'DELETE', 'CLEAR', 'DONE']);
+    rows.slice(0, 4).forEach((row) => assert.equal(row.length, 10));
+    // Every character key types itself; the layer key types nothing.
+    rows.slice(0, 4).flat().forEach((key) => assert.equal(applyOskKey('', key).value, key));
+    assert.equal(applyOskKey('x', OSK_LAYER_KEYS[layer]).value, 'x');
+  }
+});
+
 test('the wizard walks its steps and the remote check waits for each button', async () => {
   const { nextWizardStep, advanceRemoteCheck, REMOTE_CHECK } = await load();
   assert.equal(nextWizardStep('welcome'), 'channels');

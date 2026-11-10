@@ -202,7 +202,8 @@ A game controller works as a remote: A is OK, B is Back, X is Info, Y is the gui
 channel, the triggers open the time machine and shuttle, Menu opens the TV menu, the D-pad and left stick move, the
 right stick is the volume, and the stick clicks mute and recall the last channel. Every button can be given another
 remote button or any keyboard shortcut under **SETTINGS › System › Remote & Keys › Game controller**. The controller is
-ignored while another window is in front unless you turn that off there.
+ignored while another window is in front unless you turn that off there. On the setup screen the D-pad moves between
+controls and A presses them; A on a text box opens an on-screen keyboard.
 
 ### Time machine
 

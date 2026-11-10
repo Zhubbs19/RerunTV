@@ -13,6 +13,7 @@ import { refreshDependentControls } from './dependent-controls.js';
 const enabledEl = document.getElementById('gamepad-enabled');
 const deadzoneEl = document.getElementById('gamepad-deadzone');
 const backgroundEl = document.getElementById('gamepad-background');
+const keyboardEl = document.getElementById('gamepad-keyboard');
 const statusEl = document.getElementById('gamepad-status');
 const editorEl = document.getElementById('gamepad-map-editor');
 const deadzoneReadout = deadzoneEl ? attachSliderReadout(deadzoneEl, { suffix: '%' }) : null;
@@ -99,6 +100,7 @@ export function renderGamepadSettings() {
   deadzoneEl.value = String(Math.round(cfg.deadzone * 100));
   if (deadzoneReadout && deadzoneReadout.refresh) deadzoneReadout.refresh();
   backgroundEl.checked = cfg.background;
+  keyboardEl.checked = cfg.keyboard;
   renderStatus();
   renderEditor();
   refreshDependentControls();
@@ -110,6 +112,7 @@ if (enabledEl) {
     setGamepad(['deadzone'], (parseInt(deadzoneEl.value, 10) || 50) / 100, { coalesce: 'settings:gamepad.deadzone' });
   });
   backgroundEl.addEventListener('change', () => setGamepad(['background'], backgroundEl.checked));
+  keyboardEl.addEventListener('change', () => setGamepad(['keyboard'], keyboardEl.checked));
   document.querySelector('.setup-subtab-btn[data-subtab="keys"]')?.addEventListener('click', renderGamepadSettings);
 
   // A pressed button lights its row, so nobody has to know which one "View" is.

@@ -555,6 +555,11 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-15', items: [
+    'A game controller now works on the setup screen: the D-pad or left stick moves between controls, ◀▶ change a list or slider, and A presses the one in focus.',
+    'Pressing A on a text box opens an on-screen keyboard you type on with the controller, on the setup screen and anywhere else a text box has focus. It has upper case, lower case and symbols; the bottom-left key switches between them, DONE keeps the text and B cancels. Turn it off with On-screen keyboard for text boxes (SYSTEM › REMOTE & KEYS › GAME CONTROLLER, or SETUP › CONTROLS in the TV menu).',
+    'Dialogs answer the controller in desktop mode too: the D-pad moves between their buttons, A presses and B cancels.',
+  ] },
   { date: '2026-11-14', items: [
     'Game controllers have their own settings: SYSTEM › REMOTE & KEYS › GAME CONTROLLER. Choose what every button, trigger and stick direction does, either a remote button (OK, Guide, Channel up…) or any keyboard shortcut (Fullscreen, Sleep timer, Skip the commercial break…). Press a button on the controller and its row lights up.',
     'New on a controller out of the box: the right stick is the volume, clicking the left stick mutes, clicking the right stick goes back to the last channel, and in TV mode holding A opens the TV menu.',

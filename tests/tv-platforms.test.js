@@ -84,10 +84,10 @@ test('controller buttons can be reassigned, to a remote button, a shortcut or no
 
 test('controller settings fall back to defaults and clamp the dead zone', async () => {
   const { gamepadSettings, gamepadName, createGamepadMapper } = await load('tv/gamepad.js');
-  assert.deepEqual(gamepadSettings({}), { enabled: true, deadzone: 0.5, background: false, buttons: {} });
-  assert.deepEqual(gamepadSettings(null), { enabled: true, deadzone: 0.5, background: false, buttons: {} });
-  const set = gamepadSettings({ gamepad: { enabled: false, deadzone: 5, background: true, buttons: { 0: 'back' } } });
-  assert.deepEqual(set, { enabled: false, deadzone: 0.9, background: true, buttons: { 0: 'back' } });
+  assert.deepEqual(gamepadSettings({}), { enabled: true, deadzone: 0.5, background: false, keyboard: true, buttons: {} });
+  assert.deepEqual(gamepadSettings(null), { enabled: true, deadzone: 0.5, background: false, keyboard: true, buttons: {} });
+  const set = gamepadSettings({ gamepad: { enabled: false, deadzone: 5, background: true, keyboard: false, buttons: { 0: 'back' } } });
+  assert.deepEqual(set, { enabled: false, deadzone: 0.9, background: true, keyboard: false, buttons: { 0: 'back' } });
   assert.equal(gamepadSettings({ gamepad: { deadzone: 0 } }).deadzone, 0.2);
   assert.equal(gamepadSettings({ gamepad: { deadzone: 'wide', buttons: 'x' } }).deadzone, 0.5);
 

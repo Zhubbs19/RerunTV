@@ -113,7 +113,7 @@ export function defaultGamepadTarget(control) {
 /**
  * The game-controller settings with defaults filled in and values clamped.
  * @param {?object} config The app config.
- * @returns {{enabled: boolean, deadzone: number, background: boolean, buttons: object}} The settings.
+ * @returns {{enabled: boolean, deadzone: number, background: boolean, keyboard: boolean, buttons: object}} The settings.
  */
 export function gamepadSettings(config) {
   const g = (config && config.gamepad) || {};
@@ -122,6 +122,7 @@ export function gamepadSettings(config) {
     enabled: g.enabled !== false,
     deadzone,
     background: !!g.background,
+    keyboard: g.keyboard !== false,
     buttons: g.buttons && typeof g.buttons === 'object' ? g.buttons : {},
   };
 }

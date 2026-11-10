@@ -2284,6 +2284,20 @@ export const SETTINGS = [
     dependsOn: 'gamepad-enabled',
     tv: { section: 'controls', label: 'CONTROLLER IN BACKGROUND' },
   },
+  {
+    id: 'gamepad-keyboard',
+    path: ['gamepad', 'keyboard'],
+    label: 'On-screen keyboard for text boxes',
+    help: 'Pressing A on a text box opens a keyboard you type on with the controller. On this setup screen the D-pad moves between controls and A presses them.',
+    type: 'switch',
+    default: true,
+    fill: true,
+    home: 'audio/keys',
+    level: 'advanced',
+    synonyms: 'controller gamepad on-screen keyboard osk type text typing letters',
+    dependsOn: 'gamepad-enabled',
+    tv: { section: 'controls', label: 'CONTROLLER KEYBOARD' },
+  },
   // SYSTEM › REMOTE & KEYS › REMOTE BUTTONS: one per button, from the same
   // tables remote/input.js routes with. '' is the button's own default.
   ...REMOTE_BUTTON_SLOTS.map((slot) => ({
