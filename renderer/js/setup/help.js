@@ -555,6 +555,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-17', items: [
+    'On the two cable-guide skins, the pop-up questions in Channel Setup (Add Channel, remove and rename prompts, error messages) now look like the rest of the setup screen: the same buttons, text boxes and wording style. In every theme a button’s label stays on one line, so Add Channel’s four choices no longer wrap.',
+  ] },
   { date: '2026-11-16', items: [
     'The companion app’s NEARBY BOXES search now finds a box this phone has paired with before. It used to list nothing once the phone had been paired, so the address had to be typed again. Needs companion app 0.4.1.',
   ] },

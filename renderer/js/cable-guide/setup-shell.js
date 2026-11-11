@@ -145,6 +145,16 @@ export function installSetupShell() {
       }
     }
   }).observe(screen, { childList: true, subtree: true });
+  // A dialog opened from setup mounts on body, outside the screen; its
+  // buttons and choices read in the same case as the ones behind it.
+  new MutationObserver((records) => {
+    if (!on() || screen.classList.contains('hidden')) return;
+    for (const r of records) {
+      for (const n of r.addedNodes) {
+        if (n.nodeType === 1 && n.matches('.confirm-dialog')) relabelAll(n);
+      }
+    }
+  }).observe(document.body, { childList: true });
 
   const refresh = () => {
     relabelAll(screen);

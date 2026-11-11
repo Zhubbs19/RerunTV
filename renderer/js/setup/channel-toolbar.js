@@ -34,6 +34,7 @@ async function chooseAddChannelSource() {
   return Dialog({
     title: 'ADD CHANNEL',
     message: 'Start empty, use your tagged library, or describe a weekly lineup.',
+    className: 'confirm-dialog confirm-dialog-wide',
     dismissValue: null,
     actions: [
       { label: 'CANCEL', value: null },

@@ -2256,8 +2256,15 @@ html[data-theme] .btn[aria-disabled="true"] {
 .confirm-dialog-actions {
   display: flex;
   justify-content: flex-end;
+  /* A label never breaks inside its button; a row too long for the box
+     wraps whole buttons instead. */
+  flex-wrap: wrap;
   gap: 8px;
 }
+.confirm-dialog-actions .btn { white-space: nowrap; }
+/* A dialog with more than three choices (Add Channel) gets the room to keep
+   them on one row. */
+.confirm-dialog-wide .confirm-dialog-box { max-width: min(560px, 92vw); }
 
 /* Three-page first-run setup (onboarding.js). */
 .onboarding-screen { overflow-y: auto; padding: 24px; }
