@@ -41,10 +41,22 @@ export function subnetCandidates(ip: string): string[] {
   return hosts.map((n) => `${prefix}.${n}`);
 }
 
-// What an unpaired GET / on the companion port looks like.
-export function looksLikeCompanionPairing(status: number, body: string): boolean {
+// What GET / on the companion port looks like. Three answers all mean "a box
+// lives here": the pairing page (this phone is not paired), the companion web
+// page (the request carried a session the box still accepts) and the lockout
+// notice after too many wrong codes.
+export function looksLikeCompanionBox(status: number, body: string): boolean {
+  if (status === 423) return /pairing attempts/i.test(body);
   if (status !== 200 && status !== 401) return false;
-  return /Companion pairing/i.test(body) && /RerunTV/i.test(body);
+  if (/Companion pairing/i.test(body) && /RerunTV/i.test(body)) return true;
+  return status === 200 && /<title>\s*RerunTV Companion\s*<\/title>/i.test(body);
+}
+
+// The directed broadcast address of the /24 `ip` is on. Some phones and routers
+// drop 255.255.255.255 but deliver this one.
+export function subnetBroadcast(ip: string): string | null {
+  if (!isIPv4(ip)) return null;
+  return `${ip.split('.').slice(0, 3).join('.')}.255`;
 }
 
 export function parseDiscoveryReply(text: string, address: string): FoundBox | null {
@@ -84,9 +96,12 @@ async function probe(host: string, port: number, timeoutMs: number, fetchImpl: t
   const onAbort = () => controller.abort();
   outer?.addEventListener('abort', onAbort);
   try {
-    const response = await fetchImpl(`http://${host}:${port}/`, { signal: controller.signal, headers: { Accept: 'text/html' } });
+    // No cookies: pairing leaves a session cookie in the phone's cookie store,
+    // and a probe that carried it would get the companion page, not the
+    // pairing page. Both are recognised anyway, for platforms that send it.
+    const response = await fetchImpl(`http://${host}:${port}/`, { signal: controller.signal, headers: { Accept: 'text/html' }, credentials: 'omit' });
     const body = await response.text();
-    return looksLikeCompanionPairing(response.status, body) ? { host, port, name: null, via: 'scan' } : null;
+    return looksLikeCompanionBox(response.status, body) ? { host, port, name: null, via: 'scan' } : null;
   } catch {
     return null;
   } finally {
@@ -124,7 +139,7 @@ interface UdpSocket {
   close(): void;
 }
 
-export async function udpBroadcast(onFound: (box: FoundBox) => void, listenMs = 2500, signal?: AbortSignal): Promise<boolean> {
+export async function udpBroadcast(onFound: (box: FoundBox) => void, listenMs = 2500, signal?: AbortSignal, addresses: string[] = ['255.255.255.255']): Promise<boolean> {
   let dgram: { createSocket(options: { type: 'udp4' }): UdpSocket } | null = null;
   let BufferImpl: { from(text: string): unknown } | null = null;
   try {
@@ -152,7 +167,14 @@ export async function udpBroadcast(onFound: (box: FoundBox) => void, listenMs = 
         try {
           socket.setBroadcast(true);
           const payload = BufferImpl!.from(DISCOVERY_MAGIC) as { length: number };
-          socket.send(payload, 0, payload.length, DISCOVERY_PORT, '255.255.255.255', (err) => { if (err) finish(false); });
+          // The box answers one request per sender every two seconds, so
+          // asking on more than one address still yields a single reply.
+          let failed = 0;
+          for (const address of addresses) {
+            socket.send(payload, 0, payload.length, DISCOVERY_PORT, address, (err) => {
+              if (err && (failed += 1) === addresses.length) finish(false);
+            });
+          }
           signal?.addEventListener('abort', () => finish(true));
           setTimeout(() => finish(true), listenMs);
         } catch {
@@ -185,7 +207,8 @@ export async function discoverBoxes(options: DiscoverOptions): Promise<void> {
   } catch {
     localIp = null;
   }
-  const udp = udpBroadcast(onFound, 2500, signal);
+  const directed = localIp ? subnetBroadcast(localIp) : null;
+  const udp = udpBroadcast(onFound, 2500, signal, directed ? ['255.255.255.255', directed] : ['255.255.255.255']);
   const scan = localIp ? scanHosts(subnetCandidates(localIp), { signal, onFound, onProgress }) : Promise.resolve(null);
   const [udpRan] = await Promise.all([udp, scan]);
   onMethods?.({ udp: udpRan, scan: localIp !== null, localIp });

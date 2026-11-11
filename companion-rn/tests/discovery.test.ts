@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
-  isIPv4, looksLikeCompanionPairing, mergeFound, parseDiscoveryReply, scanHosts, subnetCandidates, DISCOVERY_REPLY_MAGIC,
+  isIPv4, looksLikeCompanionBox, mergeFound, parseDiscoveryReply, scanHosts, subnetBroadcast, subnetCandidates, DISCOVERY_REPLY_MAGIC,
 } from '../src/lib/discovery.ts';
 
 test('isIPv4 accepts dotted quads only', () => {
@@ -24,10 +24,34 @@ test('subnetCandidates lists the /24 without the phone itself, nearest first', (
 
 test('the pairing page is recognised, other pages are not', () => {
   const page = '<title>Companion pairing</title><p>Enter the pairing code shown by RerunTV on the host.</p>';
-  assert.equal(looksLikeCompanionPairing(200, page), true);
-  assert.equal(looksLikeCompanionPairing(401, page), true);
-  assert.equal(looksLikeCompanionPairing(200, '<title>Router login</title>'), false);
-  assert.equal(looksLikeCompanionPairing(404, page), false);
+  assert.equal(looksLikeCompanionBox(200, page), true);
+  assert.equal(looksLikeCompanionBox(401, page), true);
+  assert.equal(looksLikeCompanionBox(200, '<title>Router login</title>'), false);
+  assert.equal(looksLikeCompanionBox(404, page), false);
+});
+
+test('a box that still accepts this phone, or has locked pairing, is still a box', () => {
+  // A probe that carries an old session cookie gets the companion page itself.
+  assert.equal(looksLikeCompanionBox(200, '<!doctype html><title>RerunTV Companion</title>'), true);
+  assert.equal(looksLikeCompanionBox(401, '<title>RerunTV Companion</title>'), false);
+  assert.equal(looksLikeCompanionBox(423, 'Too many failed pairing attempts. Try again in a few minutes.'), true);
+  assert.equal(looksLikeCompanionBox(423, 'Locked'), false);
+});
+
+test('the scan sends no cookies', async () => {
+  const seen: (RequestCredentials | undefined)[] = [];
+  const fetchImpl = (async (_url: string, init?: RequestInit) => {
+    seen.push(init?.credentials);
+    return new Response('<title>Companion pairing</title> RerunTV', { status: 200 });
+  }) as unknown as typeof fetch;
+  const found = await scanHosts(['192.168.1.9'], { fetchImpl });
+  assert.equal(found.length, 1);
+  assert.deepEqual(seen, ['omit']);
+});
+
+test('subnetBroadcast is the /24 broadcast address', () => {
+  assert.equal(subnetBroadcast('192.168.1.20'), '192.168.1.255');
+  assert.equal(subnetBroadcast('nope'), null);
 });
 
 test('UDP replies: valid, companion off, wrong magic, garbage', () => {
