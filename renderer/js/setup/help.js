@@ -555,6 +555,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-16', items: [
+    'The companion app’s NEARBY BOXES search now finds a box this phone has paired with before. It used to list nothing once the phone had been paired, so the address had to be typed again. Needs companion app 0.4.1.',
+  ] },
   { date: '2026-11-15', items: [
     'A game controller now works on the setup screen: the D-pad or left stick moves between controls, ◀▶ change a list or slider, and A presses the one in focus.',
     'Pressing A on a text box opens an on-screen keyboard you type on with the controller, on the setup screen and anywhere else a text box has focus. It has upper case, lower case and symbols; the bottom-left key switches between them, DONE keeps the text and B cancels. Turn it off with On-screen keyboard for text boxes (SYSTEM › REMOTE & KEYS › GAME CONTROLLER, or SETUP › CONTROLS in the TV menu).',

@@ -4,6 +4,10 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-16
+
+- The companion app’s NEARBY BOXES search now finds a box this phone has paired with before. It used to list nothing once the phone had been paired, so the address had to be typed again. Needs companion app 0.4.1.
+
 ## 2026-11-15
 
 - A game controller now works on the setup screen: the D-pad or left stick moves between controls, ◀▶ change a list or slider, and A presses the one in focus.
