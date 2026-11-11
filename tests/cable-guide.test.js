@@ -280,3 +280,11 @@ test('the skins\' fonts are bundled and credited', () => {
   assert.match(ofl, /Istok Web\s+Copyright \(c\) 2008-2014, Andrey V\. Panov/);
   assert.match(ofl, /Roboto Condensed\s+Copyright 2011 Google Inc\./);
 });
+
+test('setup messages read in sentence case, keeping abbreviations and key names', async () => {
+  const { sentenceLabel } = await load();
+  assert.equal(sentenceLabel('NO AIR CHECKS MARKED. PRESS X WHILE WATCHING TO MARK THE MOMENT.'), 'No air checks marked. Press X while watching to mark the moment.');
+  assert.equal(sentenceLabel('FILTER CHANNELS…'), 'Filter channels…');
+  assert.equal(sentenceLabel('49 OF 50 ENABLED · 2 NEED ATTENTION'), '49 of 50 enabled · 2 need attention');
+  assert.equal(sentenceLabel('OPEN THE GUIDE ON A TV'), 'Open the guide on a TV');
+});

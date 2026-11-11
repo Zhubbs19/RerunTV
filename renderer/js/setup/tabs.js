@@ -126,7 +126,7 @@ const SETUP_SECTION_COPY = {
   guidetm: ['GUIDE & TIME MACHINE', 'The program guide, reminders, and the time machine.'],
   household: ['HOUSEHOLD', 'Who’s watching, recordings, watching together, and the parental lock.'],
   audio: ['SYSTEM', 'Start-up and power, remote and keys, this device, the network, updates, backups and diagnostics.'],
-  plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
+  plugins: ['PLUG-INS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP', 'How the box works, keyboard shortcuts, and what’s new.'],
 };
 // Shorter page descriptions for the simple view.

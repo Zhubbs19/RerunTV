@@ -380,7 +380,7 @@ function renderCheck(root) {
   const actions = h('div', { className: 'library-actions' });
   if (accepted.length) {
     actions.appendChild(Button({
-      label: `BUILD LIBRARY (${plural(accepted.length, 'CHANNEL')})`, variant: 'primary', disabled: !!L.busy,
+      label: `BUILD LIBRARY (${plural(accepted.length, 'CHANNEL', 'CHANNELS')})`, variant: 'primary', disabled: !!L.busy,
       onPress: buildLibrary,
     }));
   }
@@ -849,7 +849,7 @@ function renderGroup(group) {
 
   const open = L.openGroups.has(group.key);
   card.appendChild(h('div', { className: 'library-actions' },
-    Button({ label: `APPLY TO ${plural(count, 'ITEM')}`, variant: 'primary', disabled: !!L.busy || !count, onPress: () => applyGroup(group) }),
+    Button({ label: `APPLY TO ${plural(count, 'ITEM', 'ITEMS')}`, variant: 'primary', disabled: !!L.busy || !count, onPress: () => applyGroup(group) }),
     Button({
       label: open ? 'HIDE ITEMS' : 'CHOOSE ITEMS…', variant: 'quiet', pressed: open,
       onPress: () => { if (open) L.openGroups.delete(group.key); else L.openGroups.add(group.key); renderReviewTags(); },

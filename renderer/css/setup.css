@@ -5295,6 +5295,8 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen [data-setting="household-session"] .setting-row-control .btn { white-space: nowrap; }
 #setup-screen .setting-row-control input[type="range"] { width: 150px; accent-color: var(--accent); }
 #setup-screen .setting-row-control input[type="number"] { width: 72px; }
+/* Its placeholder ("Mode default") is longer than a number. */
+#setup-screen .setting-row-control #leveler-target { width: 124px; }
 #setup-screen .setting-row-control input[type="text"] { width: 190px; }
 #setup-screen .setting-row-control input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
 #setup-screen .setting-row-control .title-row-input { width: min(260px, 100%); }

@@ -556,6 +556,8 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-11-17', items: [
+    'A consistency pass over Channel Setup on the cable-guide skins: every button uses one text size (Remove, Delete and the main action in a panel used to be larger), a remove button is marked by a red rim instead of red lettering, text boxes and lists beside a button are the same height as it, and the PIN, date and password boxes match the others. Labels, hints and empty-list messages that were written in capitals now read in the same case as the buttons.',
+    'The on-screen keyboard is drawn in the cable-guide skin, on the TV screen and in setup.',
     'On the two cable-guide skins, the pop-up questions in Channel Setup (Add Channel, remove and rename prompts, error messages) now look like the rest of the setup screen: the same buttons, text boxes and wording style. In every theme a button’s label stays on one line, so Add Channel’s four choices no longer wrap.',
   ] },
   { date: '2026-11-16', items: [

@@ -92,7 +92,7 @@ function buildCategoryCard(categoryKey, label) {
   const addInput = document.createElement('input');
   addInput.type = 'text';
   addInput.className = 'title-row-input';
-  addInput.placeholder = `ADD A CANONICAL ${label.slice(0, -1)}…`;
+  addInput.placeholder = `ADD ${/^[AEIOU]/.test(label) ? 'AN' : 'A'} ${label.slice(0, -1)}…`;
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'btn';

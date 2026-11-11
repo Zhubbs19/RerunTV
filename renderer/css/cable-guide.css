@@ -1865,13 +1865,19 @@ html[data-ui="cable-guide"][data-theme] #setup-screen .btn:is(.btn-primary, .btn
   color: var(--cg-text) !important;
   text-shadow: var(--cg-text-shadow);
   font-weight: var(--cg-weight);
-  font-size: 15px;
+  /* One size for every button: the primary and remove variants used to keep
+     a larger one than the buttons beside them. */
+  font-size: 12px;
   /* Room inside every bar, matching the room between them. */
   min-height: 34px;
   padding: 6px 18px;
   transform: none;
   filter: none;
 }
+/* The one way out of setup stays the largest thing in the status bar. */
+html[data-ui="cable-guide"][data-theme] #setup-screen #done-btn { font-size: 15px; }
+/* A label stays on one line (Quota: Off). The era picker's cards opt out in setup.css. */
+html[data-ui="cable-guide"] #setup-screen .btn { white-space: nowrap; }
 html[data-ui="cable-guide"] #setup-screen .btn::before { display: none; }
 html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn):is(:focus-visible, .active, [aria-pressed="true"], [aria-selected="true"]):not(:disabled) {
   background: var(--cg-focus-sheen), var(--cg-focus) !important;
@@ -1880,7 +1886,8 @@ html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, 
   outline: none;
 }
 html[data-ui="cable-guide"] #setup-screen .btn:disabled { opacity: .45; }
-html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:focus-visible) { color: var(--cg-rec) !important; }
+/* Destructive buttons keep the readable label and carry a red rim instead of red text on the button colour. */
+html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:focus-visible) { box-shadow: inset 0 0 0 2px var(--cg-rec), var(--cg-lift) !important; }
 html[data-ui="cable-guide"] #setup-screen :is(.setup-subtabs, .edit-tab-bar) { gap: var(--setup-btn-gap); border-bottom: 0; }
 /* Any other row of buttons in setup keeps the same space between them. */
 html[data-ui="cable-guide"] #setup-screen :is(div, span, nav, footer, header):has(> .btn + .btn) { column-gap: var(--setup-btn-gap); }
@@ -1929,7 +1936,7 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control { justify-content
 html[data-ui="cable-guide"] #setup-screen .setting-row:is(:hover, :focus-within) .setting-row-label { color: var(--cg-hilite); }
 
 /* Value bars: selects, on/off switches and text fields share one look. */
-html[data-ui="cable-guide"] #setup-screen :is(select, input[type="text"], input[type="number"], input[type="search"], textarea) {
+html[data-ui="cable-guide"] #setup-screen :is(select, input[type="text"], input[type="number"], input[type="search"], input[type="password"], input[type="url"], input[type="email"], input[type="tel"], input[type="date"], input[type="time"], input[type="datetime-local"], textarea) {
   border: 0;
   border-radius: var(--cg-btn-radius);
   background: var(--cg-sheen), var(--cg-cell);
@@ -1944,6 +1951,11 @@ html[data-ui="cable-guide"] #setup-screen :is(select, input, textarea):focus-vis
   outline: none;
   box-shadow: inset 0 0 0 2px var(--cg-focus);
 }
+/* A field beside a button is as tall as the button. Setting rows keep their
+   own slimmer value bars (below), which line up with each other instead. */
+html[data-ui="cable-guide"] #setup-screen :is(select, input[type="text"], input[type="number"], input[type="search"], input[type="password"], input[type="url"], input[type="email"], input[type="tel"], input[type="date"], input[type="time"], input[type="datetime-local"]) { min-height: 34px; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > :is(select, input[type="text"], input[type="number"], input[type="search"], input[type="password"], input[type="url"], input[type="email"], input[type="tel"], input[type="date"], input[type="time"], input[type="datetime-local"]) { min-height: 28px; }
+html[data-ui="cable-guide"] #setup-screen input[type="datetime-local"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .8; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > select {
   -webkit-appearance: none;
   appearance: none;
@@ -2134,7 +2146,7 @@ html[data-ui="cable-guide"][data-theme] body:has(#setup-screen:not(.hidden)) .co
 html[data-ui="cable-guide"][data-theme] body:has(#setup-screen:not(.hidden)) .confirm-dialog .btn:hover:not(:disabled, :focus) {
   box-shadow: inset 0 0 0 2px var(--cg-focus) !important;
 }
-html[data-ui="cable-guide"][data-theme] body:has(#setup-screen:not(.hidden)) .confirm-dialog .btn.btn-danger:not(:focus) { color: var(--cg-rec) !important; }
+html[data-ui="cable-guide"][data-theme] body:has(#setup-screen:not(.hidden)) .confirm-dialog .btn.btn-danger:not(:focus) { box-shadow: inset 0 0 0 2px var(--cg-rec), var(--cg-lift) !important; }
 html[data-ui="cable-guide"] body:has(#setup-screen:not(.hidden)) .confirm-dialog .btn:disabled { opacity: .45; }
 html[data-ui="cable-guide"] body:has(#setup-screen:not(.hidden)) .confirm-dialog :is(select, input[type="text"], input[type="number"], input[type="search"], input[type="password"], textarea) {
   border: 0;
@@ -2154,6 +2166,50 @@ html[data-ui="cable-guide"] body:has(#setup-screen:not(.hidden)) .confirm-dialog
 }
 html[data-ui="cable-guide"] body:has(#setup-screen:not(.hidden)) .confirm-dialog select option { background-color: var(--cg-cell); color: var(--cg-cell-text); text-shadow: none; }
 html[data-ui="cable-guide"] body:has(#setup-screen:not(.hidden)) .confirm-dialog select option:checked { background-color: var(--cg-focus); color: var(--cg-focus-text); }
+
+/* The on-screen keyboard (ui/on-screen-keyboard.js), on the TV screen and in
+   setup: a dialog box, the typed text as a value bar, and keys as buttons
+   that take the focus fill. */
+html[data-ui="cable-guide"] .osk { background: rgba(0, 0, 0, .6); font-family: var(--cg-font); }
+html[data-ui="cable-guide"] .osk-panel {
+  border: 1px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-dialog);
+  box-shadow: var(--cg-lift);
+}
+html[data-ui="cable-guide"] .osk-title {
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--cg-hilite);
+}
+html[data-ui="cable-guide"] .osk-field {
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-sheen), var(--cg-cell);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  color: var(--cg-cell-text);
+  font-weight: var(--cg-weight);
+  letter-spacing: .04em;
+}
+html[data-ui="cable-guide"] .osk-key {
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift);
+  color: var(--cg-text);
+  font-weight: var(--cg-weight);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .osk-key:focus {
+  outline: none;
+  background: var(--cg-focus-sheen), var(--cg-focus);
+  color: var(--cg-focus-text);
+  text-shadow: none;
+}
+html[data-ui="cable-guide"] .osk-key:hover:not(:focus) { box-shadow: inset 0 0 0 2px var(--cg-focus); }
 
 /* A count on a selected pill (Plug-Ins › Needs Attention 3) reads in the
    focus text colour, not white on the focus fill. */

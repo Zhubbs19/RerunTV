@@ -12,12 +12,19 @@
 //   put back when a legacy theme is chosen.
 import { S, viewNow } from '../core/state.js';
 import { registerCoreHook } from '../plugin/host.js';
-import { CABLE_GUIDE_UI, guideClock, menuLabel } from './model.js';
+import { CABLE_GUIDE_UI, guideClock, menuLabel, sentenceLabel } from './model.js';
 import { currentUiMode } from './mode.js';
 import { currentMessageCount } from './page.js';
 
 const ENVELOPE = '<svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 2h24v16H1zM3 4v.6l10 7 10-7V4zm0 3.1V16h20V7.1l-10 7z"/></svg>';
-const LABELLED = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title, .btn, option, .setup-sidebar-watch-label, .setup-view-btn';
+const LABELLED = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title, .btn, option, .setup-sidebar-watch-label, .setup-view-btn, '
+  // Labels beside a control: the same title case as the buttons.
+  + '.shuffle-toggle, .field-label, .option-label, .flow-label, .box-status-label, .block-count, .custom-sound-row strong, '
+  // Messages and status lines: sentence case.
+  + '.titles-empty, .empty-state-text, .panel-status, .dead-tag-warning';
+const SENTENCES = '.titles-empty, .empty-state-text, .panel-status, .dead-tag-warning';
+// Call letters are written in capitals, so that field's hint stays as it is.
+const PLACEHOLDERS = 'input[placeholder]:not(.call-letters-input), textarea[placeholder]';
 // Buttons and choices are relabelled only while their text is all caps (the
 // legacy house style): a file name or anything the viewer typed is left as is.
 const ALWAYS = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title';
@@ -44,13 +51,33 @@ function relabel(el) {
     if (fresh) el.dataset.legacyLabel = node.data;
     // Keep the spaces around the words (" WATCH TV" follows its ▶ icon).
     const legacy = el.dataset.legacyLabel;
-    const next = legacy.match(/^\s*/)[0] + menuLabel(legacy) + legacy.match(/\s*$/)[0];
+    const recase = el.matches(SENTENCES) ? sentenceLabel : menuLabel;
+    const next = legacy.match(/^\s*/)[0] + recase(legacy.trim()) + legacy.match(/\s*$/)[0];
     el.dataset.cgLabel = next;
     if (node.data !== next) node.data = next;
   } else if (el.dataset.legacyLabel !== undefined) {
     if (node.data === el.dataset.cgLabel) node.data = el.dataset.legacyLabel;
     delete el.dataset.legacyLabel;
     delete el.dataset.cgLabel;
+  }
+}
+
+/**
+ * A field's all-caps hint ("FILTER CHANNELS…") reads in sentence case; the
+ * legacy text is kept and put back on a legacy theme.
+ * @param {HTMLInputElement|HTMLTextAreaElement} el A field with a placeholder.
+ */
+function relabelPlaceholder(el) {
+  if (on()) {
+    const text = el.placeholder;
+    if (text === el.dataset.cgPlaceholder || /[a-z]/.test(text) || !/[A-Z]/.test(text)) return;
+    el.dataset.legacyPlaceholder = text;
+    el.dataset.cgPlaceholder = sentenceLabel(text);
+    el.placeholder = el.dataset.cgPlaceholder;
+  } else if (el.dataset.legacyPlaceholder !== undefined) {
+    if (el.placeholder === el.dataset.cgPlaceholder) el.placeholder = el.dataset.legacyPlaceholder;
+    delete el.dataset.legacyPlaceholder;
+    delete el.dataset.cgPlaceholder;
   }
 }
 
@@ -131,7 +158,10 @@ export function installSetupShell() {
   };
   setInterval(tick, 15000);
 
-  const relabelAll = (root) => root.querySelectorAll(LABELLED).forEach(relabel);
+  const relabelAll = (root) => {
+    root.querySelectorAll(LABELLED).forEach(relabel);
+    root.querySelectorAll(PLACEHOLDERS).forEach(relabelPlaceholder);
+  };
   // Channel tabs and badges are rebuilt as pages change, and the page title
   // is rewritten on every section switch.
   new MutationObserver((records) => {
@@ -141,7 +171,8 @@ export function installSetupShell() {
       for (const n of r.addedNodes) {
         if (n.nodeType !== 1) continue;
         if (n.matches(LABELLED)) relabel(n);
-        else relabelAll(n);
+        if (n.matches(PLACEHOLDERS)) relabelPlaceholder(n);
+        relabelAll(n);
       }
     }
   }).observe(screen, { childList: true, subtree: true });

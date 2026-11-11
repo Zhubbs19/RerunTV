@@ -318,6 +318,32 @@ export function menuLabel(label) {
   });
 }
 
+/**
+ * Turns an all-caps message into sentence case for the cable-guide setup
+ * screen ("NO REMINDERS SET. OPEN THE GUIDE." → "No reminders set. Open the guide.").
+ * Listed abbreviations and single letters (key names such as X) stay in caps.
+ * @param {string} text The legacy all-caps text.
+ * @returns {string} The text in sentence case.
+ */
+export function sentenceLabel(text) {
+  const source = String(text || '');
+  let first = true;
+  return source.replace(/[A-Za-z][A-Za-z'’]*/g, (word, at) => {
+    const upper = word.toUpperCase();
+    const before = source.slice(0, at);
+    if (/[.!?]\s*$/.test(before)) first = true;
+    // A sentence that opens with a number has already started ("49 of 50 enabled").
+    else if (first && /\d[^A-Za-z.!?]*$/.test(before)) first = false;
+    let out;
+    if (upper === 'S' && /\d$/.test(before)) out = 's';
+    else if (KEEP_CASE.has(upper) || (word.length === 1 && upper !== 'A')) out = upper;
+    else if (first) out = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    else out = word.toLowerCase();
+    first = false;
+    return out;
+  });
+}
+
 // The Main Menu grid: two columns of five, filled down each column, a page at
 // a time ("More Choices"). Settings pages are one column of five rows.
 export const MENU_ROWS = 5;
