@@ -555,6 +555,10 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-25', items: [
+    'The guide no longer gets stuck a few days ahead. On a channel with many short files or schedule blocks, ▶ used to stop moving a couple of days out; it now pages as far ahead as you like.',
+    'The guide shows which day you are looking at. On the cable-guide skins the docked guide’s corner shows the day and date (like Sun 11/29) instead of the clock once you leave today, the full-page guide shows the date beside the day, and the time slot where a new day starts is labelled with that day.',
+  ] },
   { date: '2026-11-17', items: [
     'A consistency pass over Channel Setup on the cable-guide skins: every button uses one text size (Remove, Delete and the main action in a panel used to be larger), a remove button is marked by a red rim instead of red lettering, text boxes and lists beside a button are the same height as it, and the PIN, date and password boxes match the others. Labels, hints and empty-list messages that were written in capitals now read in the same case as the buttons.',
     'The on-screen keyboard is drawn in the cable-guide skin, on the TV screen and in setup.',

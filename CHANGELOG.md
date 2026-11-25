@@ -4,6 +4,11 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-25
+
+- The guide no longer gets stuck a few days ahead. On a channel with many short files or schedule blocks, ▶ used to stop moving a couple of days out; it now pages as far ahead as you like.
+- The guide shows which day you are looking at. On the cable-guide skins the docked guide’s corner shows the day and date (like Sun 11/29) instead of the clock once you leave today, the full-page guide shows the date beside the day, and the time slot where a new day starts is labelled with that day.
+
 ## 2026-11-17
 
 - A consistency pass over Channel Setup on the cable-guide skins: every button uses one text size (Remove, Delete and the main action in a panel used to be larger), a remove button is marked by a red rim instead of red lettering, text boxes and lists beside a button are the same height as it, and the PIN, date and password boxes match the others. Labels, hints and empty-list messages that were written in capitals now read in the same case as the buttons.
