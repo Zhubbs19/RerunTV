@@ -187,7 +187,7 @@ jobs:
           # GitHub's list of the commits and pull requests since the previous
           # release below them, for anyone who wants the detail.
           notes="**Unsigned beta:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
-          notes+="Verify that it came from this repository (SHA256SUMS.txt is attached, and 'gh attestation verify <installer> --repo ${{ github.repository }}' checks the build provenance); in SmartScreen choose \"More info\" → \"Run anyway\"."
+          notes+="Verify that it came from this repository (SHA256SUMS.txt is attached, and \`gh attestation verify RerunTV-Setup-*.exe --repo ${{ github.repository }}\` checks the build provenance); in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
           # just build byproducts — without them attached here, in-app "CHECK
           # FOR UPDATES" (main/updater/updater.js) 404s on every check. electron-

@@ -494,16 +494,48 @@ export function mulberry32(seed) {
 // is now a cleaned-up guess (strip season/episode codes and trailing
 
 /**
- * GitHub release notes are markdown; the panels showing them are plain text, so strip the markup
- * (headings, links, bold, bullets) rather than show it raw.
- * @param {?string} markdown The release notes.
+ * Turns release-note HTML (what electron-updater hands over from GitHub's feed) back into the
+ * markdown shape readableReleaseNotes cleans: headings, bullets and paragraphs on their own lines.
+ * @param {string} html The notes as HTML.
+ * @returns {string} Markdown-like text with the tags removed and entities decoded.
+ */
+function releaseHtmlToText(html) {
+  const entities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  return html
+    .replace(/<h[1-6][^>]*>/gi, '\n## ')
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<br\s*\/?>|<\/(p|h[1-6]|li|ul|ol|div)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, code) => {
+      if (code[0] !== '#') return entities[code.toLowerCase()] ?? match;
+      const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : match;
+    })
+    .replace(/[ \t]+\n/g, '\n')
+    // A list item's closing tag and the next one's opening each break the line; keep bullets together.
+    .replace(/\n\s*\n(?=- )/g, '\n');
+}
+
+/**
+ * GitHub release notes are markdown (or HTML, from the updater's feed); the panels showing them are
+ * plain text, so strip the markup (headings, links, bold, bullets) rather than show it raw. When the
+ * notes have a "What's new" section only that is kept: the installer warning above it is for people
+ * downloading, and GitHub's generated commit list below it is for developers.
+ * @param {?string} notes The release notes.
  * @returns {string} Plain text (at most 6000 characters), or a stock line when there are none.
  */
-export function readableReleaseNotes(markdown) {
-  const text = String(markdown || '').trim();
-  if (!text) {
-    return 'RerunTV was updated successfully. Your channels and settings are ready exactly where you left them.';
+export function readableReleaseNotes(notes) {
+  const fallback = 'RerunTV was updated successfully. Your channels and settings are ready exactly where you left them.';
+  let text = String(notes || '').trim();
+  if (/<\/?[a-z][^>]*>/i.test(text)) text = releaseHtmlToText(text).trim();
+  const lines = text.split(/\r?\n/);
+  const whatsNew = lines.findIndex((line) => /^#{1,6}\s*what['’]s new\s*$/i.test(line.trim()));
+  if (whatsNew !== -1) {
+    const rest = lines.slice(whatsNew + 1);
+    const end = rest.findIndex((line) => /^#{1,6}\s*(what['’]s changed|new contributors)\b|^\*\*full changelog\*\*/i.test(line.trim()));
+    text = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
   }
+  if (!text) return fallback;
   return text
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
@@ -511,4 +543,43 @@ export function readableReleaseNotes(markdown) {
     .replace(/^[-*]\s+/gm, '• ')
     .replace(/\n{3,}/g, '\n\n')
     .slice(0, 6000);
+}
+
+/**
+ * Orders two app versions such as `0.2.0-beta.27` and `0.2.0`: numeric parts in
+ * turn, and a prerelease before the release it leads up to.
+ * @param {string} a A version.
+ * @param {string} b Another version.
+ * @returns {number} Negative when a is older, positive when newer, 0 when equal.
+ */
+export function compareAppVersions(a, b) {
+  const parse = (v) => {
+    const [core, pre = ''] = String(v || '').replace(/^v/, '').split('-');
+    return { nums: core.split('.').map((n) => parseInt(n, 10) || 0), pre: pre ? pre.split('.') : [] };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  for (let i = 0; i < 3; i += 1) if ((x.nums[i] || 0) !== (y.nums[i] || 0)) return (x.nums[i] || 0) - (y.nums[i] || 0);
+  if (!x.pre.length || !y.pre.length) return (x.pre.length ? -1 : 0) - (y.pre.length ? -1 : 0);
+  for (let i = 0; i < Math.max(x.pre.length, y.pre.length); i += 1) {
+    const p = x.pre[i];
+    const q = y.pre[i];
+    if (p === undefined || q === undefined) return p === undefined ? -1 : 1;
+    const pn = /^\d+$/.test(p);
+    const qn = /^\d+$/.test(q);
+    if (pn && qn && Number(p) !== Number(q)) return Number(p) - Number(q);
+    if (!(pn && qn) && p !== q) return p < q ? -1 : 1;
+  }
+  return 0;
+}
+
+/**
+ * The post-update card's highlights (update/highlights.js): those a version
+ * added after `fromVersion`. With no `fromVersion`, every highlight that has a `since`.
+ * @param {string} [fromVersion] The version the app was updated from.
+ * @param {Array<object>} list The highlights to filter (`since` on each new one).
+ * @returns {Array<object>} The newer highlights, in list order.
+ */
+export function highlightsSince(fromVersion, list) {
+  return list.filter((h) => h.since && (!fromVersion || compareAppVersions(h.since, fromVersion) > 0));
 }

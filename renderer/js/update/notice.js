@@ -5,9 +5,9 @@
 // meaty enough — a real decision with two buttons, not just a dismiss —
 // to earn its own file.
 import { showSetupScreen } from '../app.js';
-import { renderHighlights } from './highlights.js';
+import { HIGHLIGHTS, renderHighlights } from './highlights.js';
 import { playConfiguredSound } from '../core/audio.js';
-import { readableReleaseNotes } from '../core/util.js';
+import { highlightsSince, readableReleaseNotes } from '../core/util.js';
 import {
   updateToastEl, updateToastTextEl, updateToastViewNotesBtn, updateToastInstallBtn, updateToastDismissBtn,
   updateChangelogEl, updateChangelogVersionEl, updateChangelogTitleEl, updateChangelogBodyEl,
@@ -150,7 +150,11 @@ function showPostUpdate(notice) {
   updateChangelogDoneBtn.textContent = cardText('done');
   updateChangelogBodyEl.textContent = readableReleaseNotes(notice.notes);
   const highlightsEl = document.getElementById('update-changelog-highlights');
-  if (highlightsEl) renderHighlights(highlightsEl, { onGo: () => closePostUpdate(), showSetup: showSetupScreen });
+  if (highlightsEl) {
+    // Only what's new since the version you came from; old highlights live in HELP.
+    const shown = renderHighlights(highlightsEl, { onGo: () => closePostUpdate(), showSetup: showSetupScreen, items: highlightsSince(notice.fromVersion, HIGHLIGHTS) });
+    highlightsEl.classList.toggle('hidden', shown === 0);
+  }
   updateChangelogEl.classList.remove('hidden');
   playConfiguredSound('notification');
   updateChangelogDoneBtn.focus({ preventScroll: true });

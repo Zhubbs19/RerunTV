@@ -3,13 +3,16 @@
 // the right settings page and flashes the setting. Shown under the post-update
 // card and in HELP › WHAT'S NEW. Edit this list when a version ships something
 // worth pointing at; `setting` is a .setting-row data-setting value (optional).
+// `since` is the version that shipped it: the post-update card shows only the
+// highlights newer than the version you updated from (none, no section), and
+// HELP shows them all. An entry without `since` is never shown as new.
 
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 export const HIGHLIGHTS = [
-  { id: 'pause-for-breaks', title: 'Shows pause for their breaks', text: 'A show stops for its commercials and picks up where it left off, so the guide, tuning in and the time machine all agree. Press \\ in the time machine to jump to the end of a break.', tab: 'programming', subtab: 'presets', setting: 'commercials-pause-for-breaks' },
-  { id: 'settings-homes', title: 'Setup, reorganised', text: 'BREAKS, ON SCREEN and a new GUIDE & TIME MACHINE section give each setting one home, with new ones for standby, the sleep timer, PIN relock and the time machine.', tab: 'guidetm', subtab: 'timemachine' },
+  { id: 'pause-for-breaks', title: 'Shows pause for their breaks', text: 'A show stops for its commercials and picks up where it left off, so the guide, tuning in and the time machine all agree. Press \\ in the time machine to jump to the end of a break.', tab: 'programming', subtab: 'presets', setting: 'commercials-pause-for-breaks', since: '0.2.0-beta.27' },
+  { id: 'settings-homes', title: 'Setup, reorganised', text: 'BREAKS, ON SCREEN and a new GUIDE & TIME MACHINE section give each setting one home, with new ones for standby, the sleep timer, PIN relock and the time machine.', tab: 'guidetm', subtab: 'timemachine', since: '0.2.0-beta.27' },
   { id: 'remote-buttons', title: 'Your remote, your buttons', text: 'In TV mode, choose what ◀, ▶, OK, Back and the colour buttons do on live TV.', tab: 'audio', subtab: 'keys' },
   { id: 'found-credits', title: 'Credits squeezed on cue', text: 'Sped-up end credits start where each film’s credits really begin. FIND FADES now finds them too.', tab: 'programming', subtab: 'credits', setting: 'commercials-found-credits' },
   { id: 'act-breaks', title: 'Breaks at the real act breaks', text: 'Line mid-show ad breaks up with the fades to black where a show was originally cut for commercials.', tab: 'programming', subtab: 'presets', setting: 'commercials-snap-fades' },
@@ -68,10 +71,12 @@ export async function goToHighlight(highlight, showSetup) {
  * @param {object} [opts] Hooks.
  * @param {(highlight: object) => *} [opts.onGo] Called (and awaited) before navigating.
  * @param {Function} [opts.showSetup] Passed to goToHighlight.
+ * @param {Array<object>} [opts.items=HIGHLIGHTS] Which highlights to list.
+ * @returns {number} How many rows were added.
  */
-export function renderHighlights(container, { onGo, showSetup } = {}) {
+export function renderHighlights(container, { onGo, showSetup, items = HIGHLIGHTS } = {}) {
   container.innerHTML = '';
-  HIGHLIGHTS.forEach((highlight) => {
+  items.forEach((highlight) => {
     const row = document.createElement('div');
     row.className = 'highlight-row';
     const text = document.createElement('div');
@@ -92,4 +97,5 @@ export function renderHighlights(container, { onGo, showSetup } = {}) {
     row.append(text, button);
     container.appendChild(row);
   });
+  return items.length;
 }

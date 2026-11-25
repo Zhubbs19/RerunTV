@@ -556,6 +556,8 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-11-25', items: [
+    'The docked guide no longer flashes as you move through it: the channel logos down the side used to blink out for a moment on every arrow press.',
+    'The card that appears after an update shows this version’s What’s New as plain text. It used to show the release page’s raw HTML, with the download warning and a list of code changes, and its suggestions included features from many versions back; it now lists only what is new since the version you had.',
     'The guide no longer gets stuck a few days ahead. On a channel with many short files or schedule blocks, ▶ used to stop moving a couple of days out; it now pages as far ahead as you like.',
     'The guide shows which day you are looking at. On the cable-guide skins the docked guide’s corner shows the day and date (like Sun 11/29) instead of the clock once you leave today, the full-page guide shows the date beside the day, and the time slot where a new day starts is labelled with that day.',
   ] },
