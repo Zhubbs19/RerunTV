@@ -5,7 +5,7 @@
 import { showSetupScreen } from '../app.js';
 import { refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { playConfiguredSound, sfxGuideToggle } from '../core/audio.js';
-import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, sortedChannels } from '../core/channels.js';
+import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, setIconSrc, sortedChannels } from '../core/channels.js';
 import {
   crtContainer, giChannelEl, giDescEl, giNumberEl, giRatingEl, giTimeEl, giTitleEl, guideBarFillEl, guideBrandClockEl, guideDateRangeEl, guideGrid,
   guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay,
@@ -94,7 +94,7 @@ function updateGuideLogo(ch) {
   if (ch.icon) {
     const img = document.createElement('img');
     img.alt = '';
-    window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
+    setIconSrc(img, ch.icon);
     guideLogoEl.appendChild(img);
   } else {
     guideLogoEl.style.background = channelColor(ch);

@@ -817,6 +817,33 @@ export function channelColor(ch) {
   return ch.color || badgeColor(ch);
 }
 
+// Icon path -> its app://media URL. The guide rebuilds every row on each move,
+// and waiting on the IPC round trip for each new <img> left the rail's logos
+// blank for a frame or two every time, so the docked guide flashed.
+const iconUrlCache = new Map();
+
+/**
+ * Points an <img> at a channel icon, at once when its URL is already known.
+ * Only local files' URLs are kept: a plugin ref's loopback URL carries a port
+ * that can change.
+ * @param {HTMLImageElement} img The image element.
+ * @param {string} iconPath The icon's path (or media ref).
+ */
+export function setIconSrc(img, iconPath) {
+  const known = iconUrlCache.get(iconPath);
+  if (known) {
+    img.src = known;
+    return;
+  }
+  window.api.toFileUrl(iconPath).then((url) => {
+    if (typeof url === 'string' && url.startsWith('app://')) {
+      if (iconUrlCache.size >= 500) iconUrlCache.clear();
+      iconUrlCache.set(iconPath, url);
+    }
+    img.src = url;
+  });
+}
+
 /**
  * Custom icon if set, otherwise a colored placeholder badge showing the
  * channel number. Editable (click to assign/change) on the setup screen;
@@ -848,7 +875,7 @@ export function buildChannelBadge(ch, opts) {
   if (ch.icon) {
     const img = document.createElement('img');
     img.alt = String(ch.number);
-    window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
+    setIconSrc(img, ch.icon);
     el.appendChild(img);
     // A custom icon otherwise replaces the plain number text entirely —
     // this app is built around typing channel numbers (0-9 direct entry),
