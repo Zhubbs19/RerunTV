@@ -1525,10 +1525,22 @@ export function renderGuideGrid() {
   // that resizes the channel rail doesn't slide every time label off its slot.
   guideTimeHeaderEl.style.gridTemplateColumns = `var(--guide-chan-col, 170px) repeat(${guideSlots()}, 1fr)`;
   // The day label shows on the cable-guide layout only (guide.css hides it).
-  guideTimeHeaderEl.innerHTML = `<div><span class="guide-th-day">${guideDayLabel(S.guideWindowStart, viewNow())}</span>`
+  // Off today it carries the date too, and the docked Mini Guide swaps its
+  // corner clock for it (cable-guide.css), so paging days always shows which.
+  const dayLabel = guideDayLabel(S.guideWindowStart, viewNow());
+  const offToday = dayLabel !== 'Today';
+  const dayText = offToday ? `${dayLabel.slice(0, 3)} ${new Date(S.guideWindowStart).getMonth() + 1}/${new Date(S.guideWindowStart).getDate()}` : dayLabel;
+  guideTimeHeaderEl.innerHTML = `<div${offToday ? ' class="guide-th-otherday"' : ''}><span class="guide-th-day">${dayText}</span>`
     + `<span class="guide-th-now">${guideClock(new Date(viewNow()), !!(S.config.display && S.config.display.clock24), true)}</span></div>` + Array.from(
     { length: guideSlots() },
-    (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * guideSlotMs())}</div>`
+    (_, i) => {
+      const slot = S.guideWindowStart + i * guideSlotMs();
+      // A slot that starts a new day names it, so scrolling past midnight shows.
+      const midnight = i > 0 && new Date(slot).getHours() === 0 && new Date(slot).getMinutes() === 0;
+      const wd = WEEKDAYS[new Date(slot).getDay()];
+      const prefix = midnight ? `<span class="guide-th-newday">${wd.charAt(0)}${wd.slice(1, 3).toLowerCase()}</span>` : '';
+      return `<div class="guide-th-slot">${prefix}${formatSlotLabel(slot)}</div>`;
+    }
   ).join('');
 
   // Gridline spacing tracks the configurable slot count.
@@ -1699,7 +1711,11 @@ export function moveGuideSelectionTime(direction) {
   // The time machine turns the guide into a two-way browser; without it
   // the guide stays live-only and can't scroll into the past.
   const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
-  const rangeStart = floorToSlot(now) - (canRewind ? guideSlotMs() * 8 : 0);
+  // Read around the window, not from now: walking from now hit
+  // getChannelSchedule's segment cap a few days out (each block change is a
+  // segment), the selection fell off the end and ▶ stopped moving.
+  const nearStart = Math.min(S.guideWindowStart, S.guideSelTime) - guideSlotMs() * 8;
+  const rangeStart = canRewind ? nearStart : Math.max(floorToSlot(now), nearStart);
   const rangeEnd = S.guideWindowStart + guideSlotMs() * (guideSlots() + 6);
   // Cells, not raw entries: a merged run of shorts is one step.
   const schedule = guideCells(ch, rangeStart, rangeEnd);

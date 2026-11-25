@@ -793,6 +793,11 @@ html[data-ui="cable-guide"] .guide-grid.docked .guide-search-row {
 html[data-ui="cable-guide"] .guide-grid.docked .guide-hint { display: none; }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-th-day { display: none; }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-th-now { display: inline; }
+/* Paged off today, the corner names the day instead of the clock. */
+html[data-ui="cable-guide"] .guide-grid.docked .guide-th-otherday .guide-th-day { display: inline; font-weight: var(--cg-weight-strong); }
+html[data-ui="cable-guide"] .guide-grid.docked .guide-th-otherday .guide-th-now { display: none; }
+/* A slot that starts a new day names it. */
+html[data-ui="cable-guide"] .guide-grid .guide-th-newday { margin-right: .35em; color: var(--cg-text); font-weight: var(--cg-weight-strong); }
 
 /* ======================================================================
    Flip Bar (cable-guide/flip-bar.js): the channel banner across the bottom
