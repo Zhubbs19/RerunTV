@@ -555,6 +555,13 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-26', items: [
+    'Commercials and bumpers tied to a channel you have since deleted now show up in BREAKS › BUMPER & AD POOL, in groups like “CH 420 (removed)”, so you can move them to another channel or delete them. They used to be listed nowhere, and a new channel given that number would have picked them up.',
+    'Renaming a channel in Channel Setup updates its name in the channel list as you type, instead of only after you left the page.',
+    'In the docked guide, a long program description no longer runs underneath the program’s action buttons.',
+    'The channel mosaic’s channel names, titles and page counter are readable on the cable-guide skins; they used to be dark blue on black.',
+    'HOUSEHOLD › WHO’S WATCHING shows a profile’s theme by its name instead of its internal id, and the TV menu’s setup list reads “Guide & On Screen”.',
+  ] },
   { date: '2026-11-25', items: [
     'Moving a channel up or down from the TV menu now takes its flows, ad presets, ad targets and PIN lock with it, as moving it in Channel Setup always did. They used to stay behind on the old number, so a PIN lock could end up on the channel it swapped with.',
     'A flow aimed at a channel you have since deleted now says so: the channel shows as “(removed)” in the flow’s channel list, and a flow with no channels left warns that it airs nowhere. A new channel given that number would otherwise pick the flow up.',
