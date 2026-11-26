@@ -1299,7 +1299,8 @@ export async function loadPlugins() {
   if (loadErrors.length) {
     // First line only: a main-process error arrives with its stack, full of
     // file paths. The whole text stays on the plugin's row in PLUG-INS.
-    const lines = loadErrors.map((e) => `${e.name}: ${String(e.error).split('\n')[0]}`).join('\n');
+    // The "(main process) Error:" prefix is for the PLUG-INS row, not for people.
+    const lines = loadErrors.map((e) => `${e.name}: ${String(e.error).split('\n')[0].replace(/^\([a-z ]+\)\s*/i, '').replace(/^Error:\s*/, '')}`).join('\n');
     alertDialog(`${loadErrors.length} plugin${loadErrors.length === 1 ? '' : 's'} failed to load:\n\n${lines}\n\nDetails are in Setup › Plug-Ins.`, { variant: 'error', title: 'PLUGIN ERROR' });
   }
   // Also notify any future caller that deliberately reloads/rebuilds plugin

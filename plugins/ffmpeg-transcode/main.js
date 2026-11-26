@@ -24,7 +24,13 @@ async function activate(ctx) {
     ? configuredPath
     : ctx.ffmpegStaticPath;
   if (!resolvedPath || !ctx.fs.existsSync(resolvedPath)) {
-    throw new Error(`bundled ffmpeg binary not found at ${resolvedPath || '(unresolved)'}`);
+    // Shown to people in the plugin error dialog and on the PLUG-INS page, so
+    // say what is missing and what to do, never an internal placeholder.
+    let where;
+    if (configuredPath) where = `The ffmpeg path set in its settings (${configuredPath}) doesn't exist, and no other ffmpeg was found.`;
+    else if (resolvedPath) where = `ffmpeg was expected at ${resolvedPath}, but it isn't there.`;
+    else where = 'ffmpeg isn\'t installed on this computer.';
+    throw new Error(`${where} Use INSTALL FFMPEG… in this plugin's settings (Setup › Plug-Ins), or install ffmpeg yourself, then restart. Until then, fixing unplayable videos and recording are off.`);
   }
   ctx.services.ffmpegPath = resolvedPath;
 }

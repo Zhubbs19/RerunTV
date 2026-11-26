@@ -79,15 +79,63 @@ export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' 
   const load = () => Promise.resolve(window.api.toFileUrl(filePath))
     .then((url) => { media.src = url; })
     .catch(() => fallback());
-  if (window.IntersectionObserver) {
+  // Loads when scrolled near view (again, after releaseMediaThumbnails).
+  const loadWhenSeen = () => {
+    if (!window.IntersectionObserver) { load(); return; }
     const observer = new IntersectionObserver((records) => {
       if (!records.some((record) => record.isIntersecting)) return;
       observer.disconnect();
       load();
     }, { rootMargin: '160px' });
     observer.observe(thumb);
-  } else load();
+  };
+  loadWhenSeen();
+  if (media.tagName === 'VIDEO') {
+    trackVideoThumbnail({
+      thumb,
+      release() {
+        if (!media.getAttribute('src')) return;
+        // An emptied src and load() let the decoder and its frames go.
+        media.removeAttribute('src');
+        media.load();
+        thumb.classList.add('placeholder');
+        labelEl.textContent = String(label || 'MEDIA').slice(0, 5).toUpperCase();
+        media.addEventListener('seeked', ready, { once: true });
+        media.addEventListener('loadeddata', ready, { once: true });
+        media.addEventListener('loadedmetadata', () => {
+          if (media.duration > 1) media.currentTime = Math.min(1, media.duration / 4);
+        }, { once: true });
+        loadWhenSeen();
+      },
+    });
+  }
   return thumb;
+}
+
+// Video thumbnails that may be holding a decoded file. Setup keeps its pages'
+// DOM while TV plays, so without releasing them dozens of decoders stayed open
+// behind live TV.
+const videoThumbnails = new Set();
+
+/**
+ * Remembers a video thumbnail so releaseMediaThumbnails can unload it.
+ * Drops tiles that have left the page once the list grows.
+ * @param {{thumb: HTMLElement, release: () => void}} record The tile and its release step.
+ */
+function trackVideoThumbnail(record) {
+  if (videoThumbnails.size > 400) videoThumbnails.forEach((r) => { if (!r.thumb.isConnected) videoThumbnails.delete(r); });
+  videoThumbnails.add(record);
+}
+
+/**
+ * Unloads every setup video thumbnail (called when setup closes). Each one
+ * loads again the next time it is scrolled into view.
+ */
+export function releaseMediaThumbnails() {
+  videoThumbnails.forEach((record) => {
+    if (!record.thumb.isConnected) { videoThumbnails.delete(record); return; }
+    record.release();
+  });
 }
 
 /**

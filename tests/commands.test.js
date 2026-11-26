@@ -294,6 +294,52 @@ test('removing a channel by command is undoable and restores its position', asyn
   assert.equal(S.config.channels[1].name, 'Workplace Comedy');
 });
 
+test('removing a channel takes its ads and targets with it, and undo brings them back', async () => {
+  const state = await freshState();
+  const { S } = state;
+  S.config.interstitials = {
+    pool: [
+      { id: 'a', type: 'commercial', channelAffinity: 'any' },
+      { id: 'b', type: 'commercial', channelAffinity: 6 },
+      { id: 'c', type: 'adBreakIn', channelAffinity: 5 },
+      { id: 'd', type: 'commercial', channelAffinity: 6 },
+    ],
+    flows: [{ id: 'f1', channels: [6], enabled: true }, { id: 'f2', channels: [5, 6] }],
+    presets: [{ id: 'p1', channels: [6, 7], enabled: true }],
+  };
+  S.config.pinLock = { enabled: true, channels: [6, 9] };
+  S.config.preemptionWindows = [{ channelNumber: 6, start: 1 }, { channelNumber: 5, start: 2 }];
+  state.resetUndoBaseline();
+  const before = JSON.stringify(S.config);
+
+  state.dispatch({ type: 'channel.remove', channel: 6 });
+  const inter = S.config.interstitials;
+  assert.deepEqual(inter.pool.map((e) => e.id), ['a', 'c'], "the channel's own ads go");
+  assert.deepEqual(inter.flows[0], { id: 'f1', channels: [6], enabled: false }, 'a flow aimed only at it is switched off, not widened to every channel');
+  assert.deepEqual(inter.flows[1].channels, [5]);
+  assert.deepEqual(inter.presets[0].channels, [7]);
+  assert.deepEqual(S.config.pinLock.channels, [9]);
+  assert.deepEqual(S.config.preemptionWindows, [{ channelNumber: 5, start: 2 }]);
+
+  state.performUndo();
+  assert.equal(JSON.stringify(S.config), before, 'undo restores the channel and everything that pointed at it');
+  state.performRedo();
+  assert.deepEqual(S.config.interstitials.pool.map((e) => e.id), ['a', 'c']);
+  state.performUndo();
+  assert.equal(JSON.stringify(S.config), before, 'and again after a redo');
+});
+
+test('channel.restoreRefs is safe to apply twice', async () => {
+  const { applyCommand } = await load('core/commands.js');
+  const config = { channels: [{ number: 6, files: [] }], interstitials: { pool: [{ id: 'b', channelAffinity: 6 }] }, pinLock: { channels: [6] } };
+  const inverse = applyCommand(config, { type: 'channel.remove', channel: 6 });
+  const restore = inverse.find((c) => c.type === 'channel.restoreRefs');
+  applyCommand(config, restore);
+  applyCommand(config, restore);
+  assert.deepEqual(config.interstitials.pool.map((e) => e.id), ['b']);
+  assert.deepEqual(config.pinLock.channels, [6]);
+});
+
 test('pushUndoSnapshot makes a wholesale restore one undoable step', async () => {
   const state = await freshState();
   const { S } = state;

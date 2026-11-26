@@ -15,6 +15,22 @@ function searchableText(file) {
 }
 
 /**
+ * Says where a file matches the query, so title matches can be listed first and
+ * the others explained: a search for ROCK that lists a film because its
+ * description mentions rock music should say so.
+ * @param {?object} file The channel file.
+ * @param {string} title Its display title.
+ * @param {string} query The lower-cased query.
+ * @returns {?string} 'title', 'description', 'tags', or null when it doesn't match.
+ */
+function matchKind(file, title, query) {
+  if (String(title || '').toLocaleLowerCase().includes(query)) return 'title';
+  if (file && typeof file.description === 'string' && file.description.toLocaleLowerCase().includes(query)) return 'description';
+  if (file && (file.tags || []).some((t) => String(t).toLocaleLowerCase().includes(query))) return 'tags';
+  return null;
+}
+
+/**
  * Tells whether any file a channel could air matches the query.
  * Lets a search skip expanding the schedule of a channel that can't match.
  * @param {object} channel The channel config.
@@ -40,7 +56,8 @@ function channelCouldMatch(channel, query) {
  * @param {object} [opts] Options.
  * @param {number} [opts.horizonMs] How far ahead to search; defaults to seven days.
  * @param {number} [opts.limit=80] The most results returned.
- * @returns {Array<object>} `{ channel, entry, title }` sorted by start time, then channel number.
+ * @returns {Array<object>} `{ channel, entry, title, match }` (match is 'title', 'description' or 'tags'),
+ *   title matches first, each part by start time, then channel number.
  */
 export function searchUpcomingPrograms(channels, query, fromMs, { horizonMs = 7 * 86400000, limit = 80 } = {}) {
   const q = String(query || '').trim().toLocaleLowerCase();
@@ -58,13 +75,16 @@ export function searchUpcomingPrograms(channels, query, fromMs, { horizonMs = 7 
     const schedule = querySchedule(channel, fromMs, endMs, { breaks: false, offAir: false }).programs;
     for (const entry of schedule) {
       const title = getDisplayTitle(entry.file);
-      const haystack = searchableText(entry.file);
-      if (!haystack.includes(q)) continue;
+      const match = matchKind(entry.file, title, q);
+      if (!match) continue;
       const key = `${channel.number}|${entry.start}|${entry.file && entry.file.path}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      results.push({ channel, entry, title });
+      results.push({ channel, entry, title, match });
     }
   }
-  return results.sort((a, b) => a.entry.start - b.entry.start || a.channel.number - b.channel.number).slice(0, limit);
+  // Title matches first, each part in time order: what was typed is almost
+  // always part of a title, and a description match only says "mentions it".
+  const rank = (r) => (r.match === 'title' ? 0 : 1);
+  return results.sort((a, b) => rank(a) - rank(b) || a.entry.start - b.entry.start || a.channel.number - b.channel.number).slice(0, limit);
 }

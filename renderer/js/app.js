@@ -1056,6 +1056,8 @@ export async function showTvScreen() {
   setupScreen.classList.add('hidden');
   tvScreen.classList.remove('hidden');
   S.isSetupOpen = false;
+  // Setup's video thumbnails would otherwise stay decoded behind live TV.
+  import('./setup/util.js').then((m) => m.releaseMediaThumbnails()).catch(() => {});
   applyCrtState();
   applyPictureMode();
   applyAspectMode();

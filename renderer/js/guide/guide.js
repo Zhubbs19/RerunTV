@@ -3,7 +3,7 @@
 // program reminders. The DOM-free row and cell model is model.js.
 
 import { showSetupScreen } from '../app.js';
-import { refreshPictureArea, toggleCrt } from '../playback/power.js';
+import { flashMessage, refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { playConfiguredSound, sfxGuideToggle } from '../core/audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, setIconSrc, sortedChannels } from '../core/channels.js';
 import {
@@ -23,7 +23,7 @@ import { searchUpcomingPrograms } from './program-search.js';
 import { guideGenreStyleForFile } from './genres.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
 import {
-  autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle, guessSeriesName,
+  autoHideAfter, escapeHtml, floorToSlot, formatOffset, formatSlotLabel, getDisplayTitle, guessSeriesName,
 } from '../core/util.js';
 import { getVirtualBadge, isVirtualChannel, virtualChannelInfo, virtualChannelNumbers } from '../playback/virtual.js';
 import {
@@ -304,7 +304,9 @@ function renderProgramResults(query) {
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'guide-program-result-copy';
-    copy.innerHTML = `<strong>${escapeHtml(result.title)}</strong><span>CH ${formatChannelNumber(result.channel.number)} · ${escapeHtml(result.channel.name || 'UNNAMED')} · ${new Date(result.entry.start).toLocaleString()}</span>`;
+    // Say why a show whose title doesn't contain the query is listed.
+    const why = result.match === 'description' ? ' · IN DESCRIPTION' : (result.match === 'tags' ? ' · TAG' : '');
+    copy.innerHTML = `<strong>${escapeHtml(result.title)}</strong><span>CH ${formatChannelNumber(result.channel.number)} · ${escapeHtml(result.channel.name || 'UNNAMED')} · ${new Date(result.entry.start).toLocaleString()}${why}</span>`;
     copy.addEventListener('click', () => jumpToProgramResult(result));
     const remind = document.createElement('button');
     remind.type = 'button';
@@ -378,7 +380,11 @@ function checkProgramReminders() {
   if (activeReminder && now > activeReminder.end + 60000) dismissActiveReminder();
   if (activeReminder) return;
   const leadMs = (S.config.reminderLeadMinutes || 1) * 60000;
-  const due = reminderList().find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);
+  // A reminder for a channel that has since been removed never fires (it would
+  // tune to nothing); it ages out above. Kept rather than pruned so undoing the
+  // removal brings it back.
+  const due = reminderList().find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end
+    && getChannel(reminder.channelNumber));
   if (!due) return;
   activeReminder = due;
   notifiedReminders.add(due.id);
@@ -1603,6 +1609,12 @@ export function jumpToGuideEntry(ch, entry) {
     updateTimeShiftBadge();
   }
   tuneToChannel(ch.number);
+  // Picking a program that isn't on now moves the view off live. Say so even
+  // with the TIME SHIFT badge turned off, or only the clock would show it.
+  const offset = S.timeOffsetMs;
+  if (Math.abs(offset) >= 60000) {
+    flashMessage(`${offset > 0 ? 'AHEAD OF LIVE' : 'BEHIND LIVE'} ${formatOffset(offset)}${isTvMode() ? '' : ' · L FOR LIVE'}`, 'guideJumpFlash', 4000);
+  }
 }
 
 /**

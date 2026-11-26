@@ -74,14 +74,20 @@ export function openSearchPage() {
       const keyboardHelp = () => page.header.setFocus({
         where: 'Search',
         name: 'Search by Title',
-        help: 'Spell any part of a title. Matching shows are listed on the right.',
+        help: 'Spell any part of a title. Matching shows are listed on the right, then shows whose description or tags mention it.',
       });
 
+      // Why a row is listed when the title doesn't contain what was typed.
+      const whyNote = (match) => {
+        if (match === 'description') return ' <span class="cg-result-why">· in description</span>';
+        if (match === 'tags') return ' <span class="cg-result-why">· tag</span>';
+        return '';
+      };
       // The airings listed right now: one show's when it is open, else all.
       const shown = () => (openGroup ? openGroup.results : results);
       const airingRow = (r, i, withTime) => `
           <button type="button" class="cg-search-result" data-index="${i}" role="listitem">
-            <span class="cg-result-title">${escapeHtml(r.title)}</span>
+            <span class="cg-result-title">${escapeHtml(r.title)}${whyNote(r.match)}</span>
             <span class="cg-result-when">${escapeHtml(guideShortDay(r.entry.start, viewNow()))}${withTime ? ` ${escapeHtml(guideRange(new Date(r.entry.start), new Date(r.entry.end), clock24()))}` : ''}</span>
           </button>`;
 
@@ -99,12 +105,13 @@ export function openSearchPage() {
           listEl.innerHTML = openGroup.results.slice(0, MAX_RESULTS).map((r, i) => airingRow(r, i, true)).join('');
           return;
         }
-        sortEl.textContent = 'Sorted by time';
+        sortEl.textContent = 'Titles first, by time';
         if (groupByTitle()) {
           countEl.textContent = `${groups.length} Show${groups.length === 1 ? '' : 's'}`;
+          // "17 airings", not "(17)": next to "Rocky (1976)" a bare number reads as a year.
           listEl.innerHTML = groups.slice(0, MAX_RESULTS).map((g, i) => `
           <button type="button" class="cg-search-result" data-group="${i}" role="listitem">
-            <span class="cg-result-title">${escapeHtml(g.title)}${g.results.length > 1 ? ` <span class="cg-result-count">(${g.results.length})</span>` : ''}</span>
+            <span class="cg-result-title">${escapeHtml(g.title)}${g.results.length > 1 ? ` <span class="cg-result-count">· ${g.results.length} airings</span>` : ''}${whyNote(g.results[0].match)}</span>
             <span class="cg-result-when">${escapeHtml(guideShortDay(g.results[0].entry.start, viewNow()))}</span>
           </button>`).join('');
           return;

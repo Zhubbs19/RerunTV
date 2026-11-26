@@ -112,9 +112,17 @@ export function renderFlowsList() {
     chSelect.className = 'block-hour-select flow-select';
     chSelect.setAttribute('aria-label', 'Target channels');
     
+    // The select adds a channel; the pills beside it are what the flow targets.
+    // Its resting text used to be ALL CHANNELS, which read as the current
+    // target even when the flow was on one channel.
+    const optAdd = document.createElement('option');
+    optAdd.value = '';
+    optAdd.textContent = 'ADD A CHANNEL…';
+    optAdd.disabled = true;
+    chSelect.appendChild(optAdd);
     const optAll = document.createElement('option');
     optAll.value = 'all';
-    optAll.textContent = 'ALL CHANNELS';
+    optAll.textContent = 'ALL CHANNELS (CLEAR THE LIST)';
     chSelect.appendChild(optAll);
 
     sortedChannels().forEach((c) => {
@@ -175,7 +183,7 @@ export function renderFlowsList() {
           activeFlow.channels.push(num);
         }
       }
-      chSelect.value = 'all';
+      chSelect.value = '';
       renderChannelPills();
       updateFlowStatusBanner(activeFlow);
       commitItemEdit('flows', [activeFlow, prior]);
@@ -183,6 +191,7 @@ export function renderFlowsList() {
       renderFlowPicker(S.config.interstitials.flows);
     });
 
+    chSelect.value = '';
     renderChannelPills();
     channelsContainer.appendChild(chSelect);
     channelsContainer.appendChild(pillsWrap);

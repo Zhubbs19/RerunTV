@@ -76,7 +76,9 @@ async function removeSetupChannel(ch) {
   const detail = ch.files.length
     ? ` and its ${ch.files.length} video${ch.files.length === 1 ? '' : 's'}, schedule, and commercial settings`
     : '';
-  if (!(await confirmDialog(`Remove ${label}${detail}? You can undo this.`))) return;
+  const ads = ((S.config.interstitials && S.config.interstitials.pool) || []).filter((e) => e && e.channelAffinity === ch.number).length;
+  const adsNote = ads ? ` Its ${ads} ad${ads === 1 ? '' : 's'} and bumper${ads === 1 ? '' : 's'} in the ad pool go with it, and flows, ad presets and the PIN lock stop pointing at it.` : '';
+  if (!(await confirmDialog(`Remove ${label}${detail}?${adsNote} You can undo this until you leave setup.`))) return;
   const list = sortedForSetup();
   const at = list.indexOf(ch);
   const next = list[at + 1] || list[at - 1];

@@ -211,9 +211,10 @@ export function toggleMute() {
  * features flashing near each other don't cancel one another's.
  * @param {string} text Message to show.
  * @param {string} timerKey Toast key that names this caller's auto-hide timer.
+ * @param {number} [duration=1500] How long it stays up, in ms.
  */
-export function flashMessage(text, timerKey) {
-  Toast(text, { element: crtToggleFlash, key: timerKey, duration: 1500 });
+export function flashMessage(text, timerKey, duration = 1500) {
+  Toast(text, { element: crtToggleFlash, key: timerKey, duration });
 }
 
 /**

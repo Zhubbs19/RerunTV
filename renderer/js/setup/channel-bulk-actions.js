@@ -159,7 +159,7 @@ document.getElementById('bulk-shift-apply-btn').addEventListener('click', async 
 bulkRemoveBtn.addEventListener('click', async () => {
   const targets = selectedChannels();
   if (!targets.length) return;
-  if (!(await confirmDialog(`Remove ${targets.length} selected channel${targets.length === 1 ? '' : 's'} and all their content/settings? You can undo this.`))) return;
+  if (!(await confirmDialog(`Remove ${targets.length} selected channel${targets.length === 1 ? '' : 's'} and all their content, settings and ads? You can undo this until you leave setup.`))) return;
   dispatch(targets.map((c) => ({ type: 'channel.remove', channel: c.number })),
     { label: `Remove ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
   S.bulkSelectedChannels.clear();

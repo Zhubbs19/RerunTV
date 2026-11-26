@@ -279,6 +279,8 @@ body:has(.crt.power-off) #guide-overlay {
   pointer-events: none;
 }
 .vcr-osd-row { display: flex; align-items: baseline; gap: 12px; }
+/* The calendar (D) covers the time machine; its strip must not show through. */
+html.time-calendar-open .vcr-osd { visibility: hidden; }
 
 /* The time machine as a bottom scrubber strip (docs/design/11 §3.1): the VCR
    readout stays in its top row, the strip spans the screen under it. */

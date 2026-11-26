@@ -5121,6 +5121,9 @@ html[data-theme] .btn[aria-disabled="true"] {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* A size container, so a pane inside can be as tall as what is actually
+     visible (cqh) rather than a guess at the header and status bar. */
+  container-type: size;
   scrollbar-gutter: stable;
   padding: 18px 24px 24px;
 }
@@ -5184,9 +5187,10 @@ html[data-theme] .btn[aria-disabled="true"] {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  /* Viewport less the header, status bar and filter row, so the list scrolls
-     beside a long editor instead of running off the screen. */
-  max-height: calc(100vh - 190px);
+  /* The scroll pane's visible height less its padding and the filter row
+     above, so the footer buttons (CHECK CHANNELS) stay on screen at any window
+     size and the list scrolls beside a long editor instead. */
+  max-height: calc(100cqh - 96px);
   min-height: 0;
 }
 #setup-screen .channel-list-pane {

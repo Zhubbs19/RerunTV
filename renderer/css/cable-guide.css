@@ -1708,6 +1708,8 @@ html[data-ui="cable-guide"] .cg-search-result {
 html[data-ui="cable-guide"] :is(.cg-result-title, .cg-bychan-title, .cg-msg-text) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 /* A show's number of airings beside its title (Search grouped by title). */
 html[data-ui="cable-guide"] .cg-result-count { opacity: .75; }
+/* Why a non-title match is listed ("· in description"). */
+html[data-ui="cable-guide"] .cg-result-why { opacity: .6; font-weight: var(--cg-weight); }
 
 /* Listings by Channel: a channel bar over time | title rows. */
 html[data-ui="cable-guide"] .cg-bychan-bar {

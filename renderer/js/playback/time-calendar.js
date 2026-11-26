@@ -54,6 +54,7 @@ export function closeTimeCalendar() {
   stopDayRows();
   if (surface) surface.close();
   surface = null;
+  document.documentElement.classList.remove('time-calendar-open');
 }
 
 /**
@@ -168,6 +169,9 @@ export function openTimeCalendar(options = {}) {
   const realToday = dateFromMs(Date.now()); // the wall-clock "today" marker, not the viewed time
 
   surface = ModalSurface({ className: 'time-calendar', label: 'Time machine calendar', onCancel: closeTimeCalendar });
+  // The time machine's strip and OSD hide while the calendar is up (D from the
+  // time machine used to leave the strip showing through behind it).
+  document.documentElement.classList.add('time-calendar-open');
   const root = surface.el;
   root.addEventListener('mousedown', (e) => { if (e.target === root) closeTimeCalendar(); });
 

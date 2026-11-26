@@ -639,18 +639,124 @@ registerCommand('channel.rename', {
   },
 });
 
+/**
+ * Clears what pointed at a channel that is being removed, so nothing lingers on
+ * its number for a later channel to inherit: its own ads and bumpers (pool
+ * entries tied to it), its place in flow, ad-preset and PIN-lock channel lists,
+ * and its preemption windows. A flow or preset aimed at this channel alone is
+ * switched off instead, because an empty channel list means every channel.
+ * @param {object} config The config to change in place.
+ * @param {number} number The channel number being removed.
+ * @returns {object} What was there before, for `channel.restoreRefs`; empty lists when nothing pointed at it.
+ */
+export function dropChannelRefs(config, number) {
+  const saved = { pool: [], flows: [], presets: [], pinLock: null, preemption: [] };
+  const inter = config.interstitials;
+  if (inter && Array.isArray(inter.pool)) {
+    for (let i = inter.pool.length - 1; i >= 0; i--) {
+      const entry = inter.pool[i];
+      if (entry && entry.channelAffinity === number) {
+        saved.pool.unshift({ index: i, entry: cloneJson(entry) });
+        inter.pool.splice(i, 1);
+      }
+    }
+  }
+  const trimTargets = (list, into) => (Array.isArray(list) ? list : []).forEach((item, index) => {
+    if (!item || !Array.isArray(item.channels) || !item.channels.includes(number)) return;
+    into.push({ index, id: item.id, channels: item.channels.slice(), enabled: item.enabled });
+    if (item.channels.length === 1) item.enabled = false;
+    else item.channels.splice(0, item.channels.length, ...item.channels.filter((n) => n !== number));
+  });
+  if (inter) {
+    trimTargets(inter.flows, saved.flows);
+    trimTargets(inter.presets, saved.presets);
+  }
+  if (config.pinLock && Array.isArray(config.pinLock.channels) && config.pinLock.channels.includes(number)) {
+    saved.pinLock = config.pinLock.channels.slice();
+    config.pinLock.channels.splice(0, config.pinLock.channels.length, ...config.pinLock.channels.filter((n) => n !== number));
+  }
+  if (Array.isArray(config.preemptionWindows)) {
+    for (let i = config.preemptionWindows.length - 1; i >= 0; i--) {
+      const w = config.preemptionWindows[i];
+      if (w && w.channelNumber === number) {
+        saved.preemption.unshift({ index: i, window: cloneJson(w) });
+        config.preemptionWindows.splice(i, 1);
+      }
+    }
+  }
+  return saved;
+}
+
+/**
+ * Whether `dropChannelRefs` changed anything.
+ * @param {object} saved Its return value.
+ * @returns {boolean} True when there is something to restore.
+ */
+function droppedAnything(saved) {
+  return !!(saved.pool.length || saved.flows.length || saved.presets.length || saved.pinLock || saved.preemption.length);
+}
+
 registerCommand('channel.remove', {
-  touches() { return ['channels']; },
+  touches() { return CHANNEL_REF_TOUCHES; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
   },
   apply(config, cmd) {
     const index = config.channels.findIndex((ch) => ch.number === cmd.channel);
     const [removed] = config.channels.splice(index, 1);
-    return [{ type: 'channel.insert', index, channel: cloneJson(removed) }];
+    const saved = dropChannelRefs(config, cmd.channel);
+    const inverse = [{ type: 'channel.insert', index, channel: cloneJson(removed) }];
+    // Undo applies a command's inverses from the last one back, so the channel
+    // is back before its references are.
+    if (droppedAnything(saved)) inverse.unshift({ type: 'channel.restoreRefs', channel: cmd.channel, saved });
+    return inverse;
   },
   describe(config, cmd) {
     return `Remove CH ${cmd.channel}`;
+  },
+});
+
+// The undo half of channel.remove's reference clean-up. Safe to apply twice
+// (a host replay can): an entry already back is not added again.
+registerCommand('channel.restoreRefs', {
+  touches() { return CHANNEL_REF_TOUCHES; },
+  apply(config, cmd) {
+    const saved = cmd.saved || {};
+    const inter = config.interstitials || (config.interstitials = {});
+    if ((saved.pool || []).length) {
+      if (!Array.isArray(inter.pool)) inter.pool = [];
+      saved.pool.forEach(({ index, entry }) => {
+        const back = entry.id != null && inter.pool.some((e) => e && e.id === entry.id);
+        if (!back) inter.pool.splice(Math.min(index, inter.pool.length), 0, cloneJson(entry));
+      });
+    }
+    const restoreTargets = (list, records) => (records || []).forEach((rec) => {
+      const item = Array.isArray(list) ? (list.find((x) => x && rec.id != null && x.id === rec.id) || list[rec.index]) : null;
+      if (!item) return;
+      item.channels = rec.channels.slice();
+      if (rec.enabled === undefined) delete item.enabled;
+      else item.enabled = rec.enabled;
+    });
+    restoreTargets(inter.flows, saved.flows);
+    restoreTargets(inter.presets, saved.presets);
+    if (saved.pinLock) {
+      if (!config.pinLock) config.pinLock = {};
+      config.pinLock.channels = saved.pinLock.slice();
+    }
+    if ((saved.preemption || []).length) {
+      if (!Array.isArray(config.preemptionWindows)) config.preemptionWindows = [];
+      saved.preemption.forEach(({ index, window }) => {
+        const same = JSON.stringify(window);
+        if (!config.preemptionWindows.some((w) => JSON.stringify(w) === same)) {
+          config.preemptionWindows.splice(Math.min(index, config.preemptionWindows.length), 0, cloneJson(window));
+        }
+      });
+    }
+    // Redo re-runs channel.remove itself, which drops these again.
+    return [];
+  },
+  describe(config, cmd) {
+    return `Restore CH ${cmd.channel}'s ads and targets`;
   },
 });
 
