@@ -288,3 +288,16 @@ test('setup messages read in sentence case, keeping abbreviations and key names'
   assert.equal(sentenceLabel('49 OF 50 ENABLED · 2 NEED ATTENTION'), '49 of 50 enabled · 2 need attention');
   assert.equal(sentenceLabel('OPEN THE GUIDE ON A TV'), 'Open the guide on a TV');
 });
+
+test('content ratings keep their capitals in menu and sentence labels', async () => {
+  const { menuLabel, sentenceLabel } = await load();
+  for (const label of [menuLabel, sentenceLabel]) {
+    assert.equal(label('TV-MA'), 'TV-MA');
+    assert.equal(label('TV-PG'), 'TV-PG');
+    assert.equal(label('TV-Y7-FV'), 'TV-Y7-FV');
+    assert.equal(label('PG-13'), 'PG-13');
+    assert.equal(label('NC-17'), 'NC-17');
+    assert.equal(label('NR'), 'NR');
+  }
+  assert.equal(menuLabel('TV SHOWS'), 'TV Shows');
+});

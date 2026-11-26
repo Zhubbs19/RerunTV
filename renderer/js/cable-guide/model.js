@@ -292,6 +292,21 @@ export function guideShortDay(start, now) {
 // "Channels"). Abbreviations and symbols keep their case.
 const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR', 'CSS', 'DVD', 'URL', 'IP', 'CC', 'FX',
   'VHS', 'UHF', 'VHF', 'HDMI', 'CEC', 'EAS', 'OSD', 'ZIP', 'JSON', 'CSV', 'MP', 'MKV', 'USB', 'UI', 'API', 'NTSC', 'PAL']);
+// Content ratings are proper codes, never recased: PG-13, NC-17, NR, and every part of a
+// TV rating after "TV-" (TV-MA, TV-PG, TV-Y7-FV).
+const RATING_WORDS = new Set(['PG', 'NC', 'NR']);
+const TV_RATING_PREFIX = /\bTV-(?:[A-Za-z0-9]+-)*$/i;
+
+/**
+ * Whether a word is (part of) a content rating code that must stay in capitals.
+ * @param {string} upper The word in upper case.
+ * @param {string} before The text before the word.
+ * @returns {boolean} True for a rating code part.
+ */
+function isRatingWord(upper, before) {
+  return RATING_WORDS.has(upper) || TV_RATING_PREFIX.test(before);
+}
+
 const LOWER_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 /**
@@ -310,7 +325,7 @@ export function menuLabel(label) {
     let out;
     // A decade: "1970S" → "1970s".
     if (upper === 'S' && /\d$/.test(text.slice(0, at))) out = 's';
-    else if (KEEP_CASE.has(upper)) out = upper;
+    else if (KEEP_CASE.has(upper) || isRatingWord(upper, text.slice(0, at))) out = upper;
     else if (!first && LOWER_WORDS.has(word.toLowerCase())) out = word.toLowerCase();
     else out = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     first = false;
@@ -336,7 +351,7 @@ export function sentenceLabel(text) {
     else if (first && /\d[^A-Za-z.!?]*$/.test(before)) first = false;
     let out;
     if (upper === 'S' && /\d$/.test(before)) out = 's';
-    else if (KEEP_CASE.has(upper) || (word.length === 1 && upper !== 'A')) out = upper;
+    else if (KEEP_CASE.has(upper) || isRatingWord(upper, before) || (word.length === 1 && upper !== 'A')) out = upper;
     else if (first) out = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     else out = word.toLowerCase();
     first = false;

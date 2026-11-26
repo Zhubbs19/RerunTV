@@ -3946,6 +3946,13 @@ html[data-theme] .btn[aria-disabled="true"] {
   border-color: rgba(244, 63, 94, 0.4);
 }
 
+/* A target channel that has since been deleted. */
+.flow-channel-pill.is-missing {
+  color: var(--danger-text);
+  border-color: rgba(var(--danger-rgb), 0.55);
+  border-style: dashed;
+}
+
 .flow-channel-pill .pill-remove {
   cursor: pointer;
   opacity: 0.7;

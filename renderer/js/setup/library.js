@@ -793,7 +793,7 @@ function renderScanReview() {
           Button({ label: 'SOMETHING ELSE — CATALOGUE AS NEW', variant: 'quiet', disabled: !!L.busy, onPress: () => resolveReview(rootId, { kind: 'replaced', itemId: entry.item, keep: false }) }))));
     });
     if (report.missing && report.missing.length) {
-      root.appendChild(note(`${plural(report.missing.length, 'catalogued file')} weren’t found in ${where} on the last scan. They are kept — an unplugged drive looks the same as a deleted folder.`));
+      root.appendChild(note(`${plural(report.missing.length, 'catalogued file')} ${report.missing.length === 1 ? 'wasn’t' : 'weren’t'} found in ${where} on the last scan. ${report.missing.length === 1 ? 'It is' : 'They are'} kept — an unplugged drive looks the same as a deleted folder.`));
     }
   });
   if (!waiting) root.prepend(EmptyState({ message: 'Nothing is waiting. A scan puts a file here when it can’t tell for sure what changed.' }));

@@ -548,8 +548,45 @@ registerCommand('channel.setFields', {
   },
 });
 
+/**
+ * Renumbering or swapping channels must carry every number-keyed reference with
+ * it, or ads/flows/presets/PIN locks silently end up pointing at whichever channel
+ * now holds the old number. `map` is a Map (or plain object) of oldNumber ->
+ * newNumber; a swap is just both directions in one map. Arrays are rewritten in
+ * place so object identity survives. Pool channelAffinity may be 'any' (left alone).
+ * Favorites live in the personal-profile store, not config, and are not touched here.
+ * @param {?object} config The config to rewrite in place.
+ * @param {Map<number, number>|object} map Old channel number to new.
+ */
+export function remapChannelRefs(config, map) {
+  if (!config) return;
+  const lookup = map instanceof Map ? map : new Map(Object.entries(map).map(([k, v]) => [Number(k), v]));
+  const get = (n) => (typeof n === 'number' && lookup.has(n) ? lookup.get(n) : n);
+  const mapArray = (arr) => {
+    if (!Array.isArray(arr) || !arr.length) return;
+    const next = arr.map(get);
+    arr.splice(0, arr.length, ...next);
+  };
+  const inter = config.interstitials;
+  if (inter) {
+    (inter.pool || []).forEach((e) => { if (e && typeof e.channelAffinity === 'number') e.channelAffinity = get(e.channelAffinity); });
+    (inter.presets || []).forEach((p) => p && mapArray(p.channels));
+    (inter.flows || []).forEach((f) => f && mapArray(f.channels));
+  }
+  if (config.pinLock) mapArray(config.pinLock.channels);
+  (Array.isArray(config.preemptionWindows) ? config.preemptionWindows : []).forEach((w) => {
+    if (w && typeof w.channelNumber === 'number') w.channelNumber = get(w.channelNumber);
+  });
+}
+
+// What a renumber or swap rewrites besides the channel itself (remapChannelRefs).
+const CHANNEL_REF_TOUCHES = ['channels', 'interstitials', 'pinLock', 'preemptionWindows'];
+
+// Both carry the channel's references (flows, presets, ad affinity, PIN locks) with
+// the number, so a TV-menu or remote move can't leave them on the wrong channel.
+// The inverse is the same command type, so undo carries them back.
 registerCommand('channel.renumber', {
-  touches() { return ['channels']; },
+  touches() { return CHANNEL_REF_TOUCHES; },
   validate(config, cmd) {
     requireChannel(config, cmd.from);
     if (!Number.isFinite(cmd.to)) throw new Error('channel.renumber needs a number');
@@ -557,6 +594,7 @@ registerCommand('channel.renumber', {
   },
   apply(config, cmd) {
     findChannel(config, cmd.from).number = cmd.to;
+    if (cmd.to !== cmd.from) remapChannelRefs(config, new Map([[cmd.from, cmd.to]]));
     return [{ type: 'channel.renumber', from: cmd.to, to: cmd.from }];
   },
   describe(config, cmd) {
@@ -566,7 +604,7 @@ registerCommand('channel.renumber', {
 
 // Two channels trade numbers (move up/down, drag to reorder).
 registerCommand('channel.swapNumbers', {
-  touches() { return ['channels']; },
+  touches() { return CHANNEL_REF_TOUCHES; },
   validate(config, cmd) {
     requireChannel(config, cmd.a);
     requireChannel(config, cmd.b);
@@ -575,6 +613,7 @@ registerCommand('channel.swapNumbers', {
     const a = findChannel(config, cmd.a);
     const b = findChannel(config, cmd.b);
     [a.number, b.number] = [b.number, a.number];
+    if (cmd.a !== cmd.b) remapChannelRefs(config, new Map([[cmd.a, cmd.b], [cmd.b, cmd.a]]));
     // Written the other way round so it never reads as "changes nothing".
     return [{ type: 'channel.swapNumbers', a: cmd.b, b: cmd.a }];
   },

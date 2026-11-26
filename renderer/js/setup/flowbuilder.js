@@ -139,8 +139,12 @@ export function renderFlowsList() {
         selected.forEach((num) => {
           const chObj = getChannel(num);
           const pill = document.createElement('span');
-          pill.className = 'flow-channel-pill';
-          pill.textContent = `CH ${String(num).padStart(2, '0')}${chObj && chObj.name ? ' (' + chObj.name + ')' : ''} `;
+          pill.className = `flow-channel-pill${chObj ? '' : ' is-missing'}`;
+          // A deleted channel's number stays in the list; say so, since a new channel
+          // given that number later would pick the flow up.
+          const label = chObj ? (chObj.name ? ` (${chObj.name})` : '') : ' (removed)';
+          pill.textContent = `CH ${String(num).padStart(2, '0')}${label} `;
+          if (!chObj) pill.title = 'This channel no longer exists. Remove it here, or a new channel with this number will use this flow.';
           const removeBtn = document.createElement('span');
           removeBtn.className = 'pill-remove';
           removeBtn.textContent = '✕';
@@ -241,7 +245,9 @@ function renderFlowPicker(flows) {
     const meta = document.createElement('span');
     meta.className = 'flow-list-meta';
     const steps = (flow.steps || []).length;
-    const channels = (flow.channels || []).length ? (flow.channels || []).map((n) => `CH ${formatChannelNumber(n)}`).join(', ') : 'ALL CHANNELS';
+    const channels = (flow.channels || []).length
+      ? (flow.channels || []).map((n) => `CH ${formatChannelNumber(n)}${getChannel(n) ? '' : ' (removed)'}`).join(', ')
+      : 'ALL CHANNELS';
     meta.textContent = `${steps} step${steps === 1 ? '' : 's'} · ${flow.enabled === false ? 'OFF' : 'ON'} · ${channels}`;
     const text = document.createElement('span');
     text.className = 'flow-list-text';
@@ -599,8 +605,14 @@ function updateFlowStatusBanner(flow) {
 
   banner.className = 'flow-status-banner';
   const chs = flow.channels || [];
+  const live = chs.filter((n) => getChannel(n));
+  if (chs.length && !live.length) {
+    banner.className = 'flow-status-banner disabled';
+    banner.textContent = `⚠ EVERY TARGET CHANNEL HAS BEEN REMOVED — THIS FLOW AIRS NOWHERE UNTIL YOU PICK A CHANNEL`;
+    return;
+  }
   const chsStr = chs.length
-    ? chs.map((n) => `CH ${String(n).padStart(2, '0')}`).join(', ')
+    ? live.map((n) => `CH ${String(n).padStart(2, '0')}`).join(', ')
     : 'ALL CHANNELS';
 
   const tags = flow.contentTags || [];

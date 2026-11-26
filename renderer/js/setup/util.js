@@ -336,36 +336,9 @@ export function commitOwnerFields(owner, fields, opts = {}) {
   return commitInPlace(ownerFieldsCommand(owner, fields), opts);
 }
 
-/**
- * Renumbering or swapping channels must carry every number-keyed reference with
- * it, or ads/flows/presets/PIN locks silently end up pointing at whichever channel
- * now holds the old number. `map` is a Map (or plain object) of oldNumber ->
- * newNumber; a swap is just both directions in one map. Arrays are rewritten in
- * place so object identity survives. Pool channelAffinity may be 'any' (left alone).
- * Favorites live in the personal-profile store, not config, and are not touched here.
- * @param {?object} config The config to rewrite in place.
- * @param {Map<number, number>|object} map Old channel number to new.
- */
-export function remapChannelRefs(config, map) {
-  if (!config) return;
-  const lookup = map instanceof Map ? map : new Map(Object.entries(map).map(([k, v]) => [Number(k), v]));
-  const get = (n) => (typeof n === 'number' && lookup.has(n) ? lookup.get(n) : n);
-  const mapArray = (arr) => {
-    if (!Array.isArray(arr) || !arr.length) return;
-    const next = arr.map(get);
-    arr.splice(0, arr.length, ...next);
-  };
-  const inter = config.interstitials;
-  if (inter) {
-    (inter.pool || []).forEach((e) => { if (e && typeof e.channelAffinity === 'number') e.channelAffinity = get(e.channelAffinity); });
-    (inter.presets || []).forEach((p) => p && mapArray(p.channels));
-    (inter.flows || []).forEach((f) => f && mapArray(f.channels));
-  }
-  if (config.pinLock) mapArray(config.pinLock.channels);
-  (Array.isArray(config.preemptionWindows) ? config.preemptionWindows : []).forEach((w) => {
-    if (w && typeof w.channelNumber === 'number') w.channelNumber = get(w.channelNumber);
-  });
-}
+// Renumber/swap reference rewriting lives with the channel commands (core/commands.js), so
+// every path that moves a channel number, the TV menu and remote control included, uses it.
+export { remapChannelRefs } from '../core/commands.js';
 
 /**
  * Parses a string as a positive integer, falling back when it isn't one —

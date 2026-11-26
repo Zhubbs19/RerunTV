@@ -596,3 +596,36 @@ test("this client's own echo advances the revision without applying the commands
   assert.equal(state.getHostRevision(), echo.revision, 'but the revision moves');
   assert.equal(state.S.config.interstitials.pool.length, poolLength, 'an insert did not run twice');
 });
+
+test('renumbering or swapping a channel carries its flows, presets, ad affinity and PIN lock', async () => {
+  const { applyCommand } = await load('core/commands.js');
+  const config = {
+    channels: [{ number: 7, name: 'A' }, { number: 9, name: 'B' }],
+    interstitials: {
+      flows: [{ id: 'f', channels: [7] }],
+      presets: [{ id: 'p', channels: [9, 12] }],
+      pool: [{ id: 'ad', channelAffinity: 7 }, { id: 'any', channelAffinity: 'any' }],
+    },
+    pinLock: { channels: [9] },
+    preemptionWindows: [{ channelNumber: 7 }],
+  };
+  // The TV menu's MOVE UP/DOWN sends a bare swap: references must follow the channels.
+  const swapInverse = applyCommand(config, { type: 'channel.swapNumbers', a: 7, b: 9 });
+  assert.deepEqual(config.interstitials.flows[0].channels, [9]);
+  assert.deepEqual(config.interstitials.presets[0].channels, [7, 12]);
+  assert.equal(config.interstitials.pool[0].channelAffinity, 9);
+  assert.equal(config.interstitials.pool[1].channelAffinity, 'any');
+  assert.deepEqual(config.pinLock.channels, [7]);
+  assert.equal(config.preemptionWindows[0].channelNumber, 9);
+  swapInverse.forEach((inv) => applyCommand(config, inv));
+  assert.deepEqual(config.interstitials.flows[0].channels, [7]);
+  assert.deepEqual(config.pinLock.channels, [9]);
+
+  const renumberInverse = applyCommand(config, { type: 'channel.renumber', from: 7, to: 17 });
+  assert.equal(config.channels[0].number, 17);
+  assert.deepEqual(config.interstitials.flows[0].channels, [17]);
+  assert.equal(config.preemptionWindows[0].channelNumber, 17);
+  renumberInverse.forEach((inv) => applyCommand(config, inv));
+  assert.deepEqual(config.interstitials.flows[0].channels, [7]);
+  assert.equal(config.interstitials.pool[0].channelAffinity, 7);
+});
