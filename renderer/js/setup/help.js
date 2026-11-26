@@ -556,6 +556,12 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-11-26', items: [
+    'Plug-ins that run in their own process now start the first time something uses them instead of all at once when RerunTV opens, which saves a lot of memory on a box with many plug-ins (each one is about 70 MB). Turn it off with Start plug-ins only when needed (SYSTEM › POWER & PLAYBACK, or the TV menu’s SETUP › POWER & PLAYBACK).',
+    'Removing a channel now takes its own commercials and bumpers with it and takes it out of flows, ad presets and the PIN lock. A flow or preset aimed only at that channel is switched off rather than left to air everywhere. Undo brings it all back.',
+    'Search lists shows whose title matches first. A show found because its description or tags mention what you typed now says so (“in description”, “tag”), and a show’s number of airings reads “17 airings” instead of “(17)”, which looked like a year.',
+    'Picking a program that isn’t on now from the guide shows how far ahead of or behind live you are, even with the TIME SHIFT badge turned off. Press L to go back to live.',
+    'When ffmpeg is missing, the message now says it isn’t installed and how to add it, instead of “binary not found at (unresolved)”.',
+    'CHECK CHANNELS stays above the status bar in a small window, the time machine’s strip no longer shows through behind its calendar, a flow’s channel picker reads “Add a channel…” instead of looking like the flow’s target, and setup’s video thumbnails are let go while you watch TV.',
     'Commercials and bumpers tied to a channel you have since deleted now show up in BREAKS › BUMPER & AD POOL, in groups like “CH 420 (removed)”, so you can move them to another channel or delete them. They used to be listed nowhere, and a new channel given that number would have picked them up.',
     'Renaming a channel in Channel Setup updates its name in the channel list as you type, instead of only after you left the page.',
     'In the docked guide, a long program description no longer runs underneath the program’s action buttons.',
