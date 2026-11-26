@@ -144,6 +144,7 @@ function validateManifest(dir, manifestPath, base = 'plugins') {
     }
   }
   if (m.isolated !== undefined && typeof m.isolated !== 'boolean') errors.push(`${tag}: "isolated" must be a boolean`);
+  if (m.startAtBoot !== undefined && typeof m.startAtBoot !== 'boolean') errors.push(`${tag}: "startAtBoot" must be a boolean`);
   if (m.userPaths !== undefined && !m.dataDir) {
     errors.push(`${tag}: "userPaths" needs a "dataDir" too — it widens where a plugin may write, it doesn't replace having somewhere of its own`);
   }

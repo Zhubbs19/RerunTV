@@ -129,6 +129,7 @@ make that call.
 | `userPaths` | no | Name of one of your plugin's OWN settings (or a dotted path into the box config, e.g. `party.soundboardFolder`) holding a folder (or a list of folders) the user picked for it — where a recorder should put its output, say. Those folders are granted read and write alongside your `dataDir`, and `ctx.fs.writeDirs` tells you which ones actually were. Requires `dataDir` too: this widens where you may write, it does not replace having somewhere of your own. **Not dynamic** — an isolated plugin's OS-level permissions are fixed when its process forks, so a folder the user picks now takes effect at the next restart. Say so in your settings panel, and fall back to `dataDir` until then rather than throwing on every write (see `plugins/tape-deck`'s `resolveTapesRoot`). |
 | `capabilities` | no, but required if your `main.js` needs `ctx.ipcMain`/`ctx.spawn`/`ctx.createServer` | What your `main.js` needs to touch beyond reading files — see "Declaring capabilities" below. Shown to the user as a permission-approval prompt before your plugin is allowed to activate. |
 | `isolated` | no | `true` runs your `main.js` in its own real OS process instead of the same-process default — see "Isolated plugins" below. Recommended for any plugin with real `spawn`/`net`/filesystem-write capabilities. |
+| `startAtBoot` | no | `true` keeps an isolated plugin starting with the app. Without it, an isolated plugin with no `capabilities.net`, that no other plugin `dependsOn` and that doesn't depend on a plugin with `capabilities.net`, starts the first time one of its IPC channels or media-source services is used — see "Starting on demand". |
 | `minCtxVersion` | no | Integer. Declare this if your `renderer`/`settings` code depends on a `window.RCBPlugins.ctx` shape newer than the app's current `ctx.version` — see "renderer-process side" below. An app build whose `ctx.version` is lower refuses to import your entry with a clear error instead of letting it crash on a missing property. |
 | `fallbackIpc` | no | Object mapping an IPC channel name to a JSON value, e.g. `{ "my-plugin:getStatus": { "ready": false } }`. While your plugin is disabled, or waiting on a permissions approval, core registers each channel to answer with that value, so renderer code that calls it unconditionally gets an empty result instead of a raw "no handler registered" rejection. Your own `main.js` is never loaded in that state. This replaced the old `registerFallback` hook: **core no longer calls `registerFallback`** (it would run unapproved code), so move any fallback answers into this field. |
 
@@ -426,6 +427,18 @@ process (`utilityProcess.fork()`) instead of `require()`'d into the app's
 own. This is a genuinely different execution environment, not just an extra
 permission check — some things work identically, some need a different
 `ctx` method, and a few things aren't available at all:
+
+**Starting on demand.** To save memory (each isolated process is roughly 70 MB),
+an isolated plugin starts only when something first uses it, unless it declares
+`capabilities.net` (it runs a server), another plugin `dependsOn` it, it `dependsOn` a
+plugin that runs a server (it may add pages to it), or its manifest
+sets `"startAtBoot": true`. Until then the app answers its declared
+`capabilities.ipc` channels and `mediaSource` providers itself, and the first call
+starts the process, waits for `activate()`, then passes the call on. So register
+every channel and provider inside `activate()`, and don't rely on timers or pushes
+that begin at boot: a plugin that must do work before anyone calls it sets
+`startAtBoot`. A process that stops is started again on the next call, up to three
+times. Users can turn this off with SYSTEM › Start plug-ins only when needed.
 
 **Works exactly the same:**
 - `ctx.ipcMain.handle`/`.on` — still just works, transparently relayed.

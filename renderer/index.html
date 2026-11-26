@@ -1736,6 +1736,11 @@
               <div class="setting-row-control"><input type="checkbox" id="playback-resync-enabled" checked></div>
               <p class="setting-row-help">Every 20 seconds, nudge the picture back to where the schedule says it should be.</p>
             </div>
+            <div class="setting-row" data-setting="plugin-start-on-demand" data-synonyms="memory ram processes background plugins startup lazy">
+              <label class="setting-row-label" for="plugin-start-on-demand">Start plug-ins only when needed</label>
+              <div class="setting-row-control"><input type="checkbox" id="plugin-start-on-demand" checked></div>
+              <p class="setting-row-help">Plug-ins that run in their own process wait until something uses them, which saves memory. Takes effect the next time RerunTV starts.</p>
+            </div>
             <div class="setting-row" data-setting="playback-on-unplayable" data-synonyms="broken file corrupt codec transcode fix ffmpeg wont play error technical difficulties">
               <label class="setting-row-label" for="playback-on-unplayable">When a file won’t play</label>
               <div class="setting-row-control"><select id="playback-on-unplayable">

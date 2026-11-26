@@ -87,4 +87,29 @@ function runInDependencyOrder(plugins, run, limit = Infinity) {
   });
 }
 
-module.exports = { orderByDependencies, runInDependencyOrder };
+/**
+ * Which plugins can wait to start until something uses them (isolation.js's
+ * deferIsolatedPlugin). Only an isolated plugin whose whole surface is in its
+ * manifest qualifies: its IPC channels and media-source providers get stubs, so
+ * the first call starts it. Kept starting at boot:
+ * - a plugin with capabilities.net: it runs a server something else connects to;
+ * - a plugin another plugin `dependsOn`: dependents read what it publishes as it starts;
+ * - a plugin that `dependsOn` one with a server: it may add pages to that server
+ *   (a party route), which only exist once it runs;
+ * - a plugin whose manifest sets "startAtBoot": true.
+ * @param {Array<object>} plugins The plugins about to activate (normalized manifests).
+ * @returns {Set<string>} Ids of the plugins to start on demand.
+ */
+function lazyStartEligible(plugins) {
+  const hasServer = (plugin) => !!(plugin && ((plugin.capabilities && plugin.capabilities.net) || []).length);
+  const byId = new Map(plugins.map((plugin) => [plugin.id, plugin]));
+  const dependedOn = new Set();
+  plugins.forEach((plugin) => (plugin.dependsOn || []).forEach((id) => dependedOn.add(id)));
+  return new Set(plugins.filter((plugin) => plugin.isolated
+    && !plugin.startAtBoot
+    && !dependedOn.has(plugin.id)
+    && !hasServer(plugin)
+    && !(plugin.dependsOn || []).some((id) => hasServer(byId.get(id)))).map((plugin) => plugin.id));
+}
+
+module.exports = { lazyStartEligible, orderByDependencies, runInDependencyOrder };

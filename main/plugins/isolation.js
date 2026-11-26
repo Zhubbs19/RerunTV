@@ -57,6 +57,13 @@ const runningChildren = new Set(); // { child, pluginId } — for teardown + dia
 // plugin id may republish it (a legitimate re-resolve, e.g. after ffmpeg's
 // static path changes) — anyone else's write is dropped.
 const serviceOwners = new Map(); // key -> pluginId
+// Plugins started on demand (deferIsolatedPlugin): a service key prefix such as
+// "mediaSource:gdrive:" -> that plugin's lazy state, so the first call to one of
+// its media-source services starts its process.
+const lazyServicePrefixes = new Map();
+// How many times an on-demand plugin's process may stop after starting before
+// calls to it give up, so a plugin that crashes on every call can't loop.
+const MAX_LAZY_RESTARTS = 3;
 
 /**
  * Node's --experimental-permission model is coarser than Phase 1's per-value
@@ -177,8 +184,29 @@ function claimPartyRoute(pluginId, routeKey) {
 function callAnyService(pluginServices, key, args, timeoutMsOverride) {
   if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
   const provider = serviceProviders.get(key);
-  if (!provider) return Promise.reject(new Error(`No plugin has published a "${key}" service.`));
-  return provider.request('services:invoke', { key, args: args || [] }, timeoutMsOverride);
+  if (provider) return provider.request('services:invoke', { key, args: args || [] }, timeoutMsOverride);
+  // A provider that starts on demand registers its services once it is running.
+  const lazy = lazyStateForServiceKey(key);
+  if (lazy && !lazy.childRpc) {
+    return ensureStarted(lazy).then(() => {
+      const started = serviceProviders.get(key);
+      if (!started) throw new Error(`No plugin has published a "${key}" service.`);
+      return started.request('services:invoke', { key, args: args || [] }, timeoutMsOverride);
+    });
+  }
+  return Promise.reject(new Error(`No plugin has published a "${key}" service.`));
+}
+
+/**
+ * The on-demand plugin whose declared media-source provider a service key belongs to.
+ * @param {string} key A services key such as `mediaSource:gdrive:list`.
+ * @returns {?object} That plugin's lazy state, or null.
+ */
+function lazyStateForServiceKey(key) {
+  for (const [prefix, state] of lazyServicePrefixes) {
+    if (String(key).startsWith(prefix)) return state;
+  }
+  return null;
 }
 
 // ---- handlers for requests/events the CHILD initiates ----
@@ -193,8 +221,10 @@ function callAnyService(pluginServices, key, args, timeoutMsOverride) {
  * @param {object} baseCtx The shared plugin context.
  * @param {object} pluginServices The shared plugin service registry.
  * @param {object} manifest The plugin's manifest.
+ * @param {?object} [lazy] An on-demand plugin's state: its channels already have
+ *   forwarding stubs (deferIsolatedPlugin), so a registration only records the channel's kind.
  */
-function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest) {
+function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest, lazy = null) {
   // The client-side check in plugin-isolation-runtime.js's ctx.ipcMain only
   // stops a plugin going through ctx — nothing stops its own code calling
   // process.parentPort.postMessage() directly to emit this same RPC event
@@ -208,6 +238,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
       recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'register IPC channel', channel, 'ipc').message);
       return;
     }
+    if (lazy) { lazy.kinds.set(channel, 'handle'); return; }
     ipcMain.handle(channel, async (event, ...args) => childRpc.request('ipc:call', { channel, args }));
     bridge.registerPluginHandler(manifest.id, channel, (event, args) => childRpc.request('ipc:call', { channel, args }));
   });
@@ -216,6 +247,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
       recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'register IPC channel', channel, 'ipc').message);
       return;
     }
+    if (lazy) { lazy.kinds.set(channel, 'on'); return; }
     ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
     bridge.registerPluginHandler(manifest.id, channel, (event, args) => { childRpc.emit('ipc:on-fire', { channel, args }); });
   });
@@ -331,9 +363,10 @@ function helperBinaryPaths(baseCtx) {
  * @param {object} baseCtx The shared plugin context.
  * @param {object} pluginServices The shared plugin service registry.
  * @param {string} appRootDir The app's root folder.
- * @returns {Promise<object>} `{ ok: true }` once activated, or `{ ok: false, error }`; never rejects.
+ * @param {?object} [lazy] An on-demand plugin's state (deferIsolatedPlugin), when it is being started on first use.
+ * @returns {Promise<object>} `{ ok: true, childRpc }` once activated, or `{ ok: false, error }`; never rejects.
  */
-function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir) {
+function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir, lazy = null) {
   return new Promise((resolve) => {
     // Single plain folder name only (discovery already filters it; re-checked here
     // because this is what actually becomes a filesystem permission).
@@ -400,12 +433,13 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     childRpc.on('activate-result', (result) => {
       if (result.ok) {
         runningChildren.add({ child, pluginId: manifest.id });
-      } else {
-        // A failed activation leaves a live process that may already hold
-        // service/route registrations; kill it (the exit handler below purges
-        // them) rather than leaving a half-started plugin answering calls.
-        try { child.kill(); } catch (e) { /* already gone */ }
+        settle({ ...result, childRpc });
+        return;
       }
+      // A failed activation leaves a live process that may already hold
+      // service/route registrations; kill it (the exit handler below purges
+      // them) rather than leaving a half-started plugin answering calls.
+      try { child.kill(); } catch (e) { /* already gone */ }
       settle(result);
     });
 
@@ -451,15 +485,119 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
         partyRouteOwners.delete(key);
       });
       beforeQuitChildren.delete(childRpc);
-      bridge.unregisterPlugin(manifest.id);
+      // An on-demand plugin keeps its forwarding stubs, so the next call starts it again.
+      if (lazy) lazyProcessExited(lazy, childRpc, code);
+      else bridge.unregisterPlugin(manifest.id);
       childRpc.dispose(`plugin "${manifest.id}" process exited (code ${code})`);
       settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
     });
 
-    registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest);
+    registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest, lazy);
     hostHandlersReady = true;
     sendInitWhenReady();
   });
+}
+
+// ---------- Start on demand ----------
+// An isolated plugin whose whole main-process surface is known from its manifest
+// (its declared IPC channels and media-source providers) doesn't need its process
+// until something calls it. Each process is roughly 70 MB, so a box with a dozen
+// such plugins saves most of a gigabyte while they sit unused. Which plugins qualify
+// is decided in activation-order.js (lazyStartEligible); this is the mechanism.
+
+/**
+ * Registers forwarding stubs for an isolated plugin's declared IPC channels and
+ * media-source services, so its process starts the first time one is used instead of at boot.
+ * @param {object} manifest The plugin's manifest.
+ * @param {string} pluginDir The plugin's install folder.
+ * @param {object} baseCtx The shared plugin context.
+ * @param {object} pluginServices The shared plugin service registry.
+ * @param {string} appRootDir The app's root folder.
+ * @param {(error: string) => void} [onError] Called when starting it fails, or it stops too often.
+ * @returns {object} The plugin's lazy state (`childRpc` is null until it is running).
+ */
+function deferIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir, onError = () => {}) {
+  const state = {
+    manifest, pluginDir, baseCtx, pluginServices, appRootDir, onError,
+    kinds: new Map(), childRpc: null, starting: null, failed: null, exits: 0,
+  };
+  const { allowedIpc } = allowedSetsFor(manifest.capabilities);
+  // The manifest says which channels a plugin may use, not whether it answers each
+  // with handle() or on(); both get a stub and the plugin's own registration decides.
+  const invokeChannel = async (channel, args) => {
+    const childRpc = await ensureStarted(state);
+    const kind = state.kinds.get(channel);
+    if (kind === 'handle') return childRpc.request('ipc:call', { channel, args });
+    if (kind === 'on') { childRpc.emit('ipc:on-fire', { channel, args }); return undefined; }
+    throw new Error(`Plugin "${manifest.id}" has no handler for "${channel}".`);
+  };
+  allowedIpc.forEach((channel) => {
+    ipcMain.handle(channel, (event, ...args) => invokeChannel(channel, args));
+    ipcMain.on(channel, (event, ...args) => {
+      ensureStarted(state).then((childRpc) => {
+        if (state.kinds.get(channel) === 'on') childRpc.emit('ipc:on-fire', { channel, args });
+      }).catch(() => { /* already reported through onError */ });
+    });
+    bridge.registerPluginHandler(manifest.id, channel, (event, args) => invokeChannel(channel, args));
+  });
+  ((manifest.capabilities && manifest.capabilities.mediaSource) || []).forEach((entry) => {
+    lazyServicePrefixes.set(`mediaSource:${entry.providerId}:`, state);
+  });
+  return state;
+}
+
+/**
+ * Starts an on-demand plugin's process if it isn't running; concurrent callers share one start.
+ * @param {object} state The plugin's lazy state.
+ * @returns {Promise<object>} Its RPC channel once activated; rejects when it can't be started.
+ */
+function ensureStarted(state) {
+  if (state.childRpc) return Promise.resolve(state.childRpc);
+  if (state.failed) return Promise.reject(new Error(state.failed));
+  if (!state.starting) {
+    const { manifest } = state;
+    recordDiagnostic('plugin-loader', 'log', `Starting ${manifest.id} on first use`, { isolated: true });
+    state.starting = activateIsolatedPlugin(manifest, state.pluginDir, state.baseCtx, state.pluginServices, state.appRootDir, state)
+      .then((result) => {
+        state.starting = null;
+        if (!result.ok) {
+          // Same as a failed activation at boot: it stays down for this session.
+          state.failed = result.error || 'activation failed';
+          recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" could not start: ${state.failed}`);
+          state.onError(state.failed);
+          throw new Error(state.failed);
+        }
+        state.childRpc = result.childRpc;
+        return state.childRpc;
+      });
+  }
+  return state.starting;
+}
+
+/**
+ * Notes that an on-demand plugin's running process stopped, so the next call starts it
+ * again, until it has stopped MAX_LAZY_RESTARTS times.
+ * @param {object} state The plugin's lazy state.
+ * @param {object} childRpc The RPC channel of the process that exited.
+ * @param {?number} code Its exit code.
+ */
+function lazyProcessExited(state, childRpc, code) {
+  if (state.childRpc !== childRpc) return; // exited before it finished starting; ensureStarted handles that
+  state.childRpc = null;
+  state.kinds.clear();
+  state.exits += 1;
+  if (state.exits >= MAX_LAZY_RESTARTS) {
+    state.failed = `its process stopped ${state.exits} times (last exit code ${code})`;
+    recordDiagnostic(`plugin:${state.manifest.id}`, 'error', `Plugin "${state.manifest.id}" will not be restarted again: ${state.failed}.`);
+    state.onError(state.failed);
+  }
+}
+
+/**
+ * Forgets every on-demand plugin's service prefixes (tests only).
+ */
+function resetLazyForTests() {
+  lazyServicePrefixes.clear();
 }
 
 /**
@@ -477,5 +615,6 @@ function wireAppQuitPropagation() {
 }
 
 module.exports = {
-  activateIsolatedPlugin, wireAppQuitPropagation, callAnyService, buildExecArgv, claimServiceKey,
+  activateIsolatedPlugin, deferIsolatedPlugin, ensureStarted, wireAppQuitPropagation, callAnyService, buildExecArgv,
+  claimServiceKey, resetLazyForTests,
 };

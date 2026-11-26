@@ -76,6 +76,8 @@ const REMOTE_DENIED_SETTINGS = {
   pinLock: 'The PIN lock can only be changed on the host.',
   // Switches on shutting down the PC itself.
   pcPower: 'PC power can only be changed on the host.',
+  // How the host's plug-in processes start.
+  pluginProcesses: 'Plug-in start-up can only be changed on the host.',
 };
 
 /**

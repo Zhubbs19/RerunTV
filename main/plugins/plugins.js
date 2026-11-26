@@ -25,8 +25,10 @@ const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const os = require('os');
-const { activateIsolatedPlugin, callAnyService, claimServiceKey } = require('./isolation');
-const { orderByDependencies, runInDependencyOrder } = require('./activation-order');
+const {
+  activateIsolatedPlugin, callAnyService, claimServiceKey, deferIsolatedPlugin,
+} = require('./isolation');
+const { lazyStartEligible, orderByDependencies, runInDependencyOrder } = require('./activation-order');
 const bridge = require('./bridge');
 const { isPathContained } = require('../util/path-safety');
 const { createLanAccess, isLanServiceEnabled } = require('../lan/security');
@@ -504,6 +506,9 @@ function discoverPluginsUncached() {
         // non-`true` value) keeps running exactly the Phase 1 same-process
         // buildCheckedCtx() path, unchanged.
         isolated: manifest.isolated === true,
+        // An isolated plugin that must run from boot even though nothing calls it
+        // (a background watcher, say) sets "startAtBoot": true; see lazyStartEligible().
+        startAtBoot: manifest.startAtBoot === true,
         // See isBundledPluginId() above — gates whether the PLUGINS tab
         // offers FULLY UNINSTALL (bundled plugins would just come back).
         bundled,
@@ -723,9 +728,15 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   // at once is most of the win; capped by core count so a small mini-PC
   // under a TV isn't swamped at boot.
   const parallel = Math.max(2, Math.min(8, os.availableParallelism()));
+  const onDemand = pluginsStartOnDemand(extraCtx) ? lazyStartEligible(eligible) : new Set();
   await runInDependencyOrder(eligible, async (plugin) => {
     const pluginDir = path.join(getPluginsDir(), plugin.dir);
-    if (plugin.isolated) {
+    if (onDemand.has(plugin.id)) {
+      // Counts as activated: its channels and providers answer, and the process
+      // starts on the first call. A failure then is recorded like a boot failure.
+      deferIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir, (error) => { loadErrors[plugin.id] = error; });
+      activated.add(plugin.id);
+    } else if (plugin.isolated) {
       try {
         const result = await activateIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir);
         if (!result.ok) loadErrors[plugin.id] = result.error;
@@ -749,7 +760,8 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
         loadErrors[plugin.id] = e.message;
       }
     }
-    if (activated.has(plugin.id)) recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
+    if (onDemand.has(plugin.id)) recordDiagnostic('plugin-loader', 'log', `Ready ${plugin.id} (starts on first use)`, { isolated: true });
+    else if (activated.has(plugin.id)) recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
   }, parallel);
   // In list order rather than finish order, so the provider map and the CSP
   // port list come out the same on every boot.
@@ -760,6 +772,20 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   return {
     loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders, activatedNetPorts,
   };
+}
+
+/**
+ * Whether the box starts eligible plug-ins only when needed (`pluginProcesses.onDemand`, default on).
+ * @param {object} extraCtx The shared plugin context (`loadConfig`).
+ * @returns {boolean} False only when the user turned it off.
+ */
+function pluginsStartOnDemand(extraCtx) {
+  try {
+    const config = typeof extraCtx.loadConfig === 'function' ? extraCtx.loadConfig() : null;
+    return !(config && config.pluginProcesses && config.pluginProcesses.onDemand === false);
+  } catch (e) {
+    return true;
+  }
 }
 
 /**

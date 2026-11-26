@@ -414,7 +414,7 @@ const SETTING_LABELS = {
   customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
   controls: 'tuning & controls', keyMap: 'keyboard shortcuts', gamepad: 'game controller', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', lastSeenAt: 'last seen', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
-  pcPower: 'PC power', programFit: 'fit to time slots',
+  pcPower: 'PC power', programFit: 'fit to time slots', pluginProcesses: 'plug-in start-up',
   playback: 'playback', signOnCard: 'welcome-back card', audioLevelerTarget: 'leveler loudness', remote: 'remote buttons',
 };
 const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));

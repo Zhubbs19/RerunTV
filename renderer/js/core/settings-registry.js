@@ -1499,6 +1499,19 @@ export const SETTINGS = [
     tv: { section: 'power', label: 'KEEP DISPLAY AWAKE', apply: 'wakeLock' },
   },
   {
+    id: 'plugin-start-on-demand',
+    path: ['pluginProcesses', 'onDemand'],
+    label: 'Start plug-ins only when needed',
+    help: 'Plug-ins that run in their own process wait until something uses them, which saves memory. Takes effect the next time RerunTV starts.',
+    type: 'switch',
+    default: true,
+    home: 'audio/system',
+    bound: true,
+    level: 'advanced',
+    synonyms: 'memory ram processes background plugins startup lazy',
+    tv: { section: 'power', label: 'START PLUG-INS WHEN NEEDED' },
+  },
+  {
     id: 'pc-shutdown-enabled',
     path: ['pcPower', 'enabled'],
     label: 'Allow shutting down the PC from RerunTV',
@@ -2483,7 +2496,7 @@ export const PAGE_LABELS = {
 
 // Whole config sections a LAN client may never write. Must equal the keys of
 // main/config/host.js's REMOTE_DENIED_SETTINGS (the registry test checks).
-export const HOST_ONLY_SECTIONS = ['network', 'updates', 'pinLock', 'pcPower'];
+export const HOST_ONLY_SECTIONS = ['network', 'updates', 'pinLock', 'pcPower', 'pluginProcesses'];
 
 // Choices a client fills in from its own lists rather than the registry.
 const CLIENT_CHOICES = { 'guide-theme': 'themes', 'startup-channel': 'channels' };
