@@ -326,6 +326,10 @@ export function renderChannelList() {
       nameInput.addEventListener('input', () => {
         dispatch({ type: 'channel.rename', channel: ch.number, name: nameInput.value }, { coalesce: `rename:${ch.number}` });
         callInput.placeholder = abbreviateChannelName(nameInput.value) || 'CALL';
+        // The lineup row shows the name too; patch it in place rather than
+        // redrawing the page, which would take focus out of this field.
+        const listName = channelListPaneEl && channelListPaneEl.querySelector(`.channel-list-item[data-channel-number="${ch.number}"] .channel-list-name`);
+        if (listName) listName.textContent = nameInput.value || 'UNTITLED';
       });
 
       // Call letters for the guide's abbreviated channel names (DISPLAY >

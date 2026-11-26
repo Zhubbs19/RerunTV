@@ -719,6 +719,8 @@ html[data-ui="cable-guide"] .cg-info-desc {
   -webkit-line-clamp: 6;
   overflow: hidden;
 }
+/* The Mini Guide's band is three rows tall: two lines fit above the tiles. */
+html[data-ui="cable-guide"] .guide-grid.docked .cg-info-desc { -webkit-line-clamp: 2; }
 html[data-ui="cable-guide"] .cg-info-desc-empty { color: var(--cg-text-dim); }
 html[data-ui="cable-guide"] .cg-tiles {
   position: absolute;

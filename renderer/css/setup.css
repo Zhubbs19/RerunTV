@@ -1101,6 +1101,8 @@ input[type="checkbox"].shuffle-toggle:active {
 }
 .interstitials-group-header:first-child { margin-top: 0; }
 .interstitials-group-header .interstitials-group-count { color: var(--text-muted); font-weight: 600; }
+/* Entries tied to a channel that has since been removed. */
+.interstitials-group-header.is-missing { color: var(--danger-text); }
 .interstitials-group-chevron { display: inline-block; width: 10px; transition: transform 120ms linear; }
 .interstitials-group-header.collapsed .interstitials-group-chevron { transform: rotate(-90deg); }
 .interstitials-group-preview-btn {

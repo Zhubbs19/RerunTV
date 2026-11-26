@@ -320,8 +320,9 @@ export function menuLabel(label) {
   let first = true;
   return text.replace(/[A-Za-z][A-Za-z'’]*/g, (word, at) => {
     const upper = word.toUpperCase();
-    // A word straight after a separator starts a new phrase ("CH 6 · The…").
-    if (/[·›:—(]\s*$/.test(text.slice(0, at))) first = true;
+    // A word straight after a separator starts a new phrase ("CH 6 · The…"),
+    // and so does one after "&" ("Guide & On Screen", not "Guide & on Screen").
+    if (/[·›:—(&]\s*$/.test(text.slice(0, at))) first = true;
     let out;
     // A decade: "1970S" → "1970s".
     if (upper === 'S' && /\d$/.test(text.slice(0, at))) out = 's';

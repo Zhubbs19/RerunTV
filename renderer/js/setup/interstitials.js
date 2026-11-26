@@ -653,7 +653,38 @@ function populateInterstitialsFilterOptions() {
     opt.textContent = `CH ${c.number}${c.name ? ' — ' + c.name : ''}`;
     interstitialsFilterChannelEl.appendChild(opt);
   });
+  removedAffinities(S.config.interstitials && S.config.interstitials.pool).forEach((number) => {
+    const opt = document.createElement('option');
+    opt.value = String(number);
+    opt.textContent = removedChannelLabel(number);
+    interstitialsFilterChannelEl.appendChild(opt);
+  });
   interstitialsFilterChannelEl.value = chVal;
+}
+
+/**
+ * Channel numbers pool entries are tied to that no channel has any more, in
+ * order. A channel's removal leaves its entries' affinity behind; without
+ * these the entries would be listed nowhere and could not be edited or deleted.
+ * @param {?Array<object>} pool The pool entries.
+ * @returns {number[]} The missing channel numbers.
+ */
+function removedAffinities(pool) {
+  const existing = new Set(sortedChannels().map((c) => c.number));
+  const missing = new Set();
+  (pool || []).forEach((entry) => {
+    if (entry && typeof entry.channelAffinity === 'number' && !existing.has(entry.channelAffinity)) missing.add(entry.channelAffinity);
+  });
+  return Array.from(missing).sort((a, b) => a - b);
+}
+
+/**
+ * The label for a channel that no longer exists, as flows show it.
+ * @param {number} number The channel number.
+ * @returns {string} "CH 420 (REMOVED)".
+ */
+function removedChannelLabel(number) {
+  return `CH ${number} (REMOVED)`;
 }
 
 /**
@@ -679,6 +710,11 @@ function groupInterstitialsByChannel(pool) {
     if (groups.has(key)) {
       ordered.push({ key, label: `CH ${c.number}${c.name ? ' — ' + c.name : ''}`, items: groups.get(key) });
     }
+  });
+  // Entries for a removed channel, last, so they can still be moved or deleted.
+  removedAffinities(pool).forEach((number) => {
+    const key = String(number);
+    if (groups.has(key)) ordered.push({ key, label: removedChannelLabel(number), items: groups.get(key), removed: true });
   });
   return ordered;
 }
@@ -798,7 +834,8 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
 
     const meta = document.createElement('span');
     meta.className = 'interstitial-card-meta';
-    const chLabel = entry.channelAffinity === 'any' ? 'ANY CH' : `CH ${entry.channelAffinity}`;
+    const chLabel = entry.channelAffinity === 'any' ? 'ANY CH'
+      : (getChannel(entry.channelAffinity) ? `CH ${entry.channelAffinity}` : removedChannelLabel(entry.channelAffinity));
     meta.textContent = `${chLabel} · WT ${entry.weight || 1}`;
     summary.appendChild(meta);
 
@@ -899,6 +936,13 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       opt.textContent = `CH ${c.number}${c.name ? ' — ' + c.name : ''}`;
       channelSelect.appendChild(opt);
     });
+    if (entry.channelAffinity !== 'any' && !getChannel(entry.channelAffinity)) {
+      // Keep a removed channel selectable so the select shows it instead of a blank.
+      const goneOpt = document.createElement('option');
+      goneOpt.value = String(entry.channelAffinity);
+      goneOpt.textContent = removedChannelLabel(entry.channelAffinity);
+      channelSelect.appendChild(goneOpt);
+    }
     channelSelect.value = entry.channelAffinity === 'any' ? 'any' : String(entry.channelAffinity);
     channelSelect.addEventListener('change', () => {
       const prior = cloneJson(entry);
@@ -1333,7 +1377,8 @@ export function renderInterstitialsList() {
   groups.forEach((group) => {
     const collapsed = collapsedInterstitialGroups.has(group.key);
     const header = document.createElement('div');
-    header.className = 'interstitials-group-header' + (collapsed ? ' collapsed' : '');
+    header.className = 'interstitials-group-header' + (collapsed ? ' collapsed' : '') + (group.removed ? ' is-missing' : '');
+    if (group.removed) header.title = 'This channel no longer exists. Move these entries to another channel or delete them; a new channel given this number would use them.';
     header.setAttribute('role', 'button');
     header.setAttribute('aria-expanded', String(!collapsed));
     header.tabIndex = 0;

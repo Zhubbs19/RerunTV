@@ -15,7 +15,7 @@
   background:
     radial-gradient(120% 90% at 50% 0%, rgba(var(--cyan-rgb, 0 180 255) / 0.16), transparent 70%),
     var(--bg, #06080f);
-  color: var(--ink, #e8f1ff);
+  color: var(--text, #e8f1ff); /* --ink is a surface colour, dark on the cable-guide themes */
   font-family: var(--font-ui, system-ui, sans-serif);
   overflow: hidden;
 }

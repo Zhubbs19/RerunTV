@@ -62,6 +62,17 @@ async function currentPinFor(profile, title = 'PROFILE PIN') {
 }
 
 /**
+ * A profile's theme as people know it: the pack's name, not its id.
+ * @param {?string} themeId The profile's theme id, or null for the box's.
+ * @returns {string} The pack label, the id when the pack is gone, or "BOX DEFAULT".
+ */
+function profileThemeName(themeId) {
+  if (!themeId) return 'BOX DEFAULT';
+  const entry = themePackEntries().find((pack) => pack.id === themeId);
+  return (entry && entry.label) || themeId;
+}
+
+/**
  * Draws the profile list: one row per profile with SWITCH, EDIT, RESTRICTION and PIN buttons, plus THEME for the active one.
  */
 function renderProfiles() {
@@ -107,7 +118,8 @@ function renderProfiles() {
       try { await call('updateProfile', { id: profile.id, currentPin, pin }); await reloadProfiles(active?.id); }
       catch (e) { await alertDialog(e.message, { variant: 'error' }); }
     }));
-    if (profile.id === active?.id) row.appendChild(button(`THEME: ${(active.state.theme || 'BOX DEFAULT').toUpperCase()}`, async () => {
+    // The pack's name, not its id ("CABLE GUIDE CLASSIC '05", not "cable-guide-classic-05").
+    if (profile.id === active?.id) row.appendChild(button(`THEME: ${profileThemeName(active.state.theme).toUpperCase()}`, async () => {
       const ids = [null, ...themePackEntries().map((entry) => entry.id)];
       const current = ids.indexOf(active.state.theme || null);
       await personalCommand({ type: 'state.set', key: 'theme', value: ids[(current + 1) % ids.length] });

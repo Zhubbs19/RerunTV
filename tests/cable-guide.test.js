@@ -137,6 +137,7 @@ test('menu labels read in title case, keeping abbreviations', async () => {
   assert.equal(menuLabel('LAST CH'), 'Last CH');
   assert.equal(menuLabel('CUSTOM CSS'), 'Custom CSS');
   assert.equal(menuLabel('PICTURE & SOUND ›'), 'Picture & Sound');
+  assert.equal(menuLabel('GUIDE & ON SCREEN'), 'Guide & On Screen');
   assert.equal(menuLabel('PROFILE: EVERYONE ›'), 'Profile: Everyone');
   assert.equal(menuLabel('CONTINUE ON… ›'), 'Continue on…');
   assert.equal(menuLabel('SHUT DOWN PC'), 'Shut Down PC');
