@@ -125,7 +125,12 @@ test('CodeQL analyzes javascript-typescript and can upload results', () => {
 test('Dependabot covers every tracked package.json directory and the workflow actions', () => {
   const dependabot = read('.github', 'dependabot.yml');
   const manifests = execFileSync('git', ['ls-files', '--', '*package.json'], { cwd: ROOT, encoding: 'utf8' })
-    .split(/\r?\n/).filter(Boolean).filter((file) => !file.includes('node_modules'));
+    .split(/\r?\n/).filter(Boolean).filter((file) => !file.includes('node_modules'))
+    // A bare `{"type": "module"}` marker (renderer/js/core and friends) has nothing to update.
+    .filter((file) => {
+      const json = JSON.parse(read(...file.split('/')));
+      return ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'].some((key) => json[key]);
+    });
   assert.ok(manifests.length >= 2);
   const blocks = dependabot.split(/\n {2}- package-ecosystem:/).slice(1).map((b) => `package-ecosystem:${b}`);
   const npmDirs = blocks.filter((b) => /package-ecosystem: npm/.test(b)).map((b) => b.match(/directory: (\S+)/)[1]);

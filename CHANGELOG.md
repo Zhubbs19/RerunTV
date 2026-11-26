@@ -6,6 +6,9 @@ Each GitHub release lists the entries that are new since the release before it.
 
 ## 2026-11-25
 
+- Moving a channel up or down from the TV menu now takes its flows, ad presets, ad targets and PIN lock with it, as moving it in Channel Setup always did. They used to stay behind on the old number, so a PIN lock could end up on the channel it swapped with.
+- A flow aimed at a channel you have since deleted now says so: the channel shows as “(removed)” in the flow’s channel list, and a flow with no channels left warns that it airs nowhere. A new channel given that number would otherwise pick the flow up.
+- Content ratings keep their capitals on the cable-guide skins (TV-MA, PG-13, NC-17 instead of TV-Ma, Pg-13, Nc-17).
 - The docked guide no longer flashes as you move through it: the channel logos down the side used to blink out for a moment on every arrow press.
 - The card that appears after an update shows this version’s What’s New as plain text. It used to show the release page’s raw HTML, with the download warning and a list of code changes, and its suggestions included features from many versions back; it now lists only what is new since the version you had.
 - The guide no longer gets stuck a few days ahead. On a channel with many short files or schedule blocks, ▶ used to stop moving a couple of days out; it now pages as far ahead as you like.
